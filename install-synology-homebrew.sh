@@ -1,0 +1,342 @@
+#!/bin/bash
+clear
+
+# Get the directory containing this script
+case "$0" in
+    /*) script_path="$0" ;;
+    *) script_path="$(pwd)/$0" ;;
+esac
+
+# Resolve the directory path
+script_dir="$(cd "$(dirname "$script_path")" && pwd)"
+
+# Change to the script directory
+cd "$script_dir"
+echo "Working directory: $script_dir"
+
+# Define the location of JSON
+CONFIG_JSON_PATH="$script_dir/config.json"
+
+# Format JSON to ensure compatibility
+# sed fix for json values not including double backslash
+sed -E -i 's/([^\\])\\([^\\"])/\1\\\\\2/g' "$CONFIG_JSON_PATH"
+# sed fix to escape double quotes with backslash
+sed -E -i 's/(^.*:\s*\"[^\\]*?)(\".*?)(\".*?\"$)/\1\\\2\\\3/g' "$CONFIG_JSON_PATH"
+
+# Read the content of JSON into the CONFIG_JSON variable
+CONFIG_JSON=$(<"$CONFIG_JSON_PATH")
+
+# Update plugin keys from url (overwrites config.json file)
+echo "$CONFIG_JSON" | jq '{
+  packages: .packages,
+  plugins: (.plugins | to_entries | map({key: (.value.url | split("/")[-1]), value: .value}) | from_entries)
+}' > "$CONFIG_JSON_PATH"
+
+# Validate JSON
+if jq empty "$CONFIG_JSON_PATH" > /dev/null 2>&1; then
+    echo "JSON is valid."
+else
+    echo "Invalid JSON."
+    exit 1
+fi
+
+# Prompt for the install type
+echo -e "\n\nSelect your install type:\n"
+echo "    1) Synology-Homebrew: Minimal install ignoring and/or uninstalling packages in config.json."
+echo "    2) Synology-Homebrew: Full setup includes packages in config.json (Recommended if you want to get started with Neovim)"
+echo
+read -rp "Enter the number of your choice: " install_type
+
+# Process the selection
+case $install_type in
+    1)
+		echo "Minimal Homebrew install"
+        # Use jq to update the install fields to false and assign the result back to CONFIG_JSON
+        CONFIG_JSON=$(echo "$CONFIG_JSON" | jq '.packages |= with_entries(.value |= if .install == true then .install = false else . end)')
+	;;
+    2)
+        echo "Using config.json for Homebrew installation"
+        ;;
+    *)
+        echo "Invalid selection. Please run the script again and select a valid option."
+        exit 1
+        ;;
+esac
+
+export HOMEBREW_NO_ENV_HINTS=1
+export HOMEBREW_NO_AUTO_UPDATE=1
+
+# Check if the script is being run as root
+if [ "$EUID" -eq 0 ]; then
+    echo "This script should not be run as root. Please run it as a regular user, although we will need root password in a second..."
+    exit 1
+fi
+
+# Prompt for root password and cache credentials
+sudo -v
+
+# Check if sudo credentials are cached
+if [ $? -eq 1 ]; then
+    echo "Incorrect password or user is not allowed to use sudo."
+    exit 1
+fi
+
+# Keep sudo credentials updated
+while true; do
+    sudo -v
+    sleep 50
+done &
+KEEP_SUDO_PID=$!
+
+# Ensure the background sudo refresh process is terminated when the script exits
+cleanup() {
+    kill $KEEP_SUDO_PID
+}
+trap cleanup EXIT
+
+# Check all prerquisites of this script
+error=false
+
+# Check if Synology Homes is enabled
+if [[ ! -d /var/services/homes/$(whoami) ]]; then
+    echo "Synology Homes has NOT been enabled. Please enable in DSM Control Panel >> Users & Groups >> Advanced >> User Home."
+    error=true
+fi
+# Check if Homebrew is installed
+if [[ ! -x /home/linuxbrew/.linuxbrew/bin/brew ]]; then
+    echo "Homebrew is not installed. Checking environment for requirements..."
+    # Check if Ruby is installed
+    if [[ ! -x $(command -v ruby) ]]; then
+        echo "Ruby not installed. Please install Ruby via package manager before running."
+        error=true
+    else
+	echo "Ruby has been found"
+	fi
+    # Check if Git is installed
+    if [[ ! -x $(command -v git) ]]; then
+        echo "Git not installed. Please install Git via package manager before running."
+        error=true
+    else
+	echo "Git has been found"
+    fi
+else
+	echo "Homebrew is installed. Checking your environment to see if further actions are required. Please wait..."
+fi
+
+# If any error occurred, exit with status 1
+if $error; then
+    exit 1
+fi
+
+# Install ldd file script
+sudo install -m 755 /dev/stdin /usr/bin/ldd <<EOF
+#!/bin/bash
+[[ \$(/usr/lib/libc.so.6) =~ version\ ([0-9]\.[0-9]+) ]] && echo "ldd \${BASH_REMATCH[1]}"
+EOF
+
+# Install os-release file script
+sudo install -m 755 /dev/stdin /etc/os-release <<EOF
+#!/bin/bash
+echo "PRETTY_NAME=\"\$(source /etc.defaults/VERSION && echo \${os_name} \${productversion}-\${buildnumber} Update \${smallfixnumber})\""
+EOF
+
+# Set a home for homebrew
+if [[ ! -d /home ]]; then
+    sudo bash -c '[[ ! -d /home ]] && sudo mkdir /home && sudo mount -o bind "/volume1/homes" /home'
+    sudo chown -R $(whoami):root /home
+fi
+
+# Reset .profile and add custom paths
+cat > ~/.profile <<EOF
+PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/syno/sbin:/usr/syno/bin:/usr/local/sbin:/usr/local/bin
+# Directories to add to PATH
+directories=(
+  "/home/linuxbrew/.linuxbrew/lib/ruby/gems/3.3.0/bin"
+  "/home/linuxbrew/.linuxbrew/opt/glibc/sbin"
+  "/home/linuxbrew/.linuxbrew/opt/glibc/bin"
+  "/home/linuxbrew/.linuxbrew/opt/binutils/bin"
+  "/home/linuxbrew/.linuxbrew/sbin"
+  "/home/linuxbrew/.linuxbrew/bin"
+)
+# Iterate over each directory in the 'directories' array
+for dir in "\${directories[@]}"; do
+    # Check if the directory is already in PATH
+    if [[ ":\$PATH:" != *":\$dir:"* ]]; then
+        # If not found, append it to PATH
+        export PATH="\$dir:\$PATH"
+    fi
+done
+
+# Additional environment variables
+export LDFLAGS="-L/home/linuxbrew/.linuxbrew/opt/glibc/lib"
+export CPPFLAGS="-I/home/linuxbrew/.linuxbrew/opt/glibc/include"
+export XDG_CONFIG_HOME="\$HOME"/.config
+export HOMEBREW_GIT_PATH=/home/linuxbrew/.linuxbrew/bin/git
+
+# Keep gcc up to date. Find the latest version of gcc installed and set symbolic links
+# Extract the version number from latest gcc
+max_version=\$(ls -d /home/linuxbrew/.linuxbrew/opt/gcc/bin/gcc-* | grep -oE '[0-9]+$' | sort -nr | head -n1)
+# Create symbolic link for gcc to latest gcc-* 
+ln -sf "/home/linuxbrew/.linuxbrew/bin/gcc-\$max_version" "/home/linuxbrew/.linuxbrew/bin/gcc"
+# Create symbolic links for gcc-11 to max_version-1 pointing to latest gcc-*
+for ((i = 11; i < max_version; i++)); do
+    ln -sf "/home/linuxbrew/.linuxbrew/bin/gcc-\$max_version" "/home/linuxbrew/.linuxbrew/bin/gcc-\$i"
+done
+
+eval "\$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+[[ -f ~/.scripts/fzf-git.sh ]] && source ~/.scripts/fzf-git.sh
+
+if [[ -x \$(command -v perl) && \$(perl -Mlocal::lib -e '1' 2>/dev/null) ]]; then
+    eval "\$(perl -I$HOME/perl5/lib/perl5 -Mlocal::lib=\$HOME/perl5)"
+fi
+
+EOF
+
+# Begin install. Remove brew git env if it does not exist
+[[ ! -x /home/linuxbrew/.linuxbrew/bin/git ]] && unset HOMEBREW_GIT_PATH
+NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" 2> /dev/null
+eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+ulimit -n 2048
+brew install --quiet glibc gcc 2> /dev/null
+brew install --quiet git 2> /dev/null
+brew install --quiet ruby 2> /dev/null
+brew install --quiet clang-build-analyzer 2> /dev/null
+brew install --quiet zsh 2> /dev/null
+brew upgrade --quiet 2> /dev/null
+source ~/.profile
+
+echo --------------------------PATH SET-------------------------------
+echo $PATH
+echo -----------------------------------------------------------------
+
+# Create a brew list of installed packages into an array
+BREW_LIST_ARRAY=()
+while IFS= read -r line; do
+    BREW_LIST_ARRAY+=("$line")
+done <<< $(brew list -1)
+
+
+# Read JSON and process packages
+echo "$CONFIG_JSON" | jq -r '.packages | to_entries[] | .key'  | while read -r package; do
+	install_status=$(echo "$CONFIG_JSON" | jq -r ".packages[\"$package\"].install")
+    if [[ "${BREW_LIST_ARRAY[*]}" =~ "$package" ]]; then
+        if [[ "$install_status" == "true" ]]; then
+            echo "$package is already installed."
+        else
+            echo "$package is not set to install in config.json and will now be uninstalled"
+            brew uninstall --quiet "$package"
+        fi
+    else
+        if [[ "$install_status" == "true" ]]; then
+            echo "$package is not installed, installing..."
+            brew install --quiet "$package"
+        else
+            echo "$package is not set to install in config.json and will be skipped"
+        fi
+    fi
+done
+
+echo "Creating symlinks"
+sudo ln -sf /home/linuxbrew/.linuxbrew/bin/python3 /home/linuxbrew/.linuxbrew/bin/python
+sudo ln -sf /home/linuxbrew/.linuxbrew/bin/pip3 /home/linuxbrew/.linuxbrew/bin/pip
+sudo ln -sf /home/linuxbrew/.linuxbrew/bin/gcc /home/linuxbrew/.linuxbrew/bin/cc
+
+# Enable perl in homebrew
+if [[ $(echo "$CONFIG_JSON" | jq -r '.packages.perl.install') == true ]]; then
+    [[ ! -e /usr/bin/perl ]] && sudo ln -sf /home/linuxbrew/.linuxbrew/bin/perl /usr/bin/perl
+    if ! perl -Mlocal::lib -e '1' &> /dev/null; then
+	echo "Enabling perl cpan with defaults and permission fix"
+        sudo -E PERL_MM_USE_DEFAULT=1  PERL_MM_OPT=INSTALL_BASE=$HOME/perl5 cpan local::lib && sudo chown -R $(whoami):users ~/perl5 $HOME/.cpan
+    fi
+fi
+
+
+# oh-my-zsh will only be installed if zsh is found as a command
+[[ -e ~/.oh-my-zsh ]] && rm -rf ~/.oh-my-zsh
+if [[ -x $(command -v zsh) ]]; then
+	sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
+	chmod -R 755 ~/.oh-my-zsh
+fi
+
+# Check if Neovim + kickstart.nvim is being installed and backup config. Else: Set kickstart.nvim install to false. 
+if [[ $(echo "$CONFIG_JSON" | jq -r '.packages.neovim.install') == true ]] && \
+   [[ $(echo "$CONFIG_JSON" | jq -r '.plugins."kickstart.nvim".install') == true ]]; then
+    kickstart_dir=$(echo "$CONFIG_JSON" | jq -r '.plugins."kickstart.nvim".directory')
+    eval kickstart_dir="$kickstart_dir"
+    if [[ -e "$kickstart_dir" ]]; then
+        mv "$kickstart_dir" ~/"$(basename "$kickstart_dir")"_BAK_$(date +%Y%m%d_%H%M%S)
+        echo "Backing up $kickstart_dir to home directory"
+    fi
+else
+     CONFIG_JSON=$(echo "$CONFIG_JSON" | jq '.plugins["kickstart.nvim"].install = false')
+fi
+
+# Read JSON and install plugins
+echo "$CONFIG_JSON" | jq -r '.plugins | to_entries[] | "\(.key) \(.value.install) \(.value.directory) \(.value.url)"' | while read -r plugin install directory url; do
+    eval directory="$directory"
+
+    if [[ "$install" == "true" && ! -d "$directory" ]]; then
+        echo "$plugin is not installed, cloning..."
+        git clone "$url" "$directory"
+    elif [[ "$install" == "true" && -d "$directory" ]]; then
+        echo "$plugin is already installed."
+    else
+        echo "$plugin install flag is set to false in config.json and will be skipped."
+    fi
+done
+
+# Check if additional Neovim packages should be installed in config.json
+echo "-----------------------------------------------------------------"
+if [[ $(echo "$CONFIG_JSON" | jq -r '.packages.neovim.install') = true ]]; then
+    echo "Calling $script_dir/nvim_config.sh for additional setup packages" 
+    "$script_dir"/nvim_config.sh "$CONFIG_JSON"
+else
+    echo "SKIPPING: Neovim components as config.json install flag is set to false."
+fi
+
+# PROFILE DEFAULTS for zsh and p10k are copied and can be reconfigured later.
+[[ ! -e ~/.p10k.zsh ]] && cp "$script_dir/.p10k.zsh" ~/
+cp "$script_dir/.zshrc" ~/
+# Add themes and plugins to .zshrc just incase required.
+sed -E -i 's/ZSH_THEME.*$/ZSH_THEME=powerlevel10k\/powerlevel10k/' ~/.zshrc
+sed -E -i 's/plugins=.*$/plugins=(git zsh-autosuggestions zsh-syntax-highlighting web-search)/' ~/.zshrc
+
+# Iterate over the aliases in JSON and add them to ~/.zshrc
+echo -e "\n# ----config.json----" >> ~/.zshrc
+echo "$CONFIG_JSON" | jq -r '
+  [(.packages | to_entries[] | select(.value.install == true and .value.aliases != null and .value.aliases != "") | .value.aliases | to_entries[]),
+   (.plugins | to_entries[] | select(.value.install == true and .value.aliases != null and .value.aliases != "") | .value.aliases | to_entries[])] | .[] | "alias \(.key)=\(.value|@sh)"' | while read -r alias_command; do
+    if ! grep -qF "$alias_command" ~/.zshrc; then
+        echo "Adding alias command: $alias_command"
+        echo "$alias_command" >> ~/.zshrc
+    else
+        echo "Alias already exists: $alias_command"
+    fi
+done
+
+# Write eval commands to ~/.zshrc if they don't already exist
+echo "$CONFIG_JSON" | jq -r '.packages,.plugins | to_entries[] | select(.value.install == true and .value.eval and .value.eval != "") | "eval \"$(\(.value.eval))\""' | while read -r eval_command; do
+    if ! grep -qF "$eval_command" ~/.zshrc; then
+        echo "Adding eval command: $eval_command"
+        echo "$eval_command" >> ~/.zshrc
+    else
+        echo "Eval command already exists: $eval_command"
+    fi
+done
+
+# Remove Synology packages once brew is installed
+if [[ $(brew --version) ]]; then
+    [[ $(synopkg version git) ]] && sudo synopkg uninstall git > /dev/null 2>&1 && echo Uninstalled community packaged git
+    [[ $(synopkg version ruby) ]] && sudo synopkg uninstall ruby > /dev/null 2>&1 && echo Uninstalled community packaged ruby
+fi
+
+# Finalise with zsh execution in Synology ash ~/.profile
+command_to_add='[[ -x /home/linuxbrew/.linuxbrew/bin/zsh ]] && exec /home/linuxbrew/.linuxbrew/bin/zsh'
+if ! grep -xF "$command_to_add" ~/.profile; then
+    echo "$command_to_add" >> ~/.profile
+fi
+
+echo "Script completed successfully. Sourcing profile now..."
+source ~/.profile
+
+
