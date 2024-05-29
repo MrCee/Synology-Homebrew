@@ -246,10 +246,9 @@ if [[ $(echo "$CONFIG_JSON" | jq -r '.packages.perl.install') == true ]]; then
     [[ ! -e /usr/bin/perl ]] && sudo ln -sf /home/linuxbrew/.linuxbrew/bin/perl /usr/bin/perl
     if ! perl -Mlocal::lib -e '1' &> /dev/null; then
 	echo "Enabling perl cpan with defaults and permission fix"
-        sudo -E PERL_MM_USE_DEFAULT=1  PERL_MM_OPT=INSTALL_BASE=$HOME/perl5 cpan local::lib && sudo chown -R $(whoami):users ~/perl5 $HOME/.cpan
+        sudo -E PERL_MM_USE_DEFAULT=1  PERL_MM_OPT=INSTALL_BASE=$HOME/perl5 cpan local::lib && sudo chown -R $(whoami):root ~/perl5 $HOME/.cpan
     fi
 fi
-
 
 # oh-my-zsh will only be installed if zsh is found as a command
 [[ -e ~/.oh-my-zsh ]] && rm -rf ~/.oh-my-zsh

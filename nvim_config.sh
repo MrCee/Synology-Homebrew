@@ -6,7 +6,7 @@ config_files=$(grep -rl "unnamedplus" ~/.config)
 
 echo "FOUND $config_files"
 
-# Use a heredoc to store the code block in a variable
+# Use a heredoc to store the code block in a variable which is used to activate clipboard over ssh
 code_to_add=$(cat <<'EOF'
 
 -- Added by Synology-Homebrew OSC52
