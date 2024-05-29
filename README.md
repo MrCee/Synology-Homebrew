@@ -33,8 +33,9 @@ git clone https://github.com/MrCee/Synology-Homebrew.git ~/Synology-Homebrew && 
 
 Select your install type:
 
-    1) Synology-Homebrew: Minimal install ignoring and/or uninstalling packages in config.json.
-    2) Synology-Homebrew: Full setup includes packages in config.json (Recommended if you want to get started with Neovim)
+##### 1) Synology-Homebrew: Minimal install ignoring and/or uninstalling packages in config.json.
+
+##### 2) Synology-Homebrew: Full setup includes packages in config.json. Recommended if you want to get started with Neovim or install some of the great packages listed.
 
 Essential packages that will always be installed include:
 
@@ -168,6 +169,7 @@ alias nvim='NVIM_APPNAME="your-custom-nvim-directory" nvim' # Aliases ~/.config/
 See kickstart.nvim provided in the [config.json example](#configjson-example) above.
 
 If no alias is set, Neovim will attempt to use the default nvim config location `~/.config/nvim`
+
 Run :checkhealth in Neovim after installation to see more detail about any further plugins you may need.
 
 <img src="screenshots/SCR-neovim-plugins-updated.png" width="800">
@@ -208,4 +210,5 @@ Thanks to the many people and teams that contribute to the packages installed by
 <a href="https://www.buymeacoffee.com/MrCee" target="_blank">
     <img src="https://cdn.buymeacoffee.com/buttons/v2/default-violet.png" width="200">
 </a>
+
 
