@@ -149,7 +149,7 @@ For a full list of dependancies installed, run: `brew deps --installed` after in
 
 Neovim (nvim) is ready to go with essential requirements configured within a separate file `nvim_config.sh`.
 This includes:
-- Fixing clipboard over SSH using OSC52.
+- Enable clipboard over SSH using OSC52 for all nvim configurations stored or symlinked in `~/.config`.
 - Linting Python with `pip3 install pynvim`.
 - Updating outdated gems.
 - Installing neovim gem.
