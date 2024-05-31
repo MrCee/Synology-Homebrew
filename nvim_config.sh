@@ -41,6 +41,14 @@ else
     echo "No file containing 'unnamedplus' found in ~/.config folder."
 fi
 
+if [[ -z "$CONFIG_JSON" ]]; then
+echo "-----------------------------------------------------------------"
+    read -p "Would you like to check and install neovim dependencies? (y/n): " answer
+    if [[ "$answer" = "y" ]]; then
+        CONFIG_JSON='{"packages":{"neovim":{"install":true}}}'
+    fi
+fi   
+
 # Install additional packages for neovim
 echo "-----------------------------------------------------------------"
 if [[ -n "$CONFIG_JSON" ]]; then
