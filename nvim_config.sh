@@ -43,17 +43,18 @@ fi
 
 # Install additional packages for neovim
 echo "-----------------------------------------------------------------"
-if [[ $(echo "$CONFIG_JSON" | jq -r '.packages.neovim.install') = true ]]; then
-    echo "Installing additional neovim components"
-    [[ ! $(pip3 show pynvim) ]] && pip3 install pynvim --break-system-packages
-    echo Checking for gem updates
-    [[ -n $(gem outdated) ]] && gem update
-    [[ $(gem list neovim -i) ]] && gem install neovim
-    [[ ! -e ~/.scripts/fzf-git.sh ]] && mkdir -p ~/.scripts && curl -o ~/.scripts/fzf-git.sh https://raw.githubusercontent.com/junegunn/fzf-git.sh/main/fzf-git.sh
+if [[ -n "$CONFIG_JSON" ]]; then
+    if [[ $(echo "$CONFIG_JSON" | jq -r '.packages.neovim.install') = true ]]; then
+        echo "Installing additional neovim components"
+        [[ ! $(pip3 show pynvim) ]] && pip3 install pynvim --break-system-packages
+        echo Checking for gem updates
+        [[ -n $(gem outdated) ]] && gem update
+        [[ $(gem list neovim -i) ]] && gem install neovim
+        [[ ! -e ~/.scripts/fzf-git.sh ]] && mkdir -p ~/.scripts && curl -o ~/.scripts/fzf-git.sh https://raw.githubusercontent.com/junegunn/fzf-git.sh/main/fzf-git.sh
+    else
+        echo "SKIPPING: neovim components as config.json install flag is set to false."
+    fi
 else
-    echo "SKIPPING: neovim components as config.json install flag is set to false."
+    echo "SKIPPING: neovim components installation. This is expected when running this script independently."
 fi
-
-
-
 
