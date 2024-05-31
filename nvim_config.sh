@@ -2,9 +2,11 @@
 
 CONFIG_JSON="$1"
 
-config_files=$(grep -rl "unnamedplus" ~/.config)
-
-echo "FOUND $config_files"
+config_files=$(find -L ~/.config -type f -exec grep -l 'unnamedplus' {} +)
+echo "----------------------------------------"
+echo "FOUND files with 'unnamedplus':"
+echo "$config_files"
+echo "----------------------------------------"
 
 # Use a heredoc to store the code block in a variable which is used to activate clipboard over ssh
 code_to_add=$(cat <<'EOF'
