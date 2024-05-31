@@ -95,7 +95,7 @@ The script will attempt to fix formatting errors and validate `config.json` wher
 
 ## Installed packages
 
-Modify packages to be installed by editing `config.json` and setting the install flag to **true** or **false**.
+Modify packages to be installed by editing config.json and setting the install flag to true, false, or skip.
 
 | Package                                                                         | Description                                                                                                 | Dependency                              |
 | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | --------------------------------------- |
