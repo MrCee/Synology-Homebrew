@@ -62,35 +62,37 @@ Additionally, you can define **aliases** and **eval** commands across all `confi
 
 The script will attempt to fix formatting errors and validate `config.json` where possible.
 
-````json
+```json
 {
-    "packages": {
-        "neovim": {
-            "install": "true",
-            "eval": "some command"
-        },
-        "htop": {
-            "install": "false"
-        },
-        "curl": {
-            "install": "skip"
-        }
+  "packages": {
+    "neovim": {
+      "install": "true",
+      "eval": "some command"
     },
-    "plugins": {
-        "some-plugin": {
-            "install": "true",
-            "directory": "$HOME/.config/nvim/plugins/some-plugin",
-            "url": "https://github.com/user/some-plugin",
-            "eval": "another command"
-        },
-        "another-plugin": {
-            "install": "false"
-        },
-        "yet-another-plugin": {
-            "install": "skip"
-        }
+    "htop": {
+      "install": "false"
+    },
+    "curl": {
+      "install": "skip"
     }
+  },
+  "plugins": {
+    "some-plugin": {
+      "install": "true",
+      "directory": "$HOME/.config/nvim/plugins/some-plugin",
+      "url": "https://github.com/user/some-plugin",
+      "eval": "another command"
+    },
+    "another-plugin": {
+      "install": "false"
+    },
+    "yet-another-plugin": {
+      "install": "skip"
+    }
+  }
 }
+```
+
 ## Installed packages
 
 Modify packages to be installed by editing `config.json` and setting the install flag to **true** or **false**.
@@ -150,7 +152,7 @@ alias nvim='NVIM_APPNAME="nvim-kickstart" nvim' # Aliases ~/.config/nvim-kicksta
 alias nvim # Shows current nvim command alias
 unalias nvim # Removes previous alias
 alias nvim='NVIM_APPNAME="your-custom-nvim-directory" nvim' # Aliases ~/.config/your-custom-nvim-directory
-````
+```
 
 See kickstart.nvim provided in the [config.json example](#configjson-example) above.
 
