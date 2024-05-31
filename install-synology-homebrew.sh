@@ -20,8 +20,10 @@ CONFIG_JSON_PATH="$script_dir/config.json"
 # Format JSON to ensure compatibility
 # sed fix for json values not including double backslash
 sed -E -i 's/([^\\])\\([^\\"])/\1\\\\\2/g' "$CONFIG_JSON_PATH"
-# sed fix to escape double quotes with backslash
+# sed fix for json to escape double quotes with backslash
 sed -E -i 's/(^.*:\s*\"[^\\]*?)(\".*?)(\".*?\"$)/\1\\\2\\\3/g' "$CONFIG_JSON_PATH"
+# sed fix for json to quote the literal text "skip"
+sed -E -i '/"install": "skip"/ s/\"skip\"/\"skip\"/;t;s/(skip)/"\1"/' "$CONFIG_JSON_PATH"
 
 # Read the content of JSON into the CONFIG_JSON variable
 CONFIG_JSON=$(<"$CONFIG_JSON_PATH")

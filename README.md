@@ -60,34 +60,65 @@ Additionally, you can define **aliases** and **eval** commands across all `confi
 
 ### **config.json example**
 
-The script will attempt to fix formatting errors and validate `config.json` where possible.
+The script will attempt to fix formatting errors and validate `config.json` providing a response to stdout if error is detected.
 
 ```json
 {
   "packages": {
     "neovim": {
-      "install": "true",
-      "eval": "some command"
+      "install": true,
+      "aliases": {
+        "vim": "nvim"
+      },
+      "eval": ""
     },
-    "htop": {
-      "install": "false"
+    "stow": {
+      "install": "skip",
+      "aliases": "",
+      "eval": ""
     },
-    "curl": {
-      "install": "skip"
+    "bat": {
+      "install": false,
+      "aliases": "",
+      "eval": ""
+    },
+    "eza": {
+      "install": true,
+      "aliases": {
+        "ls": "eza --color=always --group-directories-first --icons",
+        "ll": "eza -la --icons --octal-permissions --group-directories-first --icons",
+        "l": "eza -bGF --header --git --color=always --group-directories-first --icons",
+        "llm": "eza -lbGd --header --git --sort=modified --color=always --group-directories-first --icons",
+        "la": "eza --long --all --group --group-directories-first",
+        "lx": "eza -lbhHigUmuSa@ --time-style=long-iso --git --color-scale --color=always --group-directories-first --icons",
+        "lS": "eza -1 --color=always --group-directories-first --icons",
+        "lt": "eza --tree --level=2 --color=always --group-directories-first --icons",
+        "l.": "eza -a | grep -E '^\\.'"
+      },
+      "eval": ""
+    },
+    "thefuck": {
+      "install": true,
+      "aliases": "",
+      "eval": "thefuck --alias"
     }
   },
   "plugins": {
-    "some-plugin": {
-      "install": "true",
-      "directory": "$HOME/.config/nvim/plugins/some-plugin",
-      "url": "https://github.com/user/some-plugin",
-      "eval": "another command"
+    "powerlevel10k": {
+      "install": true,
+      "url": "https://github.com/romkatv/powerlevel10k",
+      "directory": "~/.oh-my-zsh/custom/themes/powerlevel10k",
+      "aliases": "",
+      "eval": ""
     },
-    "another-plugin": {
-      "install": "false"
-    },
-    "yet-another-plugin": {
-      "install": "skip"
+    "kickstart.nvim": {
+      "install": true,
+      "url": "https://github.com/nvim-lua/kickstart.nvim",
+      "directory": "~/.config/nvim-kickstart",
+      "aliases": {
+        "nvim": "NVIM_APPNAME=\"nvim-kickstart\" nvim"
+      },
+      "eval": ""
     }
   }
 }
