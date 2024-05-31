@@ -217,25 +217,32 @@ done <<< $(brew list -1)
 
 
 # Read JSON and process packages
-echo "$CONFIG_JSON" | jq -r '.packages | to_entries[] | .key'  | while read -r package; do
-	install_status=$(echo "$CONFIG_JSON" | jq -r ".packages[\"$package\"].install")
+echo "$CONFIG_JSON" | jq -r '.packages | to_entries[] | .key' | while read -r package; do
+    install_status=$(echo "$CONFIG_JSON" | jq -r ".packages[\"$package\"].install")
     if [[ "${BREW_LIST_ARRAY[*]}" =~ "$package" ]]; then
         if [[ "$install_status" == "true" ]]; then
             echo "$package is already installed."
-        else
-            echo "$package is not set to install in config.json and will now be uninstalled"
+        elif [[ "$install_status" == "false" ]]; then
+            echo "$package is set to uninstall in config.json and will now be uninstalled"
             brew uninstall --quiet "$package"
+        elif [[ "$install_status" == "skip" ]]; then
+            echo "$package is set to skip in config.json. No action will be taken."
+        else
+            echo "Invalid install status for $package in config.json. No action will be taken."
         fi
     else
         if [[ "$install_status" == "true" ]]; then
             echo "$package is not installed, installing..."
             brew install --quiet "$package"
+        elif [[ "$install_status" == "false" ]]; then
+            echo "$package is not installed and is set to uninstall in config.json. No action will be taken."
+        elif [[ "$install_status" == "skip" ]]; then
+            echo "$package is not installed and is set to skip in config.json. No action will be taken."
         else
-            echo "$package is not set to install in config.json and will be skipped"
+            echo "Invalid install status for $package in config.json. No action will be taken."
         fi
     fi
 done
-
 echo "Creating symlinks"
 sudo ln -sf /home/linuxbrew/.linuxbrew/bin/python3 /home/linuxbrew/.linuxbrew/bin/python
 sudo ln -sf /home/linuxbrew/.linuxbrew/bin/pip3 /home/linuxbrew/.linuxbrew/bin/pip
@@ -279,8 +286,12 @@ echo "$CONFIG_JSON" | jq -r '.plugins | to_entries[] | "\(.key) \(.value.install
         git clone "$url" "$directory"
     elif [[ "$install" == "true" && -d "$directory" ]]; then
         echo "$plugin is already installed."
-    else
+    elif [[ "$install" == "false" ]]; then
         echo "$plugin install flag is set to false in config.json and will be skipped."
+    elif [[ "$install" == "skip" ]]; then
+        echo "$plugin install flag is set to skip in config.json. No action will be taken."
+    else
+        echo "Invalid install status for $plugin in config.json. No action will be taken."
     fi
 done
 
@@ -314,7 +325,11 @@ echo "$CONFIG_JSON" | jq -r '
 done
 
 # Write eval commands to ~/.zshrc if they don't already exist
-echo "$CONFIG_JSON" | jq -r '.packages,.plugins | to_entries[] | select(.value.install == true and .value.eval and .value.eval != "") | "eval \"$(\(.value.eval))\""' | while read -r eval_command; do
+echo "$CONFIG_JSON" | jq -r '
+    .packages,.plugins 
+    | to_entries[] 
+    | select(.value.install == true and .value.eval and .value.eval != "") 
+    | "eval \"$(\(.value.eval))\""' | while read -r eval_command; do
     if ! grep -qF "$eval_command" ~/.zshrc; then
         echo "Adding eval command: $eval_command"
         echo "$eval_command" >> ~/.zshrc

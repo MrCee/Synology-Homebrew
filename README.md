@@ -46,73 +46,51 @@ git, ruby, glibc, gcc, clang-build-analyzer (which includes latest python), zsh,
 
 ## Configuration (config.json)
 
-To add or exclude packages, plugins, and themes, edit the `config.json` file and set the install flag to either **true** or **false**. Setting a package to false will uninstall the package. If you don't want this to occur, remove the package entry from `config.json`.
+To manage packages, plugins, and themes, edit the `config.json` file and set the install flag to one of three options: **true**, **false**, or **skip**.
 
-Plugins and themes can both be defined under the **plugins** section. As part of the script processing for **plugins**, `config.json` will be updated to use the last part of the URL as the plugin name which ensures consistency during install log to stdout and further processing.
+- **true**: Install the package, plugin, or theme.
+- **false**: Uninstall the package, plugin, or theme.
+- **skip**: Do nothing, leaving the current state unchanged.
+
+If you don't want to install or uninstall a specific package, plugin, or theme, set the install flag to **skip**.
+
+Plugins and themes can be defined under the **plugins** section. During script processing, `config.json` will be updated to use the last part of the URL as the plugin name, ensuring consistency in the install log and further processing.
 
 Additionally, you can define **aliases** and **eval** commands across all `config.json` entries, which will be reflected in `~/.zshrc`.
 
 ### **config.json example**
 
-Where possible this script will fix formatting errors and validate `config.json`.
+The script will attempt to fix formatting errors and validate `config.json` where possible.
 
-```json
+````json
 {
-  "packages": {
-    "neovim": {
-      "install": true,
-      "aliases": "",
-      "eval": ""
+    "packages": {
+        "neovim": {
+            "install": "true",
+            "eval": "some command"
+        },
+        "htop": {
+            "install": "false"
+        },
+        "curl": {
+            "install": "skip"
+        }
     },
-    "eza": {
-      "install": true,
-      "aliases": {
-        "ls": "eza --color=always --group-directories-first --icons",
-        "ll": "eza -la --icons --octal-permissions --group-directories-first --icons",
-        "l": "eza -bGF --header --git --color=always --group-directories-first --icons",
-        "llm": "eza -lbGd --header --git --sort=modified --color=always --group-directories-first --icons",
-        "la": "eza --long --all --group --group-directories-first",
-        "lx": "eza -lbhHigUmuSa@ --time-style=long-iso --git --color-scale --color=always --group-directories-first --icons",
-        "lS": "eza -1 --color=always --group-directories-first --icons",
-        "lt": "eza --tree --level=2 --color=always --group-directories-first --icons",
-        "l.": "eza -a | grep -E '^\\.'"
-      },
-      "eval": ""
-    },
-    "thefuck": {
-      "install": true,
-      "aliases": "",
-      "eval": "thefuck --alias"
+    "plugins": {
+        "some-plugin": {
+            "install": "true",
+            "directory": "$HOME/.config/nvim/plugins/some-plugin",
+            "url": "https://github.com/user/some-plugin",
+            "eval": "another command"
+        },
+        "another-plugin": {
+            "install": "false"
+        },
+        "yet-another-plugin": {
+            "install": "skip"
+        }
     }
-  },
-  "plugins": {
-    "powerlevel10k": {
-      "install": true,
-      "url": "https://github.com/romkatv/powerlevel10k",
-      "directory": "~/.oh-my-zsh/custom/themes/powerlevel10k",
-      "aliases": "",
-      "eval": ""
-    },
-    "zsh-syntax-highlighting": {
-      "install": true,
-      "url": "https://github.com/zsh-users/zsh-syntax-highlighting",
-      "directory": "~/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting",
-      "aliases": "",
-      "eval": ""
-    },
-    "kickstart.nvim": {
-      "install": true,
-      "url": "https://github.com/nvim-lua/kickstart.nvim",
-      "directory": "~/.config/nvim-kickstart",
-      "aliases": {
-        "nvim": "NVIM_APPNAME=\"nvim-kickstart\" nvim"
-      },
-      "eval": ""
-    }
-  }
 }
-```
-
 ## Installed packages
 
 Modify packages to be installed by editing `config.json` and setting the install flag to **true** or **false**.
@@ -172,7 +150,7 @@ alias nvim='NVIM_APPNAME="nvim-kickstart" nvim' # Aliases ~/.config/nvim-kicksta
 alias nvim # Shows current nvim command alias
 unalias nvim # Removes previous alias
 alias nvim='NVIM_APPNAME="your-custom-nvim-directory" nvim' # Aliases ~/.config/your-custom-nvim-directory
-```
+````
 
 See kickstart.nvim provided in the [config.json example](#configjson-example) above.
 
