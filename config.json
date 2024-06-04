@@ -73,12 +73,12 @@
       "eval": ""
     },
     "thefuck": {
-      "install": true,
+      "install": "true",
       "aliases": "",
       "eval": "thefuck --alias"
     },
     "zoxide": {
-      "install": true,
+      "install": "skip",
       "aliases": {
         "cd": "z"
       },

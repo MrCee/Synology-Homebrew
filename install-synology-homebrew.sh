@@ -315,9 +315,7 @@ sed -E -i 's/plugins=.*$/plugins=(git zsh-autosuggestions zsh-syntax-highlightin
 
 # Iterate over the aliases in JSON and add them to ~/.zshrc
 echo -e "\n# ----config.json----" >> ~/.zshrc
-echo "$CONFIG_JSON" | jq -r '
-  [(.packages | to_entries[] | select(.value.install == true and .value.aliases != null and .value.aliases != "") | .value.aliases | to_entries[]),
-   (.plugins | to_entries[] | select(.value.install == true and .value.aliases != null and .value.aliases != "") | .value.aliases | to_entries[])] | .[] | "alias \(.key)=\(.value|@sh)"' | while read -r alias_command; do
+echo "$CONFIG_JSON" | jq -r '.packages, .plugins | to_entries[] | select(.value.aliases != "" and (.value.install == true or (.value.install | tostring) == "skip")) | .value.aliases | to_entries[] | "alias \(.key)=\(.value|@sh)"'| while read -r alias_command; do
     if ! grep -qF "$alias_command" ~/.zshrc; then
         echo "Adding alias command: $alias_command"
         echo "$alias_command" >> ~/.zshrc
@@ -327,11 +325,7 @@ echo "$CONFIG_JSON" | jq -r '
 done
 
 # Write eval commands to ~/.zshrc if they don't already exist
-echo "$CONFIG_JSON" | jq -r '
-    .packages,.plugins 
-    | to_entries[] 
-    | select(.value.install == true and .value.eval and .value.eval != "") 
-    | "eval \"$(\(.value.eval))\""' | while read -r eval_command; do
+echo "$CONFIG_JSON" | jq -r ' .packages,.plugins | to_entries[] | select(.value.eval != "" and (.value.install == true or (.value.install | tostring) == "skip")) | "eval \"$(\(.value.eval))\""' | while read -r eval_command; do
     if ! grep -qF "$eval_command" ~/.zshrc; then
         echo "Adding eval command: $eval_command"
         echo "$eval_command" >> ~/.zshrc

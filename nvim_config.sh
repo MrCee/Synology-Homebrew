@@ -32,9 +32,9 @@ if [[ -n "$config_files" ]]; then
         if ! grep -q "Added by Synology-Homebrew OSC52" "$config_file"; then
             # Add the code after the line containing "unnamedplus"
             sed -i "/unnamedplus/ r /dev/stdin" "$config_file" <<<"$code_to_add"
-            echo "Code successfully added to $config_file"
+            echo "OSC52 code for remote/system clipbard successfully added to $config_file"
         else
-            echo "Code already exists in $config_file"
+            echo "OSC52 code for remote/system clipboard already exists in $config_file"
         fi
     done
 else
