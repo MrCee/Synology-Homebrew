@@ -55,33 +55,37 @@ echo "JSON is valid."
 # Read the content of JSON into the CONFIG_JSON variable
 CONFIG_JSON=$(<"$CONFIG_JSON_PATH")
 
-
 # Function to display the menu
 display_menu() {
-    echo "Select your install type:"
-    echo
-    echo "1) Synology-Homebrew: Minimal install will provide the homebrew basics, ignore packages in config.json, leaving the rest to you."
-    echo "   ** If you are running this script after a full setup, you can use this option to uninstall packages previously installed by option 2"
-    echo
-    echo
-    echo "2) Synology-Homebrew: Full setup includes packages in config.json"
-    echo "   ** This is recommended if you want to get started with Neovim"
-    echo
-    echo "Enter selection: "
+    cat <<EOF
+Select your install type:
+
+1) Synology-Homebrew: Minimal install will provide the homebrew basics, ignore packages in config.json, leaving the rest to you.
+   ** If you are running this script after a full setup, you can use this option to uninstall packages previously installed by option 2
+
+2) Synology-Homebrew: Full setup includes packages in config.json
+   ** This is recommended if you want to get started with Neovim
+
+Enter selection:
+EOF
 }
 
 # Function to display information based on the selection
 display_info() {
     case "$1" in
         1)
-            echo "Minimal install selected"
-            echo "Minimal install will provide the homebrew basics and ignore config.json"
-            echo "** If you are running this script after a full setup, you can use this option to uninstall packages if they still exist in config.json"
-            echo "** Plugins and themes should be removed manually"
+            cat <<EOF
+Minimal install selected
+Minimal install will provide the homebrew basics and ignore config.json
+** If you are running this script after a full setup, you can use this option to uninstall packages if they still exist in config.json
+** Plugins and themes should be removed manually
+EOF
             ;;
         2)
-            echo "Full setup selected"
-            echo "Full setup includes packages in config.json"
+            cat <<EOF
+Full setup selected
+Full setup includes packages in config.json
+EOF
             ;;
         *)
             echo "Invalid selection."
@@ -121,14 +125,11 @@ case "$selection" in
     1)
         echo "Starting Minimal Install..."
         # Update install fields to false
-        if ! CONFIG_JSON=$(jq '.packages |= with_entries(.value |= if .install == true then .install = false else . end)' "$CONFIG_JSON_PATH"); then
-            echo "Failed to update JSON."
-            exit 1
-        fi
+        CONFIG_JSON=$(jq '.packages |= with_entries(.value |= if .install == true then .install = false else . end)' <<< "$CONFIG_JSON")
         ;;
     2)
         echo "Starting Full Setup..."
-        CONFIG_JSON=$(<"$CONFIG_JSON_PATH")
+        # No need to re-read config.json, already read at the beginning
         ;;
 esac
 
