@@ -28,17 +28,22 @@ sed -E -i 's/([^\\])\\([^\\"])/\1\\\\\2/g' "$CONFIG_JSON_PATH"
 sed -E -i 's/(^.*:\s*\"[^\\]*?)(\".*?)(\".*?\"$)/\1\\\2\\\3/g' "$CONFIG_JSON_PATH"
 sed -E -i '/"install": "skip"/ s/\"skip\"/\"skip\"/;t;s/(skip)/"\1"/' "$CONFIG_JSON_PATH"
 
-# Update plugin keys
+
+# Create a temporary file 
+temp_file=$(mktemp)
+
+# Update plugin keys and write to the temporary file
 if ! jq '{
   packages: .packages,
   plugins: (.plugins | to_entries | map({key: (.value.url | split("/")[-1]), value: .value}) | from_entries)
-}' "$CONFIG_JSON_PATH" > "${CONFIG_JSON_PATH}.tmp"; then
+}' "$CONFIG_JSON_PATH" > "$temp_file"; then
     echo "Failed to process JSON with jq."
     exit 1
 fi
 
 # Replace the original config.json with the updated version
-mv "${CONFIG_JSON_PATH}.tmp" "$CONFIG_JSON_PATH"
+mv "$temp_file" "$CONFIG_JSON_PATH"
+echo "config.json has been updated successfully."
 
 # Validate JSON
 if ! jq empty "$CONFIG_JSON_PATH" > /dev/null 2>&1; then
@@ -50,18 +55,71 @@ echo "JSON is valid."
 # Read the content of JSON into the CONFIG_JSON variable
 CONFIG_JSON=$(<"$CONFIG_JSON_PATH")
 
-# Prompt for the install type
-echo "------------------------------------------------------"
-echo -e "\n\nSelect your install type:\n"
 
-echo -e "    1) Synology-Homebrew: Minimal install will provide the homebrew basics and ignore config.json\n	** If you are running this script after a full setup, you can use this option to uninstall packages if they still exist in config.json\n	** Plugins and themes should be removed manually\n\n"
-echo -e "    2) Synology-Homebrew: Full setup includes packages in config.json\n	** This is recommended if you want to get started with Neovim\n"
-read -rp "Enter selection: " install_type
+# Function to display the menu
+display_menu() {
+    echo "Select your install type:"
+    echo
+    echo "1) Synology-Homebrew: Minimal install will provide the homebrew basics, ignore packages in config.json, leaving the rest to you."
+    echo "   ** If you are running this script after a full setup, you can use this option to uninstall packages previously installed by option 2"
+    echo
+    echo
+    echo "2) Synology-Homebrew: Full setup includes packages in config.json"
+    echo "   ** This is recommended if you want to get started with Neovim"
+    echo
+    echo "Enter selection: "
+}
+
+# Function to display information based on the selection
+display_info() {
+    case "$1" in
+        1)
+            echo "Minimal install selected"
+            echo "Minimal install will provide the homebrew basics and ignore config.json"
+            echo "** If you are running this script after a full setup, you can use this option to uninstall packages if they still exist in config.json"
+            echo "** Plugins and themes should be removed manually"
+            ;;
+        2)
+            echo "Full setup selected"
+            echo "Full setup includes packages in config.json"
+            ;;
+        *)
+            echo "Invalid selection."
+            ;;
+    esac
+}
+
+# Main script loop to get the user's selection
+while true; do
+    clear
+    display_menu
+    read -r selection
+
+    case "$selection" in
+        1|2)
+            break
+            ;;
+        *)
+            echo "Invalid selection. Please enter 1 or 2."
+            read -r -p "Press Enter to continue..."
+            ;;
+    esac
+done
+
+# Display the selection information once after exiting the loop
+clear
+display_info "$selection"
+
+# Ensure config.json exists for option 2
+if [[ "$selection" -eq 2 && ! -f "$CONFIG_JSON_PATH" ]]; then
+    echo "config.json not found in this directory"
+    exit 1
+fi
 
 # Process the selection
-case $install_type in
+case "$selection" in
     1)
-        echo "Minimal Homebrew install"
+        echo "Starting Minimal Install..."
         # Update install fields to false
         if ! CONFIG_JSON=$(jq '.packages |= with_entries(.value |= if .install == true then .install = false else . end)' "$CONFIG_JSON_PATH"); then
             echo "Failed to update JSON."
@@ -69,18 +127,13 @@ case $install_type in
         fi
         ;;
     2)
-        echo "Using config.json for Homebrew installation"
+        echo "Starting Full Setup..."
         CONFIG_JSON=$(<"$CONFIG_JSON_PATH")
-        ;;
-    *)
-        echo "Invalid selection. Please run the script again and select a valid option."
-        exit 1
         ;;
 esac
 
 export HOMEBREW_NO_ENV_HINTS=1
 export HOMEBREW_NO_AUTO_UPDATE=1
-export CONFIG_JSON
 
 # Check if the script is being run as root
 if [ "$EUID" -eq 0 ]; then
@@ -231,13 +284,13 @@ if [[ "$ruby_path" != *"linuxbrew"* ]]; then
     echo "ruby is not linked via Homebrew. Linking ruby..."
     brew link --overwrite ruby
     if [ $? -eq 0 ]; then
-        echo "ruby has been successfully linked."
+        echo "ruby has been successfully linked via Homebrew."
     else
-        echo "Failed to link ruby."
+        echo "Failed to link ruby via Homebrew."
         exit 1
     fi
 else
-    echo "ruby is already linked via Homebrew."
+    echo "ruby is linked via Homebrew."
 fi
 
 # Create a brew list of installed packages into an array

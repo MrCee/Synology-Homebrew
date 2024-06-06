@@ -93,10 +93,19 @@ if [[ -n "$CONFIG_JSON" ]]; then
         echo "Installing additional neovim components"
         [[ ! $(pip3 show pynvim) ]] && pip3 install pynvim --break-system-packages
         echo "npm changes:"
-        npm config set fund false --location=global
+        if ! command -v npm &> /dev/null; then
+            echo "npm is not installed. Installing npm..."
+            curl -L https://www.npmjs.com/install.sh | sh
+        fi
+        
+        # Proceed with npm commands
+        rm -rf /home/linuxbrew/.linuxbrew/lib/node_modules/npm
+        npm cache clean --force
         npm install -g npm@latest
+        npm config set fund false --location=global
         npm install -g neovim@latest
-        echo Checking for gem updates
+        echo
+        echo -e "Checking for gem updates:\n"
         [[ -n $(gem outdated) ]] && gem update
         [[ $(gem list neovim -i) ]] && gem install neovim
         [[ ! -e ~/.scripts/fzf-git.sh ]] && mkdir -p ~/.scripts && curl -o ~/.scripts/fzf-git.sh https://raw.githubusercontent.com/junegunn/fzf-git.sh/main/fzf-git.sh
