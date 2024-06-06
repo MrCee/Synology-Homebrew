@@ -60,7 +60,7 @@ Additionally, you can define **aliases** and **eval** commands across all `confi
 
 ### **config.json example**
 
-The script will attempt to fix formatting errors and validate `config.json` providing a response to stdout if error is detected.
+The script will attempt to fix formatting errors and validate `config.json` providing a response to stdout if error is detected. The below snipped is and example of how config.json should be formatted. Please see the file downloaded from this repository for the full scope.
 
 ```json
 {
