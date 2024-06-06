@@ -11,36 +11,44 @@ esac
 script_dir="$(cd "$(dirname "$script_path")" && pwd)"
 
 # Change to the script directory
-cd "$script_dir"
+cd "$script_dir" || { echo "Failed to change directory to $script_dir"; exit 1; }
 echo "Working directory: $script_dir"
 
 # Define the location of JSON
 CONFIG_JSON_PATH="$script_dir/config.json"
 
+# Ensure config.json exists
+if [[ ! -f "$CONFIG_JSON_PATH" ]]; then
+    echo "config.json not found in $script_dir"
+    exit 1
+fi
+
 # Format JSON to ensure compatibility
-# sed fix for json values not including double backslash
 sed -E -i 's/([^\\])\\([^\\"])/\1\\\\\2/g' "$CONFIG_JSON_PATH"
-# sed fix for json to escape double quotes with backslash
 sed -E -i 's/(^.*:\s*\"[^\\]*?)(\".*?)(\".*?\"$)/\1\\\2\\\3/g' "$CONFIG_JSON_PATH"
-# sed fix for json to quote the literal text "skip"
 sed -E -i '/"install": "skip"/ s/\"skip\"/\"skip\"/;t;s/(skip)/"\1"/' "$CONFIG_JSON_PATH"
 
-# Read the content of JSON into the CONFIG_JSON variable
-CONFIG_JSON=$(<"$CONFIG_JSON_PATH")
-
-# Update plugin keys from url (overwrites config.json file)
-echo "$CONFIG_JSON" | jq '{
+# Update plugin keys
+if ! jq '{
   packages: .packages,
   plugins: (.plugins | to_entries | map({key: (.value.url | split("/")[-1]), value: .value}) | from_entries)
-}' > "$CONFIG_JSON_PATH"
+}' "$CONFIG_JSON_PATH" > "${CONFIG_JSON_PATH}.tmp"; then
+    echo "Failed to process JSON with jq."
+    exit 1
+fi
+
+# Replace the original config.json with the updated version
+mv "${CONFIG_JSON_PATH}.tmp" "$CONFIG_JSON_PATH"
 
 # Validate JSON
-if jq empty "$CONFIG_JSON_PATH" > /dev/null 2>&1; then
-    echo "JSON is valid."
-else
+if ! jq empty "$CONFIG_JSON_PATH" > /dev/null 2>&1; then
     echo "Invalid JSON."
     exit 1
 fi
+echo "JSON is valid."
+
+# Read the content of JSON into the CONFIG_JSON variable
+CONFIG_JSON=$(<"$CONFIG_JSON_PATH")
 
 # Prompt for the install type
 echo -e "\n\nSelect your install type:\n"
@@ -52,12 +60,16 @@ read -rp "Enter the number of your choice: " install_type
 # Process the selection
 case $install_type in
     1)
-		echo "Minimal Homebrew install"
-        # Use jq to update the install fields to false and assign the result back to CONFIG_JSON
-        CONFIG_JSON=$(echo "$CONFIG_JSON" | jq '.packages |= with_entries(.value |= if .install == true then .install = false else . end)')
-	;;
+        echo "Minimal Homebrew install"
+        # Update install fields to false
+        if ! CONFIG_JSON=$(jq '.packages |= with_entries(.value |= if .install == true then .install = false else . end)' "$CONFIG_JSON_PATH"); then
+            echo "Failed to update JSON."
+            exit 1
+        fi
+        ;;
     2)
         echo "Using config.json for Homebrew installation"
+        CONFIG_JSON=$(<"$CONFIG_JSON_PATH")
         ;;
     *)
         echo "Invalid selection. Please run the script again and select a valid option."
@@ -67,6 +79,7 @@ esac
 
 export HOMEBREW_NO_ENV_HINTS=1
 export HOMEBREW_NO_AUTO_UPDATE=1
+export CONFIG_JSON
 
 # Check if the script is being run as root
 if [ "$EUID" -eq 0 ]; then
@@ -148,7 +161,7 @@ if [[ ! -d /home ]]; then
     sudo chown -R $(whoami):root /home
 fi
 
-# Reset .profile and add custom paths
+# Create a new .profile and add custom paths
 cat > ~/.profile <<EOF
 PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/syno/sbin:/usr/syno/bin:/usr/local/sbin:/usr/local/bin
 # Directories to add to PATH
@@ -194,7 +207,7 @@ fi
 
 EOF
 
-# Begin install. Remove brew git env if it does not exist
+# Begin Homebrew install. Remove brew git env if it does not exist
 [[ ! -x /home/linuxbrew/.linuxbrew/bin/git ]] && unset HOMEBREW_GIT_PATH
 NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" 2> /dev/null
 eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
@@ -245,6 +258,7 @@ echo "$CONFIG_JSON" | jq -r '.packages | to_entries[] | .key' | while read -r pa
         fi
     fi
 done
+
 echo "Creating symlinks"
 sudo ln -sf /home/linuxbrew/.linuxbrew/bin/python3 /home/linuxbrew/.linuxbrew/bin/python
 sudo ln -sf /home/linuxbrew/.linuxbrew/bin/pip3 /home/linuxbrew/.linuxbrew/bin/pip
@@ -259,24 +273,24 @@ if [[ $(echo "$CONFIG_JSON" | jq -r '.packages.perl.install') == true ]]; then
     fi
 fi
 
-# oh-my-zsh will only be installed if zsh is found as a command
+# oh-my-zsh will always be installed with the latest version
 [[ -e ~/.oh-my-zsh ]] && rm -rf ~/.oh-my-zsh
 if [[ -x $(command -v zsh) ]]; then
 	sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
 	chmod -R 755 ~/.oh-my-zsh
 fi
 
-# Check if Neovim + kickstart.nvim is being installed and backup config. Else: Set kickstart.nvim install to false. 
-if [[ $(echo "$CONFIG_JSON" | jq -r '.packages.neovim.install') == true ]] && \
-   [[ $(echo "$CONFIG_JSON" | jq -r '.plugins."kickstart.nvim".install') == true ]]; then
-    kickstart_dir=$(echo "$CONFIG_JSON" | jq -r '.plugins."kickstart.nvim".directory')
-    eval kickstart_dir="$kickstart_dir"
-    if [[ -e "$kickstart_dir" ]]; then
-        mv "$kickstart_dir" ~/"$(basename "$kickstart_dir")"_BAK_$(date +%Y%m%d_%H%M%S)
-        echo "Backing up $kickstart_dir to home directory"
-    fi
+# Check if additional Neovim packages should be installed
+echo "-----------------------------------------------------------------"
+if [[ $(echo "$CONFIG_JSON" | jq -r '.packages.neovim.install') == "true" ]]; then
+    echo "Calling $script_dir/nvim_config.sh for additional setup packages"
+    # Create a temporary file to store JSON data
+    temp_file=$(mktemp)
+    echo "$CONFIG_JSON" > "$temp_file"
+    bash "$script_dir/nvim_config.sh" "$temp_file"
+    CONFIG_JSON=$(<"$temp_file")
 else
-     CONFIG_JSON=$(echo "$CONFIG_JSON" | jq '.plugins["kickstart.nvim"].install = false')
+    echo "SKIPPING: Neovim components as config.json install flag is set to false."
 fi
 
 # Read JSON and install plugins
@@ -292,30 +306,23 @@ echo "$CONFIG_JSON" | jq -r '.plugins | to_entries[] | "\(.key) \(.value.install
         echo "$plugin install flag is set to false in config.json and will be skipped."
     elif [[ "$install" == "skip" ]]; then
         echo "$plugin install flag is set to skip in config.json. No action will be taken."
+    elif [[ "$install" == "handled" ]]; then
+        echo "$plugin has already been handled by nvim_config.sh."
     else
         echo "Invalid install status for $plugin in config.json. No action will be taken."
     fi
 done
 
-# Check if additional Neovim packages should be installed in config.json
-echo "-----------------------------------------------------------------"
-if [[ $(echo "$CONFIG_JSON" | jq -r '.packages.neovim.install') = true ]]; then
-    echo "Calling $script_dir/nvim_config.sh for additional setup packages" 
-    "$script_dir"/nvim_config.sh "$CONFIG_JSON"
-else
-    echo "SKIPPING: Neovim components as config.json install flag is set to false."
-fi
-
-# PROFILE DEFAULTS for zsh and p10k are copied and can be reconfigured later.
+# PROFILE DEFAULTS: zsh and p10k are copied to home and can be reconfigured later.
 [[ ! -e ~/.p10k.zsh ]] && cp "$script_dir/.p10k.zsh" ~/
 cp "$script_dir/.zshrc" ~/
-# Add themes and plugins to .zshrc just incase required.
+# Add themes and plugins to ~/.zshrc just incase we need to:
 sed -E -i 's/ZSH_THEME.*$/ZSH_THEME=powerlevel10k\/powerlevel10k/' ~/.zshrc
 sed -E -i 's/plugins=.*$/plugins=(git zsh-autosuggestions zsh-syntax-highlighting web-search)/' ~/.zshrc
 
 # Iterate over the aliases in JSON and add them to ~/.zshrc
 echo -e "\n# ----config.json----" >> ~/.zshrc
-echo "$CONFIG_JSON" | jq -r '.packages, .plugins | to_entries[] | select(.value.aliases != "" and (.value.install == true or (.value.install | tostring) == "skip")) | .value.aliases | to_entries[] | "alias \(.key)=\(.value|@sh)"'| while read -r alias_command; do
+echo "$CONFIG_JSON" | jq -r '.packages, .plugins | to_entries[] | select(.value.aliases != "" and .value.install != false) | .value.aliases | to_entries[] | "alias \(.key)=\(.value|@sh)"'| while read -r alias_command; do
     if ! grep -qF "$alias_command" ~/.zshrc; then
         echo "Adding alias command: $alias_command"
         echo "$alias_command" >> ~/.zshrc
@@ -325,7 +332,7 @@ echo "$CONFIG_JSON" | jq -r '.packages, .plugins | to_entries[] | select(.value.
 done
 
 # Write eval commands to ~/.zshrc if they don't already exist
-echo "$CONFIG_JSON" | jq -r ' .packages,.plugins | to_entries[] | select(.value.eval != "" and (.value.install == true or (.value.install | tostring) == "skip")) | "eval \"$(\(.value.eval))\""' | while read -r eval_command; do
+echo "$CONFIG_JSON" | jq -r ' .packages,.plugins | to_entries[] | select(.value.eval != "" and .value.install != false) | "eval \"$(\(.value.eval))\""' | while read -r eval_command; do
     if ! grep -qF "$eval_command" ~/.zshrc; then
         echo "Adding eval command: $eval_command"
         echo "$eval_command" >> ~/.zshrc

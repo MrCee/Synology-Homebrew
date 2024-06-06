@@ -1,6 +1,51 @@
 #!/bin/bash
 
-CONFIG_JSON="$1"
+temp_file=$1
+
+# Read JSON from the temporary file
+[[ -n $temp_file ]] && CONFIG_JSON=$(<"$temp_file")
+
+# For an independent manual run of this script we add packages to an empty CONFIG_JSON
+if [[ -z "$CONFIG_JSON" ]]; then
+    CONFIG_JSON_PATH="./config.json"
+
+    # Ensure config.json exists
+    if [[ ! -f "$CONFIG_JSON_PATH" ]]; then
+        echo "config.json not found in this directory"
+        exit 1
+    fi
+
+    echo "-----------------------------------------------------------------"
+    read -p "Would you like to check and install neovim dependencies? (y/n): " answer
+    if [[ "$answer" = "y" ]]; then
+        CONFIG_JSON=$(jq '.packages.neovim += {"install": true}' "$CONFIG_JSON_PATH")
+    fi 
+    read -p "Would you like to check and install kickstart.nvim? (y/n): " answer
+    if [[ "$answer" = "y" ]]; then
+        CONFIG_JSON=$(jq '.plugins."kickstart.nvim" += {"install": true}' "$CONFIG_JSON_PATH")
+    fi
+fi
+
+# Function to update the install status in the JSON
+update_install_status() {
+    local plugin="$1"
+    CONFIG_JSON=$(echo "$CONFIG_JSON" | jq --arg plugin "$plugin" '.plugins[$plugin].install = "handled"')
+}
+
+#Install kickstart.nvim if install is true in config.json 
+if [[ $(echo "$CONFIG_JSON" | jq -r '.plugins."kickstart.nvim".install') == "true" ]]; then
+    kickstart_dir=$(echo "$CONFIG_JSON" | jq -r '.plugins."kickstart.nvim".directory')
+    eval kickstart_dir="$kickstart_dir"
+
+    if [[ ! -d "$kickstart_dir" ]]; then
+        echo "Installing kickstart.nvim..."
+        git clone "$(echo "$CONFIG_JSON" | jq -r '.plugins."kickstart.nvim".url')" "$kickstart_dir"
+        update_install_status "kickstart.nvim"
+    else
+        update_install_status "kickstart.nvim"
+        echo "kickstart.nvim is already installed."
+    fi
+fi
 
 config_files=$(find -L ~/.config -type f -exec grep -l 'unnamedplus' {} +)
 echo "----------------------------------------"
@@ -41,14 +86,6 @@ else
     echo "No file containing 'unnamedplus' found in ~/.config folder."
 fi
 
-if [[ -z "$CONFIG_JSON" ]]; then
-echo "-----------------------------------------------------------------"
-    read -p "Would you like to check and install neovim dependencies? (y/n): " answer
-    if [[ "$answer" = "y" ]]; then
-        CONFIG_JSON='{"packages":{"neovim":{"install":true}}}'
-    fi
-fi   
-
 # Install additional packages for neovim
 echo "-----------------------------------------------------------------"
 if [[ -n "$CONFIG_JSON" ]]; then
@@ -65,4 +102,7 @@ if [[ -n "$CONFIG_JSON" ]]; then
 else
     echo "SKIPPING: neovim components installation. This is expected when running this script independently."
 fi
+
+# Write updated JSON back to the temporary file
+[[ -n $temp_file ]] && echo "$CONFIG_JSON" > "$temp_file"
 
