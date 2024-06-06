@@ -51,11 +51,12 @@ echo "JSON is valid."
 CONFIG_JSON=$(<"$CONFIG_JSON_PATH")
 
 # Prompt for the install type
+echo "------------------------------------------------------"
 echo -e "\n\nSelect your install type:\n"
-echo "    1) Synology-Homebrew: Minimal install ignoring and/or uninstalling packages in config.json."
-echo "    2) Synology-Homebrew: Full setup includes packages in config.json (Recommended if you want to get started with Neovim)"
-echo
-read -rp "Enter the number of your choice: " install_type
+
+echo -e "    1) Synology-Homebrew: Minimal install will provide the homebrew basics and ignore config.json\n	** If you are running this script after a full setup, you can use this option to uninstall packages if they still exist in config.json\n	** Plugins and themes should be removed manually\n\n"
+echo -e "    2) Synology-Homebrew: Full setup includes packages in config.json\n	** This is recommended if you want to get started with Neovim\n"
+read -rp "Enter selection: " install_type
 
 # Process the selection
 case $install_type in
@@ -227,16 +228,16 @@ echo -----------------------------------------------------------------
 # Check if Ruby is properly linked via Homebrew
 ruby_path=$(which ruby)
 if [[ "$ruby_path" != *"linuxbrew"* ]]; then
-    echo "Ruby is not linked via Homebrew. Linking Ruby..."
+    echo "ruby is not linked via Homebrew. Linking ruby..."
     brew link --overwrite ruby
     if [ $? -eq 0 ]; then
-        echo "Ruby has been successfully linked."
+        echo "ruby has been successfully linked."
     else
-        echo "Failed to link Ruby."
+        echo "Failed to link ruby."
         exit 1
     fi
 else
-    echo "Ruby is already linked via Homebrew."
+    echo "ruby is already linked via Homebrew."
 fi
 
 # Create a brew list of installed packages into an array

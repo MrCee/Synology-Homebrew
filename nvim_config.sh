@@ -6,7 +6,7 @@ temp_file=$1
 [[ -n $temp_file ]] && CONFIG_JSON=$(<"$temp_file")
 
 # For an independent manual run of this script we add packages to an empty CONFIG_JSON
-if [[ -z "$CONFIG_JSON" ]]; then
+if [[ -z $temp_file ]]; then
     CONFIG_JSON_PATH="./config.json"
 
     # Ensure config.json exists
@@ -92,6 +92,10 @@ if [[ -n "$CONFIG_JSON" ]]; then
     if [[ $(echo "$CONFIG_JSON" | jq -r '.packages.neovim.install') = true ]]; then
         echo "Installing additional neovim components"
         [[ ! $(pip3 show pynvim) ]] && pip3 install pynvim --break-system-packages
+        echo "npm changes:"
+        npm config set fund false --location=global
+        npm install -g npm@latest
+        npm install -g neovim@latest
         echo Checking for gem updates
         [[ -n $(gem outdated) ]] && gem update
         [[ $(gem list neovim -i) ]] && gem install neovim
