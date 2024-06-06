@@ -224,6 +224,21 @@ echo --------------------------PATH SET-------------------------------
 echo $PATH
 echo -----------------------------------------------------------------
 
+# Check if Ruby is properly linked via Homebrew
+ruby_path=$(which ruby)
+if [[ "$ruby_path" != *"linuxbrew"* ]]; then
+    echo "Ruby is not linked via Homebrew. Linking Ruby..."
+    brew link --overwrite ruby
+    if [ $? -eq 0 ]; then
+        echo "Ruby has been successfully linked."
+    else
+        echo "Failed to link Ruby."
+        exit 1
+    fi
+else
+    echo "Ruby is already linked via Homebrew."
+fi
+
 # Create a brew list of installed packages into an array
 BREW_LIST_ARRAY=()
 while IFS= read -r line; do
