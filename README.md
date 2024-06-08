@@ -21,7 +21,7 @@ Homebrew, a versatile package manager for macOS and Linux, unlocks a vast ecosys
 - Synology NAS running DSM 7.2 or later
 - SSH access to the NAS
 - User homes enabled
-- Ruby & Git are required for the installation process and can be installed via the Package Center Manager from [SynoCommunity](https://synocommunity.com). These packages will be upgraded and uninstalled after the installation is complete.
+- Git is required for the installation process and can be installed via the Package Center Manager from [SynoCommunity](https://synocommunity.com). Git will be upgraded and uninstalled after the installation is complete.
 - A scheduled task to ensure Homebrew is mounted after each restart. Instructions provided below.
 - iTerm2 running on your local machine with compatible nerdfonts and a theme to make it look great.
 
