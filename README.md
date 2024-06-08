@@ -23,7 +23,7 @@ Homebrew, a versatile package manager for macOS and Linux, unlocks a vast ecosys
 - User homes enabled
 - Ruby & Git are required for the installation process and can be installed via the Package Center Manager from [SynoCommunity](https://synocommunity.com). These packages will be upgraded and uninstalled after the installation is complete.
 - A scheduled task to ensure Homebrew is mounted after each restart. Instructions provided below.
-- iTerm2 running on your local machine with compatible nerdfonts. Will be adding further detail shortly.
+- iTerm2 running on your local machine with compatible nerdfonts and a theme to make it look great.
 
 ## Installation
 
