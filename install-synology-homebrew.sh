@@ -171,14 +171,8 @@ fi
 # Check if Homebrew is installed
 if [[ ! -x /home/linuxbrew/.linuxbrew/bin/brew ]]; then
     echo "Homebrew is not installed. Checking environment for requirements..."
-#    # Check if Ruby is installed
-#    if [[ ! -x $(command -v ruby) ]]; then
-#        echo "Ruby not installed. Please install Ruby via package manager before running."
-#        error=true
-#    else
-#	echo "Ruby has been found"
-#	fi
-    # Check if Git is installed
+
+ # Check if Git is installed
     if [[ ! -x $(command -v git) ]]; then
         echo "Git not installed. Please install Git via package manager before running."
         error=true
