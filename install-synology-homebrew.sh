@@ -356,14 +356,18 @@ if [[ $(echo "$CONFIG_JSON" | jq -r '.packages.neovim.install') == "true" ]]; th
     echo "$CONFIG_JSON" > "$temp_file"
     bash "$script_dir/nvim_config.sh" "$temp_file"
     CONFIG_JSON=$(<"$temp_file")
+    rm "$temp_file"
 else
     echo "SKIPPING: Neovim components as config.json install flag is set to false."
 fi
 
 # Check if any zsh packages should be configured
-echo "Calling $script_dir/nvim_config.sh for additional zsh configuration"
-bash "$script_dir/zsh_config.sh" "$CONFIG_JSON"
-
+echo "Calling $script_dir/zsh_config.sh for additional zsh configuration"
+# Create a temporary file to store JSON data
+temp_file=$(mktemp)
+echo "$CONFIG_JSON" > "$temp_file"
+bash "$script_dir/zsh_config.sh" "$temp_file"
+rm "$temp_file"
 
 # Read JSON and install plugins
 echo "$CONFIG_JSON" | jq -r '.plugins | to_entries[] | "\(.key) \(.value.install) \(.value.directory) \(.value.url)"' | while read -r plugin install directory url; do
