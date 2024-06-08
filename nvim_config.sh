@@ -100,6 +100,7 @@ if [[ -n "$CONFIG_JSON" ]]; then
         
         # Proceed with npm commands
         rm -rf /home/linuxbrew/.linuxbrew/lib/node_modules/npm
+        brew postinstall node
         npm install -g npm@latest
         npm config set fund false --location=global
         npm install -g neovim@latest
