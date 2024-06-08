@@ -2,11 +2,11 @@
 
 ## Introduction
 
-Simplify the installation of Homebrew on Synology NAS devices running DSM 7.2 or later with this script. Our repository streamlines the process, ensuring comprehensive coverage of available packages for MacOS/Linux on your Synology NAS. Harness the power of Homebrew to enhance your system with modern software and libraries effortlessly.
+Simplify the installation of Homebrew on Synology NAS devices running DSM 7.2 or later with this script. Our repository streamlines the process, ensuring comprehensive coverage of available packages for MacOS/Linux on your Synology NAS.
 
 ## Why Homebrew on Synology NAS?
 
-Homebrew, a versatile package manager for macOS and Linux, unlocks a vast ecosystem of modern software and libraries for your Synology NAS. Initially created to streamline Neovim installation and customization, this script now offers additional packages and functionalities, continually evolving to provide an improved user experience.
+Homebrew, a package manager for macOS and Linux, unlocks a vast ecosystem of modern software and libraries for your Synology NAS. Dive into the ritcher features as mentioned below... 
 
 ## Key Features
 
