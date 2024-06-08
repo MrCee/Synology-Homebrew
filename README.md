@@ -2,16 +2,16 @@
 
 ## Introduction
 
-Simplify the installation of Homebrew on Synology NAS devices running DSM 7.2 or later with this script. Our repository streamlines the process, ensuring comprehensive coverage of available packages for MacOS/Linux on your Synology NAS.
+Simplify the installation of Homebrew on Synology NAS devices running DSM 7.2 or later with this script. Our repository streamlines the process, ensuring comprehensive coverage of available packages for macOS/Linux on your Synology NAS.
 
 ## Why Homebrew on Synology NAS?
 
-Homebrew, a package manager for macOS and Linux, unlocks a vast ecosystem of modern software and libraries for your Synology NAS. Dive into the ritcher features as mentioned below... 
+Homebrew, a package manager for macOS and Linux, unlocks a vast ecosystem of modern software and libraries for your Synology NAS. Dive into the richer features as mentioned below...
 
 ## Key Features
 
 - **Simplified Setup:** Prepares your Synology NAS for Homebrew installation.
-- **Comprehensive Package Management:** Installs essential components like glibc, gcc, Perl, oh-my-zsh, and more, mirroring the functionality of Homebrew on macOS.
+- **Comprehensive Package Management:** Installs essential components like glibc, gcc, Perl, oh-my-zsh, and more, mirroring the functionality of Homebrew on macOS 
 - **Optimized Configuration:** Configures the Synology default ash/sh profile and newly installed zsh, enhancing your setup for efficiency.
 - **Synology Integration:** Resolves conflicts with existing Synology packages, ensuring smooth operation.
 - **Easy Uninstall:** Revert to the original state with the included uninstall script.
@@ -21,7 +21,7 @@ Homebrew, a package manager for macOS and Linux, unlocks a vast ecosystem of mod
 - Synology NAS running DSM 7.2 or later
 - SSH access to the NAS
 - User homes enabled
-- Git is required for the installation process and can be installed via the Package Center Manager from [SynoCommunity](https://synocommunity.com). Git will be upgraded and uninstalled after the installation is complete.
+-- Git is required for the installation process and can be installed via the Package Center Manager from [SynoCommunity](https://synocommunity.com). Git will be upgraded and uninstalled after the installation is complete.
 - A scheduled task to ensure Homebrew is mounted after each restart. Instructions provided below.
 - iTerm2 running on your local machine with compatible nerdfonts and a theme to make it look great.
 
