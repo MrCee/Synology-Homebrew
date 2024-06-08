@@ -77,9 +77,11 @@ The script will attempt to fix formatting errors and validate `config.json` prov
       "aliases": "",
       "eval": ""
     },
-    "bat": {
-      "install": false,
-      "aliases": "",
+     "bat": {
+      "install": true,
+      "aliases": {
+        "cat": "bat --paging=never"
+      },
       "eval": ""
     },
     "eza": {
