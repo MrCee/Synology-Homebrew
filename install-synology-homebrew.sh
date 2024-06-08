@@ -77,7 +77,7 @@ display_info() {
             cat <<EOF
 Minimal install selected
 Minimal install will provide the homebrew basics and ignore config.json
-** If you are running this script after a full setup, you can use this option to uninstall packages if they still exist in config.json
+** If you are running this script after a full setup, you can use this option to uninstall packages in config.json
 ** Plugins and themes should be removed manually
 EOF
             ;;
@@ -93,7 +93,6 @@ EOF
     esac
 }
 
-# Main script loop to get the user's selection
 while true; do
     clear
     display_menu
@@ -110,17 +109,14 @@ while true; do
     esac
 done
 
-# Display the selection information once after exiting the loop
 clear
 display_info "$selection"
 
-# Ensure config.json exists for option 2
 if [[ "$selection" -eq 2 && ! -f "$CONFIG_JSON_PATH" ]]; then
     echo "config.json not found in this directory"
     exit 1
 fi
 
-# Process the selection
 case "$selection" in
     1)
         echo "Starting Minimal Install..."
@@ -363,6 +359,11 @@ if [[ $(echo "$CONFIG_JSON" | jq -r '.packages.neovim.install') == "true" ]]; th
 else
     echo "SKIPPING: Neovim components as config.json install flag is set to false."
 fi
+
+# Check if any zsh packages should be configured
+echo "Calling $script_dir/nvim_config.sh for additional zsh configuration"
+bash "$script_dir/zsh_config.sh" "$CONFIG_JSON"
+
 
 # Read JSON and install plugins
 echo "$CONFIG_JSON" | jq -r '.plugins | to_entries[] | "\(.key) \(.value.install) \(.value.directory) \(.value.url)"' | while read -r plugin install directory url; do

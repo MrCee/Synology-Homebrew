@@ -44,7 +44,9 @@
     },
     "bat": {
       "install": true,
-      "aliases": "",
+      "aliases": {
+        "cat": "bat --paging=never"
+      },
       "eval": ""
     },
     "git-delta": {

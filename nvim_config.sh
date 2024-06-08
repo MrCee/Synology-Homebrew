@@ -93,9 +93,9 @@ if [[ -n "$CONFIG_JSON" ]]; then
         echo "Installing additional neovim components"
         [[ ! $(pip3 show pynvim) ]] && pip3 install pynvim --break-system-packages
         echo "npm changes:"
-        if ! command -v npm &> /dev/null; then
+        if [[ ! $(command -v npm) ]]; then
             echo "npm is not installed. Installing npm..."
-            curl -L https://www.npmjs.com/install.sh | sh
+            brew install npm
         fi
         
         # Proceed with npm commands
