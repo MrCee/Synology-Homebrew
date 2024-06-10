@@ -36,9 +36,11 @@ git clone https://github.com/MrCee/Synology-Homebrew.git ~/Synology-Homebrew && 
 
 Select your install type:
 
-##### 1) Synology-Homebrew: Minimal install ignoring and/or uninstalling packages in config.json.
+##### 1) Synology-Homebrew: Minimal install will provide the homebrew basics, ignore packages in config.json, leaving the rest to you.
+   ** If you are running this script after a full setup, you can use this option to uninstall packages previously installed by option 2
 
-##### 2) Synology-Homebrew: Full setup includes packages in config.json. Recommended if you want to get started with Neovim or install some of the great packages listed.
+##### 2) Synology-Homebrew: Full setup includes packages in config.json
+   ** This is recommended if you want to get started with Neovim
 
 Essential packages that will always be installed include:
 
