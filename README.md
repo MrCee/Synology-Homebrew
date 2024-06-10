@@ -33,16 +33,15 @@ Homebrew, a package manager for macOS and Linux, unlocks a vast ecosystem of mod
 git clone https://github.com/MrCee/Synology-Homebrew.git ~/Synology-Homebrew && \
 ~/Synology-Homebrew/install-synology-homebrew.sh
 ```
-
-Select your install type:
+### Select your install type:
 
 ##### 1) Synology-Homebrew: Minimal install will provide the homebrew basics, ignore packages in config.json, leaving the rest to you.
-   ** If you are running this script after a full setup, you can use this option to uninstall packages previously installed by option 2
+_If you are running this script after a full setup, you can use this option to uninstall packages previously installed by option 2_
 
 ##### 2) Synology-Homebrew: Full setup includes packages in config.json
-   ** This is recommended if you want to get started with Neovim
+_Recommended if you want to get started with Neovim or install some of the great packages listed._
 
-Essential packages that will always be installed include:
+##### Both install types include the following essential packages:
 
 git, ruby, glibc, gcc, clang-build-analyzer (which includes latest python), zsh, oh-my-zsh.
 
