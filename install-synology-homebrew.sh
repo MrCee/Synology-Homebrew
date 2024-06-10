@@ -31,8 +31,6 @@ sed -E -i '/"install": "skip"/ s/\"skip\"/\"skip\"/;t;s/(skip)/"\1"/' "$CONFIG_J
 
 # Update plugin keys and write to a temporary file
 temp_file=$(mktemp)
-
-# Update plugin keys and write to the temporary file
 if ! jq '{
   packages: .packages,
   plugins: (.plugins | to_entries | map({key: (.value.url | split("/")[-1]), value: .value}) | from_entries)
@@ -425,6 +423,5 @@ fi
 
 echo "Script completed successfully. Sourcing profile now..."
 source ~/.profile
-
 
 
