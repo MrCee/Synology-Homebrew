@@ -286,13 +286,17 @@ fi
 BREW_LIST_ARRAY=()
 while IFS= read -r line; do
     BREW_LIST_ARRAY+=("$line")
-done <<< $(brew list -1)
-
+done <<< "$(brew list -1)"
 
 # Read JSON and process packages
-echo "$CONFIG_JSON" | jq -r '.packages | to_entries[] | .key' | while read -r package; do
+echo "$CONFIG_JSON" | jq -r '.packages | to_entries[] | .key' | while IFS= read -r package; do
     install_status=$(echo "$CONFIG_JSON" | jq -r ".packages[\"$package\"].install")
-    if [[ "${BREW_LIST_ARRAY[*]}" =~ "$package" ]]; then
+
+    # Extract the base name of the package (after the last slash, if any)
+    base_package=$(basename "$package")
+
+    # Check if the base package name is in the brew list array
+    if [[ " ${BREW_LIST_ARRAY[*]} " =~ " ${base_package} " ]]; then
         if [[ "$install_status" == "true" ]]; then
             echo "$package is already installed."
         elif [[ "$install_status" == "false" ]]; then
@@ -361,7 +365,7 @@ echo "$CONFIG_JSON" > "$temp_file"
 bash "$script_dir/zsh_config.sh" "$temp_file"
 rm "$temp_file"
 
-# Read JSON and install plugins
+# Read JSON and install/uninstall plugins
 echo "$CONFIG_JSON" | jq -r '.plugins | to_entries[] | "\(.key) \(.value.install) \(.value.directory) \(.value.url)"' | while read -r plugin install directory url; do
     eval directory="$directory"
 
@@ -371,7 +375,10 @@ echo "$CONFIG_JSON" | jq -r '.plugins | to_entries[] | "\(.key) \(.value.install
     elif [[ "$install" == "true" && -d "$directory" ]]; then
         echo "$plugin is already installed."
     elif [[ "$install" == "false" ]]; then
-        echo "$plugin install flag is set to false in config.json and will be skipped."
+        if [[ -d "$directory" ]]; then
+            echo "$plugin install flag is set to false in config.json. Removing plugin directory..."
+            rm -rf "$directory"
+        fi
     elif [[ "$install" == "skip" ]]; then
         echo "$plugin install flag is set to skip in config.json. No action will be taken."
     elif [[ "$install" == "handled" ]]; then
@@ -384,9 +391,23 @@ done
 # PROFILE DEFAULTS: zsh and p10k are copied to home and can be reconfigured later.
 [[ ! -e ~/.p10k.zsh ]] && cp "$script_dir/.p10k.zsh" ~/
 cp "$script_dir/.zshrc" ~/
-# Add themes and plugins to ~/.zshrc just incase we need to:
-sed -E -i 's/ZSH_THEME.*$/ZSH_THEME=powerlevel10k\/powerlevel10k/' ~/.zshrc
-sed -E -i 's/plugins=.*$/plugins=(git zsh-autosuggestions zsh-syntax-highlighting web-search)/' ~/.zshrc
+
+# Initialize plugins with default plugins
+plugins="git web-search"
+
+# Read JSON and add plugins to the list if they should be installed
+additional_plugins=$(echo "$CONFIG_JSON" | jq -r '.plugins | to_entries[] | select(.value.install == "true") | .key')
+
+for plugin in $additional_plugins; do
+    plugins="$plugins $plugin"
+done
+
+# Convert space-separated plugins list to a format suitable for .zshrc
+plugins_array="plugins=($plugins)"
+
+# Update ~/.zshrc with the selected theme and plugins
+sed -E -i 's|ZSH_THEME=.*$|ZSH_THEME=powerlevel10k/powerlevel10k|' ~/.zshrc
+sed -E -i "s|plugins=.*$|$plugins_array|" ~/.zshrc
 
 # Iterate over the aliases in JSON and add them to ~/.zshrc
 echo -e "\n# ----config.json----" >> ~/.zshrc
