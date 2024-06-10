@@ -29,7 +29,7 @@ sed -E -i 's/(^.*:\s*\"[^\\]*?)(\".*?)(\".*?\"$)/\1\\\2\\\3/g' "$CONFIG_JSON_PAT
 sed -E -i '/"install": "skip"/ s/\"skip\"/\"skip\"/;t;s/(skip)/"\1"/' "$CONFIG_JSON_PATH"
 
 
-# Create a temporary file 
+# Update plugin keys and write to a temporary file
 temp_file=$(mktemp)
 
 # Update plugin keys and write to the temporary file
@@ -401,7 +401,7 @@ echo "$CONFIG_JSON" | jq -r '.packages, .plugins | to_entries[] | select(.value.
     fi
 done
 
-# Write eval commands to ~/.zshrc if they don't already exist
+# Iterate over the eval in JSON and add them to ~/.zshrc
 echo "$CONFIG_JSON" | jq -r ' .packages,.plugins | to_entries[] | select(.value.eval != "" and .value.install != false) | "eval \"$(\(.value.eval))\""' | while read -r eval_command; do
     if ! grep -qF "$eval_command" ~/.zshrc; then
         echo "Adding eval command: $eval_command"
@@ -425,5 +425,6 @@ fi
 
 echo "Script completed successfully. Sourcing profile now..."
 source ~/.profile
+
 
 
