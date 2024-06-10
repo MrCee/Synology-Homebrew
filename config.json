@@ -85,6 +85,11 @@
         "cd": "z"
       },
       "eval": "zoxide init zsh"
+    },
+    "jesseduffield/lazygit/lazygit": {
+      "install": true,
+      "aliases": "",
+      "eval": ""
     }
   },
   "plugins": {
