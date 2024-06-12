@@ -90,7 +90,8 @@ fi
 echo "-----------------------------------------------------------------"
 if [[ -n "$CONFIG_JSON" ]]; then
     if [[ $(echo "$CONFIG_JSON" | jq -r '.packages.neovim.install') = true ]]; then
-        echo "Installing additional neovim components. Using nvim_config.sh..."
+        echo "Installing additional neovim components..."
+		echo "Calling nvim_config.sh"
         [[ ! $(pip3 show pynvim) ]] && pip3 install pynvim --break-system-packages
         echo "npm changes:"
         if [[ ! $(command -v npm) ]]; then
