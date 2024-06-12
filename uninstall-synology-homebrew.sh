@@ -45,7 +45,7 @@ else
 fi
 
 DEL_NVIM=0
-read -rp "Do you also want to remove nvim, kickstart.nvim, and cached files? (yes/no): " response
+read -rp "Do you also want to remove kickstart.nvim config and cached files? (yes/no): " response
 # Convert the response to lowercase and trim leading/trailing whitespace
 response=$(echo "$response" | tr '[:upper:]' '[:lower:]' | xargs)
 
@@ -61,11 +61,10 @@ else
 fi
 
 if [[ $DEL_NVIM == 1 ]]; then
-rm -rf ~/.config/nvim
 rm -rf ~/.config/nvim-kickstart
-rm -rf ~/.cache/nvim
-rm -rf ~/.local/share/nvim
-rm -rf ~/.local/state/nvim
+rm -rf ~/.cache/nvim-kickstart
+rm -rf ~/.local/share/nvim-kickstart
+rm -rf ~/.local/state/nvim-kickstart
 fi
 
 if [[ -f /home/linuxbrew/.linuxbrew/bin/brew ]]; then
