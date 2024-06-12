@@ -68,7 +68,7 @@ rm -rf ~/.local/state/nvim-kickstart
 fi
 
 if [[ -f /home/linuxbrew/.linuxbrew/bin/brew ]]; then
-NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/uninstall.sh)"
+NONINTERACTIVE=1 sudo /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/uninstall.sh)"
 fi
 # Restore default profile
 sudo cp /etc.defaults/profile "$HOME/.profile"
