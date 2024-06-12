@@ -11,7 +11,7 @@ Homebrew, a package manager for macOS and Linux, unlocks a vast ecosystem of mod
 ## Key Features
 
 - **Simplified Setup:** Prepares your Synology NAS for Homebrew installation.
-- **Comprehensive Package Management:** Installs essential components like glibc, gcc, Perl, oh-my-zsh, and more, mirroring the functionality of Homebrew on macOS 
+- **Comprehensive Package Management:** Installs essential components like glibc, gcc, Perl, oh-my-zsh, and more, mirroring the functionality of Homebrew on macOS
 - **Optimized Configuration:** Configures the Synology default ash/sh profile and newly installed zsh, enhancing your setup for efficiency.
 - **Synology Integration:** Resolves conflicts with existing Synology packages, ensuring smooth operation.
 - **Easy Uninstall:** Revert to the original state with the included uninstall script.
@@ -33,12 +33,15 @@ Homebrew, a package manager for macOS and Linux, unlocks a vast ecosystem of mod
 git clone https://github.com/MrCee/Synology-Homebrew.git ~/Synology-Homebrew && \
 ~/Synology-Homebrew/install-synology-homebrew.sh
 ```
+
 ### Select your install type:
 
 ##### 1) Synology-Homebrew: Minimal install will provide the homebrew basics, ignore packages in config.json, leaving the rest to you.
+
 _If you are running this script after a full setup, you can use this option to uninstall packages previously installed by option 2_
 
 ##### 2) Synology-Homebrew: Full setup includes packages in config.json
+
 _Recommended if you want to get started with Neovim or install some of the great packages listed._
 
 ##### Both install types include the following essential packages:
@@ -78,7 +81,7 @@ The script will attempt to fix formatting errors and validate `config.json` prov
       "aliases": "",
       "eval": ""
     },
-     "bat": {
+    "bat": {
       "install": true,
       "aliases": {
         "cat": "bat --paging=never"
@@ -152,7 +155,7 @@ Modify packages to be installed by editing config.json and setting the install f
 | [fd](https://github.com/sharkdp/fd)                                             | Simple, fast and user-friendly alternative to find.                                                         | Essential for: neovim, telescope        |
 | [fzf](https://github.com/junegunn/fzf)                                          | A command-line fuzzy finder.                                                                                | Essential for: neovim, telescope        |
 | [fzf-git.sh](https://github.com/junegunn/fzf-git.sh)                            | Bash and zsh key bindings for Git objects.                                                                  | Recommended for: neovim, telescope, fzf |
-| [bat](https://github.com/sharkdp/bat)                                           | A cat(1) clone with syntax highlighting and Git integration.                                                | Recommended for: zsh, neovim                 |
+| [bat](https://github.com/sharkdp/bat)                                           | A cat(1) clone with syntax highlighting and Git integration.                                                | Recommended for: zsh, neovim            |
 | [git-delta](https://github.com/dandavison/delta)                                | Language syntax highlighting for diff using a Levenshtein edit inference algorithm.                         | Recommended for: neovim                 |
 | [eza](https://github.com/eza-community/eza.git)                                 | A modern, maintained replacement for the venerable file-listing command-line program ls                     | Recommended for: zsh, neovim            |
 | [tldr](https://github.com/tldr-pages/tldr)                                      | The tldr-pages project is a collection of community-maintained help pages for command-line tools            | Recommended for: neovim                 |
@@ -161,7 +164,7 @@ Modify packages to be installed by editing config.json and setting the install f
 | [perl](https://www.perl.org)                                                    | Highly capable, feature-rich programming language.                                                          | Essential for: stow                     |
 | [stow](https://www.gnu.org/software/stow)                                       | GNU Stow: Organize software neatly under a single directory tree.                                           | Optional                                |
 | [zoxide](https://github.com/ajeetdsouza/zoxide)                                 | Zoxide is a smarter cd command, inspired by z and autojump                                                  | Recommended for: zsh                    |
-| [lazygit](https://github.com/jesseduffield/lazygit)|**AMAZING** Simple terminal UI for git commands|Recommended for: neovim|
+| [lazygit](https://github.com/jesseduffield/lazygit)                             | **AMAZING** Simple terminal UI for git commands                                                             | Recommended for: neovim                 |
 
 For a full list of dependancies installed, run: `brew deps --installed` after installation.
 
