@@ -164,7 +164,7 @@ Modify packages to be installed by editing config.json and setting the install f
 | [perl](https://www.perl.org)                                                    | Highly capable, feature-rich programming language.                                                          | Essential for: stow                     |
 | [stow](https://www.gnu.org/software/stow)                                       | GNU Stow: Organize software neatly under a single directory tree.                                           | Optional                                |
 | [zoxide](https://github.com/ajeetdsouza/zoxide)                                 | Zoxide is a smarter cd command, inspired by z and autojump                                                  | Recommended for: zsh                    |
-| [lazygit](https://github.com/jesseduffield/lazygit)                             | **AMAZING** Simple terminal UI for git commands                                                             | Recommended for: neovim                 |
+| [lazygit](https://github.com/jesseduffield/lazygit)                             | **AMAZING** Simple terminal UI for git commands                                                             | Recommended for: zsh, neovim                 |
 
 For a full list of dependancies installed, run: `brew deps --installed` after installation.
 
