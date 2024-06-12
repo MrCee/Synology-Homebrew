@@ -20,12 +20,12 @@ install_bat_theme() {
         # Rebuild bat cache
         bat cache --build
         
-        # Verify theme installation
-        if bat --list-themes | grep -q "$theme_name"; then
+        # Verify theme installation and check if theme is already in the config file
+        if bat --list-themes | grep -q "$theme_name" && ! grep -q "\--theme=\"$theme_name\"" "$(bat --config-dir)/config"; then
             echo "$theme_name theme installed successfully"
             echo "--theme=\"$theme_name\"" >> "$(bat --config-dir)/config"
         else
-            echo "Failed to install $theme_name theme"
+            echo "Failed to install $theme_name theme or it's already in the config file"
         fi
     fi
 }
