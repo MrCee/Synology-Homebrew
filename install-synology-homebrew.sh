@@ -28,7 +28,6 @@ sed -E -i 's/([^\\])\\([^\\"])/\1\\\\\2/g' "$CONFIG_JSON_PATH"
 sed -E -i 's/(^.*:\s*\"[^\\]*?)(\".*?)(\".*?\"$)/\1\\\2\\\3/g' "$CONFIG_JSON_PATH"
 sed -E -i '/"install": "skip"/ s/\"skip\"/\"skip\"/;t;s/(skip)/"\1"/' "$CONFIG_JSON_PATH"
 
-
 # Update plugin keys and write to a temporary file
 temp_file=$(mktemp)
 if ! jq '{
@@ -392,12 +391,8 @@ done
 [[ ! -e ~/.p10k.zsh ]] && cp "$script_dir/.p10k.zsh" ~/
 cp "$script_dir/.zshrc" ~/
 
-
 # Set default plugins
 default_plugins="git web-search"
-
-
-
 
 # Use jq to get the list of plugins to add
 add_plugins=$(echo "$CONFIG_JSON" | jq -r '
@@ -419,13 +414,6 @@ sed -E -i "s|^plugins=.*$|$plugins_array|" ~/.zshrc
 
 # Ensure the theme is set to powerlevel10k
 sed -E -i 's|^ZSH_THEME=.*$|ZSH_THEME="powerlevel10k/powerlevel10k"|' ~/.zshrc
-
-
-
-
-
-
-
 
 # Iterate over the aliases in JSON and add them to ~/.zshrc
 echo -e "\n# ----config.json----" >> ~/.zshrc
@@ -462,5 +450,3 @@ fi
 
 echo "Script completed successfully. Sourcing profile now..."
 source ~/.profile
-
-
