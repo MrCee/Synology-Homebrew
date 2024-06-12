@@ -25,7 +25,7 @@ install_bat_theme() {
             echo "$theme_name theme installed successfully"
             echo "--theme=\"$theme_name\"" >> "$(bat --config-dir)/config"
         else
-            echo "Failed to install $theme_name theme or it's already in the config file"
+            echo "Skipped bat theme: $theme_name. It's already installed"
         fi
     fi
 }

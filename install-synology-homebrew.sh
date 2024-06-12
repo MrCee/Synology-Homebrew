@@ -392,22 +392,40 @@ done
 [[ ! -e ~/.p10k.zsh ]] && cp "$script_dir/.p10k.zsh" ~/
 cp "$script_dir/.zshrc" ~/
 
-# Initialize plugins with default plugins
-plugins="git web-search"
 
-# Read JSON and add plugins to the list if they should be installed
-additional_plugins=$(echo "$CONFIG_JSON" | jq -r '.plugins | to_entries[] | select(.value.install == "true") | .key')
+# Set default plugins
+default_plugins="git web-search"
 
-for plugin in $additional_plugins; do
-    plugins="$plugins $plugin"
+
+
+
+# Use jq to get the list of plugins to add
+add_plugins=$(echo "$CONFIG_JSON" | jq -r '
+  .plugins | to_entries[] | 
+  select(.value.install == true and (.value.directory | contains("custom/plugins"))) | 
+  .key')
+
+# Combine default plugins with those from the JSON config
+plugins="$default_plugins"
+for plugin in $add_plugins; do
+  plugins="$plugins $plugin"
 done
 
 # Convert space-separated plugins list to a format suitable for .zshrc
 plugins_array="plugins=($plugins)"
 
-# Update ~/.zshrc with the selected theme and plugins
-sed -E -i 's|ZSH_THEME=.*$|ZSH_THEME=powerlevel10k/powerlevel10k|' ~/.zshrc
-sed -E -i "s|plugins=.*$|$plugins_array|" ~/.zshrc
+# Update ~/.zshrc with the selected plugins
+sed -E -i "s|^plugins=.*$|$plugins_array|" ~/.zshrc
+
+# Ensure the theme is set to powerlevel10k
+sed -E -i 's|^ZSH_THEME=.*$|ZSH_THEME="powerlevel10k/powerlevel10k"|' ~/.zshrc
+
+
+
+
+
+
+
 
 # Iterate over the aliases in JSON and add them to ~/.zshrc
 echo -e "\n# ----config.json----" >> ~/.zshrc
