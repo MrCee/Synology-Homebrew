@@ -124,6 +124,15 @@
         "nvim": "NVIM_APPNAME=\"nvim-kickstart\" nvim"
       },
       "eval": ""
+    },
+    "OPTIONAL_SET_INSTALL_TO_TRUE_WITH_NO_DIRECTORY_FOR_ADDITIONAL_ALIASES_OR_EVAL": {
+      "install": false,
+      "url": "OPTIONAL_SET_INSTALL_TO_TRUE_WITH_NO_DIRECTORY_FOR_ADDITIONAL_ALIASES_OR_EVAL",
+      "directory": "",
+      "aliases": {
+        "nvim": "NVIM_APPNAME=\"nvim\" nvim"
+      },
+      "eval": ""
     }
   }
 }
