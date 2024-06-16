@@ -226,9 +226,6 @@ mount -o bind "/volume1/homes" /home
 
 ## TL;TR
 
-#### Portable code (limited)
-##### Regex and `functions.sh` explained
-
 ### Portable Code (Limited)
 
 #### Regex and functions.sh Explained
