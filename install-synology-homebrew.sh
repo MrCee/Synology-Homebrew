@@ -1,5 +1,8 @@
 #!/bin/bash
-clear
+
+DEBUG=0
+
+[[ $DEBUG == 1 ]] && echo "DEBUG mode"
 
 # Get the directory containing this script
 case "$0" in
@@ -23,31 +26,38 @@ if [[ ! -f "$CONFIG_JSON_PATH" ]]; then
     exit 1
 fi
 
-# Format JSON to ensure compatibility
-sed -E -i 's/([^\\])\\([^\\"])/\1\\\\\2/g' "$CONFIG_JSON_PATH"
-sed -E -i 's/(^.*:\s*\"[^\\]*?)(\".*?)(\".*?\"$)/\1\\\2\\\3/g' "$CONFIG_JSON_PATH"
-sed -E -i '/"install": "skip"/ s/\"skip\"/\"skip\"/;t;s/(skip)/"\1"/' "$CONFIG_JSON_PATH"
+# Source the functions file
+source "$script_dir/functions.sh"
 
-# Update plugin keys and write to a temporary file
+# Format JSON to ensure compatibility
+func_sed 's/([^\\])\\([^\\"])/\1\\\\\2/g' "$CONFIG_JSON_PATH"
+func_sed 's/(^.*:[[:space:]]*\"[^\\]*)(\".*)(\".*\"$)/\1\\\2\\\3/g' "$CONFIG_JSON_PATH"
+func_sed 's/"install": skip/"install": "skip"/' "$CONFIG_JSON_PATH"
+func_sed 's/"install": "true"/"install": true/' "$CONFIG_JSON_PATH"
+func_sed 's/"install": "false"/"install": false/' "$CONFIG_JSON_PATH"
+
+# Update plugin keys and overwrite config.json
 temp_file=$(mktemp)
 if ! jq '{
   packages: .packages,
   plugins: (.plugins | to_entries | map({key: (.value.url | split("/")[-1]), value: .value}) | from_entries)
 }' "$CONFIG_JSON_PATH" > "$temp_file"; then
     echo "Failed to process JSON with jq."
+    rm "$temp_file"
     exit 1
-fi
+else
+    # Replace the original config.json with the updated version
+    mv "$temp_file" "$CONFIG_JSON_PATH"
+    echo "config.json has been updated successfully."
 
-# Replace the original config.json with the updated version
-mv "$temp_file" "$CONFIG_JSON_PATH"
-echo "config.json has been updated successfully."
-
-# Validate JSON
-if ! jq empty "$CONFIG_JSON_PATH" > /dev/null 2>&1; then
-    echo "Invalid JSON."
-    exit 1
+    # Validate JSON
+    if ! jq empty "$CONFIG_JSON_PATH" > /dev/null 2>&1; then
+        echo "Invalid JSON."
+        exit 1
+    else
+        echo "JSON is valid."
+    fi
 fi
-echo "JSON is valid."
 
 # Read the content of JSON into the CONFIG_JSON variable
 CONFIG_JSON=$(<"$CONFIG_JSON_PATH")
@@ -91,7 +101,7 @@ EOF
 }
 
 while true; do
-    clear
+    [[ $DEBUG == 0 ]] && clear
     display_menu
     read -r selection
 
@@ -106,7 +116,7 @@ while true; do
     esac
 done
 
-clear
+[[ $DEBUG == 0 ]] && clear
 display_info "$selection"
 
 if [[ "$selection" -eq 2 && ! -f "$CONFIG_JSON_PATH" ]]; then
@@ -344,7 +354,7 @@ fi
 
 # Check if additional Neovim packages should be installed
 echo "-----------------------------------------------------------------"
-if [[ $(echo "$CONFIG_JSON" | jq -r '.packages.neovim.install') == "true" ]]; then
+if [[ $(echo "$CONFIG_JSON" | jq -r '.packages.neovim.install') == true ]]; then
     echo "Calling $script_dir/nvim_config.sh for additional setup packages"
     # Create a temporary file to store JSON data
     temp_file=$(mktemp)
@@ -410,10 +420,10 @@ done
 plugins_array="plugins=($plugins)"
 
 # Update ~/.zshrc with the selected plugins
-sed -E -i "s|^plugins=.*$|$plugins_array|" ~/.zshrc
+func_sed "s|^plugins=.*$|$plugins_array|" ~/.zshrc
 
 # Ensure the theme is set to powerlevel10k
-sed -E -i 's|^ZSH_THEME=.*$|ZSH_THEME="powerlevel10k/powerlevel10k"|' ~/.zshrc
+func_sed 's|^ZSH_THEME=.*$|ZSH_THEME="powerlevel10k/powerlevel10k"|' ~/.zshrc
 
 # Iterate over the aliases in JSON and add them to ~/.zshrc if install is not set to false.
 echo -e "\n# ----config.json----" >> ~/.zshrc
