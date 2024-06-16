@@ -195,7 +195,7 @@ alias nvim='NVIM_APPNAME="your-custom-nvim-directory" nvim' # Aliases ~/.config/
 
 See kickstart.nvim provided in the [config.json example](#configjson-example) above.
 
-If no alias is set, Neovim will attempt to use the default nvim config location `~/.config/nvim`
+If no alias is set, Neovim will attempt to use the default nvim config location `~/.config/nvim` 
 
 Run :checkhealth in Neovim after installation to see more detail about any further plugins you may need.
 
@@ -233,7 +233,7 @@ If you're like me and aim to use **parts** of this code across different environ
 
 This file houses functions designed to standardise commands used in Synology NAS (GNU Linux), ensuring compatibility and portability across platforms, particularly with utilities like **sed**. 
 
-For example: regex parsed to **func_sed** is first constructed for portability across Unix/Linux distributions, the function will handle the rest.
+For example, the regex parsed to **func_sed** is first constructed for portability across Unix/Linux distributions. Once applied, the function will handle the rest, ensuring that your code remains compatible and consistent across different environments.
 
 This approach simplifies the process of adapting similar code to various systems, making it more versatile and easier to manage, should you wish to extend this code to other systems outside of Synology NAS.
 
