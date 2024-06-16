@@ -36,26 +36,28 @@ func_sed 's/"install": skip/"install": "skip"/' "$CONFIG_JSON_PATH"
 func_sed 's/"install": "true"/"install": true/' "$CONFIG_JSON_PATH"
 func_sed 's/"install": "false"/"install": false/' "$CONFIG_JSON_PATH"
 
-# Update plugin keys and write to a temporary file
+# Update plugin keys and overwrite config.json
 temp_file=$(mktemp)
 if ! jq '{
   packages: .packages,
   plugins: (.plugins | to_entries | map({key: (.value.url | split("/")[-1]), value: .value}) | from_entries)
 }' "$CONFIG_JSON_PATH" > "$temp_file"; then
     echo "Failed to process JSON with jq."
+    rm "$temp_file"
     exit 1
-fi
+else
+    # Replace the original config.json with the updated version
+    mv "$temp_file" "$CONFIG_JSON_PATH"
+    echo "config.json has been updated successfully."
 
-# Replace the original config.json with the updated version
-mv "$temp_file" "$CONFIG_JSON_PATH"
-echo "config.json has been updated successfully."
-
-# Validate JSON
-if ! jq empty "$CONFIG_JSON_PATH" > /dev/null 2>&1; then
-    echo "Invalid JSON."
-    exit 1
+    # Validate JSON
+    if ! jq empty "$CONFIG_JSON_PATH" > /dev/null 2>&1; then
+        echo "Invalid JSON."
+        exit 1
+    else
+        echo "JSON is valid."
+    fi
 fi
-echo "JSON is valid."
 
 # Read the content of JSON into the CONFIG_JSON variable
 CONFIG_JSON=$(<"$CONFIG_JSON_PATH")
