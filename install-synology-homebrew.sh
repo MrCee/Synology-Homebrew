@@ -1,10 +1,9 @@
 #!/bin/bash
 
-DEBUG=0
-
-[[ $DEBUG == 1 ]] && echo "DEBUG mode"
-
 [[ $(uname) == "Darwin" ]] && echo "You have run this from macOS, script will now exit" && exit 1
+
+DEBUG=0
+[[ $DEBUG == 1 ]] && echo "DEBUG mode"
 
 # Get the directory containing this script
 case "$0" in
