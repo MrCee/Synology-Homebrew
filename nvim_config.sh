@@ -1,5 +1,7 @@
 #!/bin/bash
 
+echo "Sucessfully called $(basename "$0")"
+
 source "./functions.sh"
 
 temp_file=$1
@@ -90,11 +92,10 @@ else
 fi
 
 # Install additional packages for neovim
-echo "-----------------------------------------------------------------"
+echo "----------------------------------------"
 if [[ -n "$CONFIG_JSON" ]]; then
     if [[ $(echo "$CONFIG_JSON" | jq -r '.packages.neovim.install') = true ]]; then
         echo "Installing additional neovim components..."
-		echo "Calling nvim_config.sh"
         [[ ! $(pip3 show pynvim) ]] && pip3 install pynvim --break-system-packages
         echo "npm changes:"
         if [[ ! $(command -v npm) ]]; then

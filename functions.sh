@@ -1,7 +1,5 @@
 # functions.sh
 
-# functions.sh
-
 # Function to perform sed operation in a portable way
 # Arguments:
 #   $1 - Sed expression

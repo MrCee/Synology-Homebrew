@@ -5,7 +5,7 @@ install_bat_theme() {
     local theme_name="tokyonight_night"
 
     # Check if bat package installation is required
-    if [[ $(echo "$CONFIG_JSON" | jq -r '.packages.bat.install') == "true" ]]; then
+    if [[ $(echo "$CONFIG_JSON" | jq -r '.packages.bat.install') == true ]]; then
         echo "Installing bat theme: $theme_name"
         
         # Create themes directory if it doesn't exist
@@ -30,20 +30,18 @@ install_bat_theme() {
     fi
 }
 
-# Main script logic
+# Main
+echo "Sucessfully called $(basename "$0")"
 
-CONFIG_JSON_PATH="$1"
+CONFIG_JSON="$1"
 
-[[ -z "$CONFIG_JSON_PATH" ]] && CONFIG_JSON_PATH="./config.json"
+[[ -z "$CONFIG_JSON" ]] && CONFIG_JSON=$(cat "./config.json")
 
-# Check if the JSON file exists
-if [ ! -f "$CONFIG_JSON_PATH" ]; then
-    echo "Error: JSON configuration file not found at '$CONFIG_JSON_PATH'"
+# Check if the JSON has data
+if [ -z "$CONFIG_JSON" ]; then
+    echo "Error: JSON configuration file not found"
     exit 1
 fi
-
-# Read the content of JSON into the CONFIG_JSON variable
-CONFIG_JSON=$(<"$CONFIG_JSON_PATH")
 
 # Install bat theme if needed
 install_bat_theme
