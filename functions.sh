@@ -1,11 +1,10 @@
-# functions.sh
+#!/bin/bash
 
 # Function to perform sed operation in a portable way
 # Arguments:
 #   $1 - Sed expression
 #   $2 - Input file
 func_sed() {
-
     # Define a temporary file for storing the modified content
     local tmp_file=$(mktemp)
 
@@ -25,15 +24,6 @@ func_sed() {
     else
         # Print an error message if the sed operation failed
         echo "Error: Sed operation failed - $sed_output"
-            echo "func_sed: No changes needed in '$2'."
-        else
-            # Replace the original file with the modified content
-            mv "$tmp_file" "$2"
-            echo "func_sed: Fix applied in '$2' :: '$1'"
-        fi
-    else
-        # Print an error message if the sed operation failed
-        echo "Error: func_sed operation failed - $sed_output"
         return $sed_exit_code
     fi
 
