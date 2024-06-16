@@ -1,5 +1,7 @@
 #!/bin/bash
 
+source "./functions.sh"
+
 temp_file=$1
 
 # Read JSON from the temporary file
@@ -14,6 +16,7 @@ if [[ -z $temp_file ]]; then
         echo "config.json not found in this directory"
         exit 1
     fi
+
 
     echo "-----------------------------------------------------------------"
     read -p "Would you like to check and install neovim dependencies? (y/n): " answer
@@ -76,7 +79,7 @@ if [[ -n "$config_files" ]]; then
     for config_file in $config_files; do
         if ! grep -q "Added by Synology-Homebrew OSC52" "$config_file"; then
             # Add the code after the line containing "unnamedplus"
-            sed -i "/unnamedplus/ r /dev/stdin" "$config_file" <<<"$code_to_add"
+            funct_sed "/unnamedplus/ r /dev/stdin" "$config_file" <<<"$code_to_add"
             echo "OSC52 code for remote/system clipbard successfully added to $config_file"
         else
             echo "OSC52 code for remote/system clipboard already exists in $config_file"

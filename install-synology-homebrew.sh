@@ -1,4 +1,5 @@
 #!/bin/bash
+
 clear
 
 # Get the directory containing this script
@@ -23,10 +24,13 @@ if [[ ! -f "$CONFIG_JSON_PATH" ]]; then
     exit 1
 fi
 
+# Source the functions file
+source $script_dir/functions.sh
+
 # Format JSON to ensure compatibility
-sed -E -i 's/([^\\])\\([^\\"])/\1\\\\\2/g' "$CONFIG_JSON_PATH"
-sed -E -i 's/(^.*:\s*\"[^\\]*?)(\".*?)(\".*?\"$)/\1\\\2\\\3/g' "$CONFIG_JSON_PATH"
-sed -E -i '/"install": "skip"/ s/\"skip\"/\"skip\"/;t;s/(skip)/"\1"/' "$CONFIG_JSON_PATH"
+funct_sed 's/([^\\])\\([^\\"])/\1\\\\\2/g' "$CONFIG_JSON_PATH"
+funct_sed 's/(^.*:\s*\"[^\\]*?)(\".*?)(\".*?\"$)/\1\\\2\\\3/g' "$CONFIG_JSON_PATH"
+funct_sed '/"install": "skip"/ s/\"skip\"/\"skip\"/;t;s/(skip)/"\1"/' "$CONFIG_JSON_PATH"
 
 # Update plugin keys and write to a temporary file
 temp_file=$(mktemp)
@@ -344,7 +348,7 @@ fi
 
 # Check if additional Neovim packages should be installed
 echo "-----------------------------------------------------------------"
-if [[ $(echo "$CONFIG_JSON" | jq -r '.packages.neovim.install') == "true" ]]; then
+if [[ $(echo "$CONFIG_JSON" | jq -r '.packages.neovim.install') == true ]]; then
     echo "Calling $script_dir/nvim_config.sh for additional setup packages"
     # Create a temporary file to store JSON data
     temp_file=$(mktemp)
@@ -410,10 +414,10 @@ done
 plugins_array="plugins=($plugins)"
 
 # Update ~/.zshrc with the selected plugins
-sed -E -i "s|^plugins=.*$|$plugins_array|" ~/.zshrc
+funct_sed "s|^plugins=.*$|$plugins_array|" ~/.zshrc
 
 # Ensure the theme is set to powerlevel10k
-sed -E -i 's|^ZSH_THEME=.*$|ZSH_THEME="powerlevel10k/powerlevel10k"|' ~/.zshrc
+funct_sed 's|^ZSH_THEME=.*$|ZSH_THEME="powerlevel10k/powerlevel10k"|' ~/.zshrc
 
 # Iterate over the aliases in JSON and add them to ~/.zshrc if install is not set to false.
 echo -e "\n# ----config.json----" >> ~/.zshrc
