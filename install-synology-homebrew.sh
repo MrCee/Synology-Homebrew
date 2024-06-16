@@ -1,6 +1,8 @@
 #!/bin/bash
 
-clear
+DEBUG=0
+
+[[ $DEBUG == 1 ]] && echo "DEBUG mode"
 
 # Get the directory containing this script
 case "$0" in
@@ -25,12 +27,14 @@ if [[ ! -f "$CONFIG_JSON_PATH" ]]; then
 fi
 
 # Source the functions file
-source $script_dir/functions.sh
+source "$script_dir/functions.sh"
 
 # Format JSON to ensure compatibility
-funct_sed 's/([^\\])\\([^\\"])/\1\\\\\2/g' "$CONFIG_JSON_PATH"
-funct_sed 's/(^.*:\s*\"[^\\]*?)(\".*?)(\".*?\"$)/\1\\\2\\\3/g' "$CONFIG_JSON_PATH"
-funct_sed '/"install": "skip"/ s/\"skip\"/\"skip\"/;t;s/(skip)/"\1"/' "$CONFIG_JSON_PATH"
+func_sed 's/([^\\])\\([^\\"])/\1\\\\\2/g' "$CONFIG_JSON_PATH"
+func_sed 's/(^.*:[[:space:]]*\"[^\\]*)(\".*)(\".*\"$)/\1\\\2\\\3/g' "$CONFIG_JSON_PATH"
+func_sed 's/"install": skip/"install": "skip"/' "$CONFIG_JSON_PATH"
+func_sed 's/"install": "true"/"install": true/' "$CONFIG_JSON_PATH"
+func_sed 's/"install": "false"/"install": false/' "$CONFIG_JSON_PATH"
 
 # Update plugin keys and write to a temporary file
 temp_file=$(mktemp)
@@ -95,7 +99,7 @@ EOF
 }
 
 while true; do
-    clear
+    [[ $DEBUG == 0 ]] && clear
     display_menu
     read -r selection
 
@@ -110,7 +114,7 @@ while true; do
     esac
 done
 
-clear
+[[ $DEBUG == 0 ]] && clear
 display_info "$selection"
 
 if [[ "$selection" -eq 2 && ! -f "$CONFIG_JSON_PATH" ]]; then
@@ -414,10 +418,10 @@ done
 plugins_array="plugins=($plugins)"
 
 # Update ~/.zshrc with the selected plugins
-funct_sed "s|^plugins=.*$|$plugins_array|" ~/.zshrc
+func_sed "s|^plugins=.*$|$plugins_array|" ~/.zshrc
 
 # Ensure the theme is set to powerlevel10k
-funct_sed 's|^ZSH_THEME=.*$|ZSH_THEME="powerlevel10k/powerlevel10k"|' ~/.zshrc
+func_sed 's|^ZSH_THEME=.*$|ZSH_THEME="powerlevel10k/powerlevel10k"|' ~/.zshrc
 
 # Iterate over the aliases in JSON and add them to ~/.zshrc if install is not set to false.
 echo -e "\n# ----config.json----" >> ~/.zshrc
