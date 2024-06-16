@@ -291,42 +291,45 @@ else
     echo "ruby is linked via Homebrew."
 fi
 
+#!/bin/bash
+
 # Create a brew list of installed packages into an array
-BREW_LIST_ARRAY=()
-while IFS= read -r line; do
-    BREW_LIST_ARRAY+=("$line")
-done <<< "$(brew list -1)"
+BREW_LIST_ARRAY=($(brew list -1))
 
 # Read JSON and process packages
-echo "$CONFIG_JSON" | jq -r '.packages | to_entries[] | .key' | while IFS= read -r package; do
-    install_status=$(echo "$CONFIG_JSON" | jq -r ".packages[\"$package\"].install")
-
-    # Extract the base name of the package (after the last slash, if any)
+jq -r '.packages | to_entries[] | .key' <<< "$CONFIG_JSON" | while IFS= read -r package; do
+    install_status=$(jq -r ".packages[\"$package\"].install" <<< "$CONFIG_JSON")
     base_package=$(basename "$package")
 
-    # Check if the base package name is in the brew list array
     if [[ " ${BREW_LIST_ARRAY[*]} " =~ " ${base_package} " ]]; then
-        if [[ "$install_status" == "true" ]]; then
-            echo "$package is already installed."
-        elif [[ "$install_status" == "false" ]]; then
-            echo "$package is set to uninstall in config.json and will now be uninstalled"
-            brew uninstall --quiet "$package"
-        elif [[ "$install_status" == "skip" ]]; then
-            echo "$package is set to skip in config.json. No action will be taken."
-        else
-            echo "Invalid install status for $package in config.json. No action will be taken."
-        fi
+        case "$install_status" in
+            true)
+                echo "$package is already installed."
+                ;;
+            false)
+                echo "$package is set to uninstall in config.json and will now be uninstalled"
+                brew uninstall --quiet "$package"
+                ;;
+            "skip")
+                echo "$package is set to skip in config.json. No action will be taken."
+                ;;
+            *)
+                echo "Invalid install status for $package in config.json. No action will be taken."
+                ;;
+        esac
     else
-        if [[ "$install_status" == "true" ]]; then
-            echo "$package is not installed, installing..."
-            brew install --quiet "$package"
-        elif [[ "$install_status" == "false" ]]; then
-            echo "$package is not installed and is set to uninstall in config.json. No action will be taken."
-        elif [[ "$install_status" == "skip" ]]; then
-            echo "$package is not installed and is set to skip in config.json. No action will be taken."
-        else
-            echo "Invalid install status for $package in config.json. No action will be taken."
-        fi
+        case "$install_status" in
+            true)
+                echo "$package is not installed, installing..."
+                brew install --quiet "$package"
+                ;;
+            false | "skip")
+                echo "$package is not installed and is set to $install_status in config.json. No action will be taken."
+                ;;
+            *)
+                echo "Invalid install status for $package in config.json. No action will be taken."
+                ;;
+        esac
     fi
 done
 
