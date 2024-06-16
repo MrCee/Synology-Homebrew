@@ -38,7 +38,7 @@ git clone https://github.com/MrCee/Synology-Homebrew.git ~/Synology-Homebrew && 
 
 #### 1) Synology-Homebrew: Minimal install will provide the homebrew basics, ignore packages in config.json, leaving the rest to you.
 
-_You can also use this option to uninstall packages in config.json installed by option 2 by running the script again_
+_You can also use this option to uninstall packages in config.json installed by option 2 by running the script again._
 
 #### 2) Synology-Homebrew: Full setup includes packages in config.json
 
