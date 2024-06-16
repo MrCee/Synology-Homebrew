@@ -1,5 +1,10 @@
 {
   "packages": {
+    "jq": {
+      "install": true,
+      "aliases": "",
+      "eval": ""
+    },
     "make": {
       "install": true,
       "aliases": "",
