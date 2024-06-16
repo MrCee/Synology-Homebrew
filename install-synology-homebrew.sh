@@ -4,6 +4,8 @@ DEBUG=0
 
 [[ $DEBUG == 1 ]] && echo "DEBUG mode"
 
+[[ $(uname) == "Darwin" ]] && echo "You have run this from macOS, script will now exit" && exit 1
+
 # Get the directory containing this script
 case "$0" in
     /*) script_path="$0" ;;
