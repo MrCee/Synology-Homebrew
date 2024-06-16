@@ -232,9 +232,10 @@ mount -o bind "/volume1/homes" /home
 If you're like me and aim to use **parts** of this code across different environments, such as macOS (a BSD-based Unix-like operating system), you'll appreciate the introduction of a `functions.sh` file. 
 
 This file houses functions designed to standardise commands used in Synology NAS (GNU Linux), ensuring compatibility and portability across platforms, particularly with utilities like **sed**. 
-Regex parsed to **func_sed** is first constructed for portability across Unix/Linux distributions, the function will handle the rest.
 
-This approach simplifies the process of adapting similar code to various systems, making it more versatile and easier to manage.
+For example: regex parsed to **func_sed** is first constructed for portability across Unix/Linux distributions, the function will handle the rest.
+
+This approach simplifies the process of adapting similar code to various systems, making it more versatile and easier to manage, should you wish to extend this code to other systems outside of Synology NAS.
 
 **PLEASE NOTE: `install-synology-homebrew.sh` should only be run on Synology NAS** 
 
