@@ -1,5 +1,11 @@
 #!/bin/bash
 
+# Check if the script is being sourced
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    echo "This file should not be run directly, it should be sourced from main script."
+    exit 1
+fi
+
 # Function to perform sed operation in a portable way
 # Arguments:
 #   $1 - Sed expression
