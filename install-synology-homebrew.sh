@@ -367,12 +367,9 @@ else
 fi
 
 # Check if any zsh packages should be configured
+echo "-----------------------------------------------------------------"
 echo "Calling $script_dir/zsh_config.sh for additional zsh configuration"
-# Create a temporary file to store JSON data
-temp_file=$(mktemp)
-echo "$CONFIG_JSON" > "$temp_file"
-bash "$script_dir/zsh_config.sh" "$temp_file"
-rm "$temp_file"
+bash "$script_dir/zsh_config.sh" "$CONFIG_JSON"
 
 # Read JSON and install/uninstall plugins
 echo "$CONFIG_JSON" | jq -r '.plugins | to_entries[] | "\(.key) \(.value.install) \(.value.directory) \(.value.url)"' | while read -r plugin install directory url; do
