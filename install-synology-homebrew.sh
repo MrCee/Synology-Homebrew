@@ -82,18 +82,14 @@ EOF
 display_info() {
     case "$1" in
         1)
-            cat <<EOF
-Minimal install selected
+            echo "Minimal install selected
 Minimal install will provide the homebrew basics and ignore config.json
 ** If you are running this script after a full setup, you can use this option to uninstall packages in config.json
-** Plugins and themes should be removed manually
-EOF
+** Plugins and themes should be removed manually"
             ;;
         2)
-            cat <<EOF
-Full setup selected
-Full setup includes packages in config.json
-EOF
+            echo "Full setup selected
+Full setup includes packages in config.json"
             ;;
         *)
             echo "Invalid selection."
@@ -107,13 +103,10 @@ while true; do
     read -r selection
 
     case "$selection" in
-        1|2)
-            break
-            ;;
-        *)
-            echo "Invalid selection. Please enter 1 or 2."
-            read -r -p "Press Enter to continue..."
-            ;;
+        1|2) break ;;
+        *) echo "Invalid selection. Please enter 1 or 2."
+           read -r -p "Press Enter to continue..."
+           ;;
     esac
 done
 
@@ -125,17 +118,12 @@ if [[ "$selection" -eq 2 && ! -f "$CONFIG_JSON_PATH" ]]; then
     exit 1
 fi
 
-case "$selection" in
-    1)
-        echo "Starting Minimal Install..."
-        # Update install fields to false
-        CONFIG_JSON=$(jq '.packages |= with_entries(.value |= if .install == true then .install = false else . end)' <<< "$CONFIG_JSON")
-        ;;
-    2)
-        echo "Starting Full Setup..."
-        # No need to re-read config.json, already read at the beginning
-        ;;
-esac
+echo "Starting $( [[ "$selection" -eq 1 ]] && echo 'Minimal Install' || echo 'Full Setup' )..."
+
+if [[ "$selection" -eq 1 ]]; then
+    # Update install fields to false
+    CONFIG_JSON=$(jq '.packages |= with_entries(.value.install = false)' <<< "$CONFIG_JSON")
+fi
 
 export HOMEBREW_NO_ENV_HINTS=1
 export HOMEBREW_NO_AUTO_UPDATE=1
@@ -214,7 +202,7 @@ if [[ ! -d /home ]]; then
     sudo chown -R $(whoami):root /home
 fi
 
-# Create a new .profile and add custom paths
+# Create a new .profile and add homebrew paths
 cat > ~/.profile <<EOF
 PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/syno/sbin:/usr/syno/bin:/usr/local/sbin:/usr/local/bin
 # Directories to add to PATH
@@ -303,35 +291,18 @@ jq -r '.packages | to_entries[] | .key' <<< "$CONFIG_JSON" | while IFS= read -r 
     base_package=$(basename "$package")
 
     if [[ " ${BREW_LIST_ARRAY[*]} " =~ " ${base_package} " ]]; then
-        case "$install_status" in
-            true)
-                echo "$package is already installed."
-                ;;
-            false)
-                echo "$package is set to uninstall in config.json and will now be uninstalled"
-                brew uninstall --quiet "$package"
-                ;;
-            "skip")
-                echo "$package is set to skip in config.json. No action will be taken."
-                ;;
-            *)
-                echo "Invalid install status for $package in config.json. No action will be taken."
-                ;;
-        esac
+        action="already installed"
+        [[ "$install_status" == "false" ]] && action="set to uninstall" && brew uninstall --quiet "$package"
+        [[ "$install_status" == "skip" ]] && action="set to skip"
     else
-        case "$install_status" in
-            true)
-                echo "$package is not installed, installing..."
-                brew install --quiet "$package"
-                ;;
-            false | "skip")
-                echo "$package is not installed and is set to $install_status in config.json. No action will be taken."
-                ;;
-            *)
-                echo "Invalid install status for $package in config.json. No action will be taken."
-                ;;
-        esac
+        action="not installed"
+        [[ "$install_status" == "true" ]] && action="installing" && brew install --quiet "$package"
+        [[ "$install_status" == "false" || "$install_status" == "skip" ]] && action="set to $install_status"
     fi
+
+    [[ "$install_status" != "true" && "$install_status" != "false" && "$install_status" != "skip" ]] && action="invalid install status"
+
+    echo "$package is $action."
 done
 
 echo "Creating symlinks"
@@ -459,5 +430,5 @@ if ! grep -xF "$command_to_add" ~/.profile; then
     echo "$command_to_add" >> ~/.profile
 fi
 
-echo "Script completed successfully. Sourcing profile now..."
-source ~/.profile
+echo "Script completed successfully. You will now be transported to ZSH!!!"
+source ~/.profile 
