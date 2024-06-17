@@ -17,10 +17,10 @@ func_sed() {
 
     if [ $sed_exit_code -eq 0 ]; then
         if cmp -s "$2" "$tmp_file"; then
-            echo "No changes needed in '$2'."
+            echo "Sed operation: No changes needed in '$2'."
         else
             mv "$tmp_file" "$2"
-            echo "Fix applied in '$2' :: '$1'"
+            echo "Sed operation: Fix applied in '$2' :: '$1'"
         fi
     else
         echo "Error: Sed operation failed - $sed_output"
