@@ -237,8 +237,6 @@ If you would like to use parts of this code across different environments, such 
 
 This file houses functions designed to standardise commands used in Synology NAS (GNU Linux), ensuring compatibility and portability across platforms, particularly with utilities like `sed`.
 
-For example, the regex passed to this file using `func_sed` invokes the `sed` command, which has been extended by the function for portability across Unix/Linux distributions. The `sed` regex has been carefully constructed for multiple platforms, and the function will handle the rest.
-
 This approach simplifies the process of adapting similar code to other systems outside of Synology NAS.
 
 **Please Note:** `install-synology-homebrew.sh` should only be run on Synology NAS.
