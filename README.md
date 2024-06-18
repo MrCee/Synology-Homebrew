@@ -55,9 +55,7 @@ To manage packages, plugins, and themes, edit the `config.json` file and set the
 - **false**: Uninstall the package, plugin, or theme.
 - **skip**: Do nothing, leaving the current state unchanged.
 
-If you don't want to install or uninstall a specific package, plugin, or theme, set the install flag to **skip**.
-
-Plugins and themes can be defined under the **plugins** section. During script processing, `config.json` will be updated to use the last part of the URL as the plugin name, ensuring consistency in the install log and further processing.
+Plugins and themes can be defined under the **plugins** section. During script processing, `config.json` will be updated to use the last part of the URL as the plugin name, ensuring consistency in stdout and further processing.
 
 Additionally, you can define **aliases** and **eval** commands across all `config.json` entries, which will be reflected in `~/.zshrc`.
 
