@@ -68,11 +68,11 @@ display_menu() {
     cat <<EOF
 Select your install type:
 
-1) Synology-Homebrew: Minimal install will provide the homebrew basics, ignore packages in config.json, leaving the rest to you.
-   ** If you are running this script after a full setup, you can use this option to uninstall packages previously installed by option 2
+1) Minimal Install: This will provide the homebrew basics, ignore packages in config.json, leaving the rest to you.
+   ** You can also use this option to uninstall packages in config.json installed by option 2 by running the script again.
 
-2) Synology-Homebrew: Full setup includes packages in config.json
-   ** This is recommended if you want to get started with Neovim
+2) Advanced Install: Full setup includes packages in config.json
+   ** Recommended if you want to get started with Neovim or install some of the great packages listed.
 
 Enter selection:
 EOF
@@ -417,12 +417,6 @@ echo "$CONFIG_JSON" | jq -r ' .packages,.plugins | to_entries[] | select(.value.
         echo "Eval command already exists: $eval_command"
     fi
 done
-
-# Remove Synology packages once brew is installed
-if [[ $(brew --version) ]]; then
-    [[ $(synopkg version git) ]] && sudo synopkg uninstall git > /dev/null 2>&1 && echo Uninstalled community packaged git
-    [[ $(synopkg version ruby) ]] && sudo synopkg uninstall ruby > /dev/null 2>&1 && echo Uninstalled community packaged ruby
-fi
 
 # Finalise with zsh execution in Synology ash ~/.profile
 command_to_add='[[ -x /home/linuxbrew/.linuxbrew/bin/zsh ]] && exec /home/linuxbrew/.linuxbrew/bin/zsh'
