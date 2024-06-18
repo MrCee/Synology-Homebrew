@@ -20,7 +20,7 @@ Homebrew, a package manager for macOS and Linux, unlocks a vast ecosystem of mod
 - Synology NAS running DSM 7.2 or later
 - SSH access to the NAS
 - User homes enabled
-- Git is required for the installation process and can be installed via the Package Center Manager from [SynoCommunity](https://synocommunity.com). Git will be upgraded after Homebrew installation is complete. You can ininstall from the Package Centre if you wish.
+- Git is required for the installation process and can be installed via the Package Center Manager from [SynoCommunity](https://synocommunity.com). Git will be updated to the latest version in Homebrew's path during installation. You can uninstall the Synology Package Center version of git afterwards if you wish.
 - A scheduled task to ensure Homebrew is mounted after each restart. Instructions provided below.
 - iTerm2 running on your local machine with compatible nerdfonts and a theme to make it look great.
 
