@@ -12,7 +12,7 @@ Homebrew, a package manager for macOS and Linux, unlocks a vast ecosystem of mod
 
 - **Installation Options:** Choose between a Minimal or Advanced installation. If you just want homebrew to work then Minimal install is for you.
 - **Profile Creation:** Configures the default Synology ash/sh profile and newly installed zsh to work seamlessly with Homebrew.
-- **Synology Integration:** Resolves conflicts with existing Synology packages without removing any items from your NAS.
+- **Synology Integration:** Resolves conflicts with existing Synology packages without removing anything from your NAS.
 - **Easy Uninstall:** Revert to the original state with the included uninstall script.
 
 ## Prerequisites
@@ -20,7 +20,7 @@ Homebrew, a package manager for macOS and Linux, unlocks a vast ecosystem of mod
 - Synology NAS running DSM 7.2 or later
 - SSH access to the NAS
 - User homes enabled
-- Git is required for the installation process and can be installed via the Package Center Manager from [SynoCommunity](https://synocommunity.com). Git will be upgraded and older versions uninstalled after Homebrew installation is complete.
+- Git is required for the installation process and can be installed via the Package Center Manager from [SynoCommunity](https://synocommunity.com). Git will be upgraded after Homebrew installation is complete. You can ininstall from the Package Centre if you wish.
 - A scheduled task to ensure Homebrew is mounted after each restart. Instructions provided below.
 - iTerm2 running on your local machine with compatible nerdfonts and a theme to make it look great.
 
