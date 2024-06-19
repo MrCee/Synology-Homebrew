@@ -17,12 +17,21 @@ Homebrew, a package manager for macOS and Linux, unlocks a vast ecosystem of mod
 
 ## Prerequisites
 
-- Synology NAS running DSM 7.2 or later
-- SSH access to the NAS
-- User homes enabled
-- Git is required for the installation process and can be installed via the Package Center Manager from [SynoCommunity](https://synocommunity.com). Git will be updated to the latest version in Homebrew's path during installation. You can uninstall the Synology Package Center version of git afterwards if you wish.
-- A scheduled task to ensure Homebrew is mounted after each restart. Instructions provided below.
-- iTerm2 running on your local machine with compatible nerdfonts and a theme to make it look great. See https://github.com/MrCee/Synology-Homebrew/wiki/iTerm2-Configuration for a quick setup to get you started.
+Before you begin, ensure you have the following:
+
+1. **Synology NAS Requirements:**
+    - A Synology NAS running DSM 7.2 or later.
+    - SSH access to your NAS.
+    - User homes enabled on your NAS.
+
+2. **Git Installation:**
+    - Git is necessary for the installation process and can be installed via the Package Center Manager from [SynoCommunity](https://synocommunity.com). During installation, Git will be updated to the latest version in Homebrew's path. If desired, you can uninstall the Synology Package Center version of Git afterwards.
+
+3. **Homebrew Setup:**
+    - Create a scheduled task to ensure Homebrew is mounted after each restart. Detailed instructions are provided below.
+
+4. **iTerm2 Configuration:**
+    - iTerm2 running on your local machine with compatible nerdfonts and a theme for an improved visual experience. Refer to the [iTerm2 Configuration Guide](https://github.com/MrCee/Synology-Homebrew/wiki/iTerm2-Configuration) for a quick setup.
 
 ## Installation
 
