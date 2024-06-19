@@ -22,7 +22,7 @@ Homebrew, a package manager for macOS and Linux, unlocks a vast ecosystem of mod
 - User homes enabled
 - Git is required for the installation process and can be installed via the Package Center Manager from [SynoCommunity](https://synocommunity.com). Git will be updated to the latest version in Homebrew's path during installation. You can uninstall the Synology Package Center version of git afterwards if you wish.
 - A scheduled task to ensure Homebrew is mounted after each restart. Instructions provided below.
-- iTerm2 running on your local machine with compatible nerdfonts and a theme to make it look great.
+- iTerm2 running on your local machine with compatible nerdfonts and a theme to make it look great. See https://github.com/MrCee/Synology-Homebrew/wiki/iTerm2-Configuration for a quick setup to get you started.
 
 ## Installation
 
