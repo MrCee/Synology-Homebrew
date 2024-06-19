@@ -31,7 +31,7 @@ Before you begin, ensure you have the following:
     - Create a scheduled task to ensure Homebrew is mounted after each restart. Detailed instructions are provided below.
 
 4. **iTerm2 Configuration:**
-    - iTerm2 running on your local machine with compatible nerdfonts and a theme for an improved visual experience. Refer to the [iTerm2 Configuration Guide](https://github.com/MrCee/Synology-Homebrew/wiki/iTerm2-Configuration) for a quick setup.
+    - iTerm2 running on your local machine with compatible Nerd Fonts and a color theme for an improved visual experience. Refer to the [iTerm2 Configuration Guide](https://github.com/MrCee/Synology-Homebrew/wiki/iTerm2-Configuration) for a quick setup.
 
 ## Installation
 
