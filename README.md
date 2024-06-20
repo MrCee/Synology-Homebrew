@@ -31,8 +31,7 @@ Before you begin, ensure you have the following:
     - Create a scheduled task to ensure Homebrew is mounted after each restart. Detailed instructions are provided below.
 
 4. **iTerm2 Configuration:**
-    - iTerm2 (or alternative/not including the default MacOS Terminal.app) running on your local machine with compatible Nerd Fonts and a color profile for an improved visual experience.
-      Refer to the [iTerm2 Configuration Guide](https://github.com/MrCee/Synology-Homebrew/wiki/iTerm2-Configuration) for a quick setup.
+    - iTerm2 (or alternative other than the default MacOS Terminal.app) running on your local machine with compatible Nerd Fonts and a color profile for an improved visual experience. <BR>Refer to the [iTerm2 Configuration Guide](https://github.com/MrCee/Synology-Homebrew/wiki/iTerm2-Configuration) for a quick setup.
 
 ## Installation
 
@@ -55,7 +54,7 @@ _Recommended if you want to get started with Neovim or install some of the great
 
 #### Both install types include the following essential packages to ensure Homebrew runs smoothly on Synology:
 
-git, ruby, glibc, gcc, clang-build-analyzer (which includes latest python), zsh, oh-my-zsh.
+git, ruby, glibc, gcc, clang-build-analyzer (which includes latest python & pip), zsh, oh-my-zsh.
 
 ## Configuration for Advanced install (config.json)
 
