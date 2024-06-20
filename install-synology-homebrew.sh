@@ -399,7 +399,14 @@ func_sed 's|^ZSH_THEME=.*$|ZSH_THEME="powerlevel10k/powerlevel10k"|' ~/.zshrc
 
 # Iterate over the aliases in JSON and add them to ~/.zshrc if install is not set to false.
 echo -e "\n# ----config.json----" >> ~/.zshrc
-echo "$CONFIG_JSON" | jq -r '.packages, .plugins | to_entries[] | select(.value.aliases != "" and .value.install != false) | .value.aliases | to_entries[] | "alias \(.key)=\(.value|@sh)"'| while read -r alias_command; do
+echo "$CONFIG_JSON" | jq -r '
+  .packages, .plugins 
+  | to_entries[] 
+  | select(.value.aliases != "" and .value.install != false) 
+  | .value.aliases 
+  | to_entries[] 
+  | "alias \(.key)=\(.value|@sh)"
+' | while read -r alias_command; do
     if ! grep -qF "$alias_command" ~/.zshrc; then
         echo "Adding alias command: $alias_command"
         echo "$alias_command" >> ~/.zshrc
@@ -409,7 +416,16 @@ echo "$CONFIG_JSON" | jq -r '.packages, .plugins | to_entries[] | select(.value.
 done
 
 # Iterate over the eval in JSON and add them to ~/.zshrc if install is not set to false.
-echo "$CONFIG_JSON" | jq -r ' .packages,.plugins | to_entries[] | select(.value.eval != "" and .value.install != false) | "eval \"$(\(.value.eval))\""' | while read -r eval_command; do
+echo "$CONFIG_JSON" | jq -r '
+  .packages, .plugins
+  | to_entries[]
+  | select(.value.eval != "" and .value.install != false)
+  | if (.value.eval | type) == "object" then
+      .value.eval | to_entries[] | "eval \"$(\(.value))\""
+    else
+      "eval \"$(\(.value.eval))\""
+    end
+' | while read -r eval_command; do
     if ! grep -qF "$eval_command" ~/.zshrc; then
         echo "Adding eval command: $eval_command"
         echo "$eval_command" >> ~/.zshrc
