@@ -135,9 +135,14 @@
       "url": "OPTIONAL_SET_INSTALL_TO_TRUE_WITH_NO_DIRECTORY_FOR_ADDITIONAL_ALIASES_OR_EVAL",
       "directory": "",
       "aliases": {
-        "nvim": "NVIM_APPNAME=\"nvim\" nvim"
+        "nvim": "NVIM_APPNAME=\"nvim\" nvim",
+        "aliasexample1": "aliastest1",
+        "aliasexample2": "aliastest2"
       },
-      "eval": ""
+      "eval": {
+        "evalexample1": "evaltest1",
+        "evalexample2": "evaltest2"
+      }
     }
   }
 }
