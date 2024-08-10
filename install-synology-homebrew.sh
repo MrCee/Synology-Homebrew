@@ -5,6 +5,34 @@
 DEBUG=0
 [[ $DEBUG == 1 ]] && echo "DEBUG mode"
 
+# Check all prerquisites of this script
+error=false
+
+# Check if Synology Homes is enabled
+if [[ ! -d /var/services/homes/$(whoami) ]]; then
+    echo "Synology Homes has NOT been enabled. Please enable in DSM Control Panel >> Users & Groups >> Advanced >> User Home."
+    error=true
+fi
+# Check if Homebrew is installed
+if [[ ! -x /home/linuxbrew/.linuxbrew/bin/brew ]]; then
+    echo "Homebrew is not installed. Checking environment for requirements..."
+
+ # Check if Git is installed
+    if [[ ! -x $(command -v git) ]]; then
+        echo "Git not installed. Please install Git via package manager before running."
+        error=true
+    else
+	echo "Git has been found"
+    fi
+else
+	echo "Homebrew is installed. Checking your environment to see if further actions are required. Please wait..."
+fi
+
+# If any error occurred, exit with status 1
+if $error; then
+    exit 0
+fi
+
 # Get the directory containing this script
 case "$0" in
     /*) script_path="$0" ;;
@@ -146,7 +174,7 @@ fi
 # Keep sudo credentials updated
 while true; do
     sudo -v
-    sleep 50
+    sleep 30
 done &
 KEEP_SUDO_PID=$!
 
@@ -156,33 +184,6 @@ cleanup() {
 }
 trap cleanup EXIT
 
-# Check all prerquisites of this script
-error=false
-
-# Check if Synology Homes is enabled
-if [[ ! -d /var/services/homes/$(whoami) ]]; then
-    echo "Synology Homes has NOT been enabled. Please enable in DSM Control Panel >> Users & Groups >> Advanced >> User Home."
-    error=true
-fi
-# Check if Homebrew is installed
-if [[ ! -x /home/linuxbrew/.linuxbrew/bin/brew ]]; then
-    echo "Homebrew is not installed. Checking environment for requirements..."
-
- # Check if Git is installed
-    if [[ ! -x $(command -v git) ]]; then
-        echo "Git not installed. Please install Git via package manager before running."
-        error=true
-    else
-	echo "Git has been found"
-    fi
-else
-	echo "Homebrew is installed. Checking your environment to see if further actions are required. Please wait..."
-fi
-
-# If any error occurred, exit with status 1
-if $error; then
-    exit 1
-fi
 
 # Install ldd file script
 sudo install -m 755 /dev/stdin /usr/bin/ldd <<EOF
@@ -311,6 +312,7 @@ sudo ln -sf /home/linuxbrew/.linuxbrew/bin/pip3 /home/linuxbrew/.linuxbrew/bin/p
 sudo ln -sf /home/linuxbrew/.linuxbrew/bin/gcc /home/linuxbrew/.linuxbrew/bin/cc
 
 # Enable perl in homebrew
+echo "Enabling Perl"
 if [[ $(echo "$CONFIG_JSON" | jq -r '.packages.perl.install') == true ]]; then
     [[ ! -e /usr/bin/perl ]] && sudo ln -sf /home/linuxbrew/.linuxbrew/bin/perl /usr/bin/perl
     if ! perl -Mlocal::lib -e '1' &> /dev/null; then
