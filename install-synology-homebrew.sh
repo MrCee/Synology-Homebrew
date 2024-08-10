@@ -5,6 +5,22 @@
 DEBUG=0
 [[ $DEBUG == 1 ]] && echo "DEBUG mode"
 
+
+# Check if the script is being run as root
+if [ "$EUID" -eq 0 ]; then
+    echo "This script should not be run as root. Please run it as a regular user, although we will need root password in a second..."
+    exit 1
+fi
+
+
+# Ensure sudo credentials are cached
+sudo -v || { echo "Failed to cache sudo credentials"; exit 1; }
+
+# Start a background job to keep sudo active
+(while true; do sudo -n true; sleep 1; kill -0 "$$" || exit; done 2>/dev/null) &
+KEEP_SUDO_PID=$!
+
+
 # Check all prerquisites of this script
 error=false
 
@@ -156,34 +172,6 @@ fi
 export HOMEBREW_NO_ENV_HINTS=1
 export HOMEBREW_NO_AUTO_UPDATE=1
 
-# Check if the script is being run as root
-if [ "$EUID" -eq 0 ]; then
-    echo "This script should not be run as root. Please run it as a regular user, although we will need root password in a second..."
-    exit 1
-fi
-
-# Prompt for root password and cache credentials
-sudo -v
-
-# Check if sudo credentials are cached
-if [ $? -eq 1 ]; then
-    echo "Incorrect password or user is not allowed to use sudo."
-    exit 1
-fi
-
-# Keep sudo credentials updated
-while true; do
-    sudo -v
-    sleep 30
-done &
-KEEP_SUDO_PID=$!
-
-# Ensure the background sudo refresh process is terminated when the script exits
-cleanup() {
-    kill $KEEP_SUDO_PID
-}
-trap cleanup EXIT
-
 
 # Install ldd file script
 sudo install -m 755 /dev/stdin /usr/bin/ldd <<EOF
@@ -249,6 +237,7 @@ fi
 
 EOF
 
+
 # Begin Homebrew install. Remove brew git env if it does not exist
 [[ ! -x /home/linuxbrew/.linuxbrew/bin/git ]] && unset HOMEBREW_GIT_PATH
 NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" 2> /dev/null
@@ -306,13 +295,21 @@ jq -r '.packages | to_entries[] | .key' <<< "$CONFIG_JSON" | while IFS= read -r 
     echo "$package is $action."
 done
 
+# Function to create symlink with or without sudo
+create_symlink() {
+    src=$1
+    dest=$2
+    ln -sf "$src" "$dest" || sudo ln -sf "$src" "$dest"
+}
+# Attempt to create the symlinks
 echo "Creating symlinks"
-sudo ln -sf /home/linuxbrew/.linuxbrew/bin/python3 /home/linuxbrew/.linuxbrew/bin/python
-sudo ln -sf /home/linuxbrew/.linuxbrew/bin/pip3 /home/linuxbrew/.linuxbrew/bin/pip
-sudo ln -sf /home/linuxbrew/.linuxbrew/bin/gcc /home/linuxbrew/.linuxbrew/bin/cc
+create_symlink /home/linuxbrew/.linuxbrew/bin/python3 /home/linuxbrew/.linuxbrew/bin/python
+create_symlink /home/linuxbrew/.linuxbrew/bin/pip3 /home/linuxbrew/.linuxbrew/bin/pip
+create_symlink /home/linuxbrew/.linuxbrew/bin/gcc /home/linuxbrew/.linuxbrew/bin/cc
+echo "Finished creating symlinks"
+
 
 # Enable perl in homebrew
-echo "Enabling Perl"
 if [[ $(echo "$CONFIG_JSON" | jq -r '.packages.perl.install') == true ]]; then
     [[ ! -e /usr/bin/perl ]] && sudo ln -sf /home/linuxbrew/.linuxbrew/bin/perl /usr/bin/perl
     if ! perl -Mlocal::lib -e '1' &> /dev/null; then
