@@ -91,35 +91,65 @@ else
     echo "No file containing 'unnamedplus' found in ~/.config folder."
 fi
 
+
+
+
 # Install additional packages for neovim
 echo "----------------------------------------"
 if [[ -n "$CONFIG_JSON" ]]; then
     if [[ $(echo "$CONFIG_JSON" | jq -r '.packages.neovim.install') = true ]]; then
         echo "Installing additional neovim components..."
-        [[ ! $(pip3 show pynvim) ]] && pip3 install pynvim --break-system-packages
+
+        # Install or upgrade pynvim
+        if ! pip3 show pynvim &> /dev/null; then
+            echo "pynvim is not installed. Installing pynvim..."
+            pip3 install pynvim --break-system-packages
+        else
+            echo "pynvim is already installed. Upgrading pynvim..."
+            pip3 install --upgrade pynvim --break-system-packages
+        fi
+
+        # Upgrade pip
+        python3 -m pip install --upgrade pip --break-system-packages
+
         echo "npm changes:"
-        if [[ ! $(command -v npm) ]]; then
+        # Check if npm is installed, if not, install it
+        if ! command -v npm &> /dev/null; then
             echo "npm is not installed. Installing npm..."
             brew install npm
         fi
-        
-        # Proceed with npm commands
+
+        # Remove the old npm, reinstall it, and update to the latest version
         rm -rf /home/linuxbrew/.linuxbrew/lib/node_modules/npm
         brew postinstall node
         npm install -g npm@latest
         npm config set fund false --location=global
         npm install -g neovim@latest
+
         echo
         echo -e "Checking for gem updates:\n"
-        [[ -n $(gem outdated) ]] && gem update
-        [[ $(gem list neovim -i) ]] && gem install neovim
-        [[ ! -e ~/.scripts/fzf-git.sh ]] && mkdir -p ~/.scripts && curl -o ~/.scripts/fzf-git.sh https://raw.githubusercontent.com/junegunn/fzf-git.sh/main/fzf-git.sh
+        # Check for outdated gems and update them
+        if [[ -n $(gem outdated) ]]; then
+            gem update
+        fi
+
+        # Install the neovim gem if it's not already installed
+        if ! gem list neovim -i; then
+            gem install neovim
+        fi
+
+        # Download and install the fzf-git.sh script if not already present
+        if [[ ! -e ~/.scripts/fzf-git.sh ]]; then
+            mkdir -p ~/.scripts
+            curl -o ~/.scripts/fzf-git.sh https://raw.githubusercontent.com/junegunn/fzf-git.sh/main/fzf-git.sh
+        fi
     else
         echo "SKIPPING: neovim components as config.json install flag is set to false."
     fi
 else
     echo "SKIPPING: neovim components installation. This is expected when running this script independently."
 fi
+
 
 # Write updated JSON back to the temporary file
 [[ -n $temp_file ]] && echo "$CONFIG_JSON" > "$temp_file"
