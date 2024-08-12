@@ -1,10 +1,11 @@
 #!/bin/bash
 
+sudo -k
+
 [[ $(uname) == "Darwin" ]] && echo "You have run this from macOS, script will now exit" && exit 1
 
 DEBUG=0
 [[ $DEBUG == 1 ]] && echo "DEBUG mode"
-
 
 # Check if the script is being run as root
 if [ "$EUID" -eq 0 ]; then
@@ -12,16 +13,26 @@ if [ "$EUID" -eq 0 ]; then
     exit 1
 fi
 
-
 # Ensure sudo credentials are cached
 sudo -v || { echo "Failed to cache sudo credentials"; exit 1; }
 
-# Start a background job to keep sudo active
-(while true; do sudo -n true; sleep 1; kill -0 "$$" || exit; done 2>/dev/null) &
-KEEP_SUDO_PID=$!
+# Define the sudoers file in /etc/sudoers.d/
+SUDOERS_FILE="/etc/sudoers.d/custom_homebrew_sudoers"
 
+# Create the sudoers.d file using a heredoc
+cat <<EOF | sudo tee $SUDOERS_FILE > /dev/null
+Defaults syslog=authpriv
+root ALL=(ALL) ALL
+%administrators ALL=NOPASSWD: ALL
+EOF
 
-# Check all prerquisites of this script
+# Set correct permissions on the file
+sudo chmod 0440 $SUDOERS_FILE
+
+# Set a trap to remove the file on exit
+trap 'sudo rm -f $SUDOERS_FILE' EXIT
+
+# Check prerquisites of this script
 error=false
 
 # Check if Synology Homes is enabled
@@ -172,7 +183,6 @@ fi
 export HOMEBREW_NO_ENV_HINTS=1
 export HOMEBREW_NO_AUTO_UPDATE=1
 
-
 # Install ldd file script
 sudo install -m 755 /dev/stdin /usr/bin/ldd <<EOF
 #!/bin/bash
@@ -311,12 +321,15 @@ echo "Finished creating symlinks"
 
 # Enable perl in homebrew
 if [[ $(echo "$CONFIG_JSON" | jq -r '.packages.perl.install') == true ]]; then
-    [[ ! -e /usr/bin/perl ]] && sudo ln -sf /home/linuxbrew/.linuxbrew/bin/perl /usr/bin/perl
-    if ! perl -Mlocal::lib -e '1' &> /dev/null; then
+        echo "Fixing perl symlink..."
+        sudo ln -sf /home/linuxbrew/.linuxbrew/bin/perl /usr/bin/perl
+    #if ! perl -Mlocal::lib -e '1' &> /dev/null; then
 	echo "Enabling perl cpan with defaults and permission fix"
-        sudo -E PERL_MM_USE_DEFAULT=1  PERL_MM_OPT=INSTALL_BASE=$HOME/perl5 cpan local::lib
-        sudo chown -R $(whoami):root ~/perl5 $HOME/.cpan
-    fi
+        sudo -E PERL_MM_USE_DEFAULT=1 PERL_MM_OPT=INSTALL_BASE=$HOME/perl5 cpan local::lib
+        cpan local::lib
+        sudo chown -R $(whoami):root $HOME/perl5 $HOME/.cpan
+        sudo chmod 775  $HOME/perl5 $HOME/.cpan -R 
+    #fi
 fi
 
 # oh-my-zsh will always be installed with the latest version
@@ -438,6 +451,10 @@ command_to_add='[[ -x /home/linuxbrew/.linuxbrew/bin/zsh ]] && exec /home/linuxb
 if ! grep -xF "$command_to_add" ~/.profile; then
     echo "$command_to_add" >> ~/.profile
 fi
+
+# Explicitly remove the trap to ensure it's called
+trap - EXIT
+sudo rm -f $SUDOERS_FILE
 
 echo "Script completed successfully. You will now be transported to ZSH!!!"
 source ~/.profile 

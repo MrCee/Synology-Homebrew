@@ -112,15 +112,14 @@ if [[ -n "$CONFIG_JSON" ]]; then
         # Upgrade pip
         python3 -m pip install --upgrade pip --break-system-packages
 
-        echo "npm changes:"
+         echo "npm changes:"
+
         # Check if npm is installed, if not, install it
         if ! command -v npm &> /dev/null; then
             echo "npm is not installed. Installing npm..."
-            brew install npm
+            brew install --quiet npm
         fi
-
-        # Remove the old npm, reinstall it, and update to the latest version
-        rm -rf /home/linuxbrew/.linuxbrew/lib/node_modules/npm
+        rm -rf /home/linuxbrew/.linuxbrew/lib/node_modules
         brew postinstall node
         npm install -g npm@latest
         npm config set fund false --location=global
