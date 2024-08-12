@@ -190,13 +190,11 @@ This includes:
 
 In the plugins section of `config.json`, set `kickstart.nvim` to true to install and configure Neovim with kickstart.nvim. This provides a lazy configuration with everything working out of the box. It will be installed to the specified directory in config.json with a backup of any existing config to your home folder.
 
-To switch between Neovim configurations easily, use aliases in `~/.zshrc`:
+To switch between Neovim configurations easily, use aliases in `~/.zshrc` and swap to your config:
 
 ```zsh
-alias nvim='NVIM_APPNAME="nvim-kickstart" nvim' # Aliases ~/.config/nvim-kickstart
-alias nvim # Shows current nvim command alias
-unalias nvim # Removes previous alias
-alias nvim='NVIM_APPNAME="your-custom-nvim-directory" nvim' # Aliases ~/.config/your-custom-nvim-directory
+alias nvim='NVIM_APPNAME="nvim-kickstart" nvim'
+alias nvim='NVIM_APPNAME="nvim-mrcee" nvim'
 ```
 
 See kickstart.nvim provided in the [config.json example](#configjson-example) above.
