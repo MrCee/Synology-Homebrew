@@ -1,8 +1,42 @@
 #!/bin/bash
 
+# Cache sudo credentials
 sudo -k
+sudo -v || { echo "Failed to cache sudo credentials"; exit 1; }
 
-[[ $(uname) == "Darwin" ]] && echo "You have run this from macOS, script will now exit" && exit 1
+SCRIPT_PATH=$(realpath "$0")
+SCRIPT_DIR=$(dirname "$SCRIPT_PATH")
+
+# Change to the script directory
+cd "$SCRIPT_DIR" || { echo "Failed to change directory to $SCRIPT_DIR"; exit 1; }
+echo "Working directory: $SCRIPT_DIR"
+
+# Define the sudoers file
+SUDOERS_FILE="/etc/sudoers.d/custom_homebrew_sudoers"
+sudo rm -f $SUDOERS_FILE 
+CURRENT_USER=$(whoami)
+
+# Function to clean up and exit the script
+cleanup() {
+    echo "Cleaning up..."
+    sudo rm -f "$SUDOERS_FILE"
+    exit 1  # Exit the script with a status code of 1
+}
+
+# Set traps for various signals
+trap cleanup INT TERM HUP QUIT ABRT ALRM PIPE
+
+# Create the sudoers file
+cat <<EOF | sudo tee $SUDOERS_FILE > /dev/null
+Defaults syslog=authpriv
+root ALL=(ALL) ALL
+$CURRENT_USER ALL=NOPASSWD: ALL
+EOF
+
+# Set permissions on the sudoers file
+sudo chmod 0440 $SUDOERS_FILE || { echo "Failed to set permissions on sudoers file"; exit 1; }
+
+[[ $(uname) == "Darwin" ]] && echo "This script is for Synology NAS. You don't run this from macOS. Script will now exit" && exit 1
 
 DEBUG=0
 [[ $DEBUG == 1 ]] && echo "DEBUG mode"
@@ -13,25 +47,6 @@ if [ "$EUID" -eq 0 ]; then
     exit 1
 fi
 
-# Ensure sudo credentials are cached
-sudo -v || { echo "Failed to cache sudo credentials"; exit 1; }
-
-# Define the sudoers file in /etc/sudoers.d/
-SUDOERS_FILE="/etc/sudoers.d/custom_homebrew_sudoers"
-
-# Create the sudoers.d file using a heredoc
-cat <<EOF | sudo tee $SUDOERS_FILE > /dev/null
-Defaults syslog=authpriv
-root ALL=(ALL) ALL
-%administrators ALL=NOPASSWD: ALL
-EOF
-
-# Set correct permissions on the file
-sudo chmod 0440 $SUDOERS_FILE
-
-# Set a trap to remove the file on exit
-trap 'sudo rm -f $SUDOERS_FILE' EXIT
-
 # Check prerquisites of this script
 error=false
 
@@ -40,6 +55,7 @@ if [[ ! -d /var/services/homes/$(whoami) ]]; then
     echo "Synology Homes has NOT been enabled. Please enable in DSM Control Panel >> Users & Groups >> Advanced >> User Home."
     error=true
 fi
+
 # Check if Homebrew is installed
 if [[ ! -x /home/linuxbrew/.linuxbrew/bin/brew ]]; then
     echo "Homebrew is not installed. Checking environment for requirements..."
@@ -60,30 +76,17 @@ if $error; then
     exit 0
 fi
 
-# Get the directory containing this script
-case "$0" in
-    /*) script_path="$0" ;;
-    *) script_path="$(pwd)/$0" ;;
-esac
-
-# Resolve the directory path
-script_dir="$(cd "$(dirname "$script_path")" && pwd)"
-
-# Change to the script directory
-cd "$script_dir" || { echo "Failed to change directory to $script_dir"; exit 1; }
-echo "Working directory: $script_dir"
-
 # Define the location of JSON
-CONFIG_JSON_PATH="$script_dir/config.json"
+CONFIG_JSON_PATH="$SCRIPT_DIR/config.json"
 
 # Ensure config.json exists
 if [[ ! -f "$CONFIG_JSON_PATH" ]]; then
-    echo "config.json not found in $script_dir"
+    echo "config.json not found in $SCRIPT_DIR"
     exit 1
 fi
 
 # Source the functions file
-source "$script_dir/functions.sh"
+source "$SCRIPT_DIR/functions.sh"
 
 # Format JSON to ensure compatibility
 func_sed 's/([^\\])\\([^\\"])/\1\\\\\2/g' "$CONFIG_JSON_PATH"
@@ -133,27 +136,8 @@ Enter selection:
 EOF
 }
 
-# Function to display information based on the selection
-display_info() {
-    case "$1" in
-        1)
-            echo "Minimal install selected
-Minimal install will provide the homebrew basics and ignore config.json
-** If you are running this script after a full setup, you can use this option to uninstall packages in config.json
-** Plugins and themes should be removed manually"
-            ;;
-        2)
-            echo "Full setup selected
-Full setup includes packages in config.json"
-            ;;
-        *)
-            echo "Invalid selection."
-            ;;
-    esac
-}
-
+[[ $DEBUG == 0 ]] && clear
 while true; do
-    [[ $DEBUG == 0 ]] && clear
     display_menu
     read -r selection
 
@@ -280,8 +264,6 @@ else
     echo "ruby is linked via Homebrew."
 fi
 
-#!/bin/bash
-
 # Create a brew list of installed packages into an array
 BREW_LIST_ARRAY=($(brew list -1))
 
@@ -342,11 +324,11 @@ fi
 # Check if additional Neovim packages should be installed
 echo "-----------------------------------------------------------------"
 if [[ $(echo "$CONFIG_JSON" | jq -r '.packages.neovim.install') == true ]]; then
-    echo "Calling $script_dir/nvim_config.sh for additional setup packages"
+    echo "Calling $SCRIPT_DIR/nvim_config.sh for additional setup packages"
     # Create a temporary file to store JSON data
     temp_file=$(mktemp)
     echo "$CONFIG_JSON" > "$temp_file"
-    bash "$script_dir/nvim_config.sh" "$temp_file"
+    bash "$SCRIPT_DIR/nvim_config.sh" "$temp_file"
     CONFIG_JSON=$(<"$temp_file")
     rm "$temp_file"
 else
@@ -355,8 +337,8 @@ fi
 
 # Check if any zsh packages should be configured
 echo "-----------------------------------------------------------------"
-echo "Calling $script_dir/zsh_config.sh for additional zsh configuration"
-bash "$script_dir/zsh_config.sh" "$CONFIG_JSON"
+echo "Calling $SCRIPT_DIR/zsh_config.sh for additional zsh configuration"
+bash "$SCRIPT_DIR/zsh_config.sh" "$CONFIG_JSON"
 
 # Read JSON and install/uninstall plugins
 echo "$CONFIG_JSON" | jq -r '.plugins | to_entries[] | "\(.key) \(.value.install) \(.value.directory) \(.value.url)"' | while read -r plugin install directory url; do
@@ -382,8 +364,8 @@ echo "$CONFIG_JSON" | jq -r '.plugins | to_entries[] | "\(.key) \(.value.install
 done
 
 # PROFILE DEFAULTS: zsh and p10k are copied to home and can be reconfigured later.
-[[ ! -e ~/.p10k.zsh ]] && cp "$script_dir/.p10k.zsh" ~/
-cp "$script_dir/.zshrc" ~/
+[[ ! -e ~/.p10k.zsh ]] && cp "$SCRIPT_DIR/.p10k.zsh" ~/
+cp "$SCRIPT_DIR/.zshrc" ~/
 
 # Set default plugins
 default_plugins="git web-search"
@@ -452,9 +434,7 @@ if ! grep -xF "$command_to_add" ~/.profile; then
     echo "$command_to_add" >> ~/.profile
 fi
 
-# Explicitly remove the trap to ensure it's called
-trap - EXIT
-sudo rm -f $SUDOERS_FILE
-
+# Finish script with cleanup and transport
+sudo rm -rf $SUDOERS_FILE
 echo "Script completed successfully. You will now be transported to ZSH!!!"
-source ~/.profile 
+exec zsh --login
