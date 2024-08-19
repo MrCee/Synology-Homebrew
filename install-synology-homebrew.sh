@@ -1,4 +1,4 @@
-#!/bin/bash
+
 
 # Cache sudo credentials
 sudo -k
@@ -13,28 +13,26 @@ echo "Working directory: $SCRIPT_DIR"
 
 # Define the sudoers file
 SUDOERS_FILE="/etc/sudoers.d/custom_homebrew_sudoers"
-sudo rm -f $SUDOERS_FILE 
 CURRENT_USER=$(whoami)
 
 # Function to clean up and exit the script
 cleanup() {
-    echo "Cleaning up..."
+    echo -e "\nAboring install..."
     sudo rm -f "$SUDOERS_FILE"
+    sudo -k
+    echo "Sudo access revoked."
     exit 1  # Exit the script with a status code of 1
 }
 
 # Set traps for various signals
 trap cleanup INT TERM HUP QUIT ABRT ALRM PIPE
 
-# Create the sudoers file
-cat <<EOF | sudo tee $SUDOERS_FILE > /dev/null
+# Install the sudoers file
+sudo install -m 0440 /dev/stdin "$SUDOERS_FILE" <<EOF
 Defaults syslog=authpriv
 root ALL=(ALL) ALL
 $CURRENT_USER ALL=NOPASSWD: ALL
 EOF
-
-# Set permissions on the sudoers file
-sudo chmod 0440 $SUDOERS_FILE || { echo "Failed to set permissions on sudoers file"; exit 1; }
 
 [[ $(uname) == "Darwin" ]] && echo "This script is for Synology NAS. You don't run this from macOS. Script will now exit" && exit 1
 
@@ -47,7 +45,7 @@ if [ "$EUID" -eq 0 ]; then
     exit 1
 fi
 
-# Check prerquisites of this script
+# Check prerequisites of this script
 error=false
 
 # Check if Synology Homes is enabled
@@ -60,15 +58,15 @@ fi
 if [[ ! -x /home/linuxbrew/.linuxbrew/bin/brew ]]; then
     echo "Homebrew is not installed. Checking environment for requirements..."
 
- # Check if Git is installed
+    # Check if Git is installed
     if [[ ! -x $(command -v git) ]]; then
         echo "Git not installed. Please install Git via package manager before running."
         error=true
     else
-	echo "Git has been found"
+        echo "Git has been found"
     fi
 else
-	echo "Homebrew is installed. Checking your environment to see if further actions are required. Please wait..."
+    echo "Homebrew is installed. Checking your environment to see if further actions are required. Please wait..."
 fi
 
 # If any error occurred, exit with status 1
@@ -76,60 +74,38 @@ if $error; then
     exit 0
 fi
 
-# Define the location of JSON
-CONFIG_JSON_PATH="$SCRIPT_DIR/config.json"
+# Define the location of YAML
+CONFIG_YAML_PATH="$SCRIPT_DIR/config.yaml"
 
-# Ensure config.json exists
-if [[ ! -f "$CONFIG_JSON_PATH" ]]; then
-    echo "config.json not found in $SCRIPT_DIR"
+# Ensure config.yaml exists
+if [[ ! -f "$CONFIG_YAML_PATH" ]]; then
+    echo "config.yaml not found in $SCRIPT_DIR"
     exit 1
 fi
 
 # Source the functions file
 source "$SCRIPT_DIR/functions.sh"
 
-# Format JSON to ensure compatibility
-func_sed 's/([^\\])\\([^\\"])/\1\\\\\2/g' "$CONFIG_JSON_PATH"
-func_sed 's/(^.*:[[:space:]]*\"[^\\]*)(\".*)(\".*\"$)/\1\\\2\\\3/g' "$CONFIG_JSON_PATH"
-func_sed 's/"install": skip/"install": "skip"/' "$CONFIG_JSON_PATH"
-func_sed 's/"install": "true"/"install": true/' "$CONFIG_JSON_PATH"
-func_sed 's/"install": "false"/"install": false/' "$CONFIG_JSON_PATH"
+# ------- Begin YAML Cleanup ------
+func_sed 's/([^\\])\\([^\\"])/\1\\\\\2/g' "$CONFIG_YAML_PATH" # double escape a backslash within double quotes
+func_sed 's/^([^:]*:[[:space:]])'\''(.*)'\''/\1"\2"/g' "$CONFIG_YAML_PATH" # all values should start and end with double quotes
+func_sed 's/(^.*:[[:space:]]"[^\"]*)("[^"]*)(".*"$)/\1\\\\\\\2\\\\\\\3/g' "$CONFIG_YAML_PATH" # add escape backslash to embedded double quotes
+func_sed 's/install: skip/install: \"skip\"/g' "$CONFIG_YAML_PATH" # convert to string
+func_sed 's/install: true/install: \"true\"/g' "$CONFIG_YAML_PATH" # convert to string
+func_sed 's/install: false/install: \"false\"/g' "$CONFIG_YAML_PATH" # convert to string
 
-# Update plugin keys and overwrite config.json
-temp_file=$(mktemp)
-if ! jq '{
-  packages: .packages,
-  plugins: (.plugins | to_entries | map({key: (.value.url | split("/")[-1]), value: .value}) | from_entries)
-}' "$CONFIG_JSON_PATH" > "$temp_file"; then
-    echo "Failed to process JSON with jq."
-    rm "$temp_file"
-    exit 1
-else
-    # Replace the original config.json with the updated version
-    mv "$temp_file" "$CONFIG_JSON_PATH"
-    echo "config.json has been updated successfully."
-
-    # Validate JSON
-    if ! jq empty "$CONFIG_JSON_PATH" > /dev/null 2>&1; then
-        echo "Invalid JSON."
-        exit 1
-    else
-        echo "JSON is valid."
-    fi
-fi
-
-# Read the content of JSON into the CONFIG_JSON variable
-CONFIG_JSON=$(<"$CONFIG_JSON_PATH")
+# Read the content of YAML into the CONFIG_YAML variable
+CONFIG_YAML=$(<"$CONFIG_YAML_PATH")
 
 # Function to display the menu
 display_menu() {
     cat <<EOF
 Select your install type:
 
-1) Minimal Install: This will provide the homebrew basics, ignore packages in config.json, leaving the rest to you.
-   ** You can also use this option to uninstall packages in config.json installed by option 2 by running the script again.
+1) Minimal Install: This will provide the homebrew basics, ignore packages in config.yaml, leaving the rest to you.
+   ** You can also use this option to uninstall packages in config.yaml installed by option 2 by running the script again.
 
-2) Advanced Install: Full setup includes packages in config.json
+2) Advanced Install: Full setup includes packages in config.yaml
    ** Recommended if you want to get started with Neovim or install some of the great packages listed.
 
 Enter selection:
@@ -150,10 +126,9 @@ while true; do
 done
 
 [[ $DEBUG == 0 ]] && clear
-display_info "$selection"
 
-if [[ "$selection" -eq 2 && ! -f "$CONFIG_JSON_PATH" ]]; then
-    echo "config.json not found in this directory"
+if [[ "$selection" -eq 2 && ! -f "$CONFIG_YAML_PATH" ]]; then
+    echo "config.yaml not found in this directory"
     exit 1
 fi
 
@@ -161,7 +136,7 @@ echo "Starting $( [[ "$selection" -eq 1 ]] && echo 'Minimal Install' || echo 'Fu
 
 if [[ "$selection" -eq 1 ]]; then
     # Update install fields to false
-    CONFIG_JSON=$(jq '.packages |= with_entries(.value.install = false)' <<< "$CONFIG_JSON")
+    CONFIG_YAML=$(yq -e '.packages |= with_entries(.value.install = "false")' <<< "$CONFIG_YAML")
 fi
 
 export HOMEBREW_NO_ENV_HINTS=1
@@ -186,7 +161,7 @@ if [[ ! -d /home ]]; then
 fi
 
 # Create a new .profile and add homebrew paths
-cat > ~/.profile <<EOF
+cat > $HOME/.profile <<EOF
 PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/syno/sbin:/usr/syno/bin:/usr/local/sbin:/usr/local/bin
 # Directories to add to PATH
 directories=(
@@ -215,7 +190,7 @@ export HOMEBREW_GIT_PATH=/home/linuxbrew/.linuxbrew/bin/git
 # Keep gcc up to date. Find the latest version of gcc installed and set symbolic links
 # Extract the version number from latest gcc
 max_version=\$(ls -d /home/linuxbrew/.linuxbrew/opt/gcc/bin/gcc-* | grep -oE '[0-9]+$' | sort -nr | head -n1)
-# Create symbolic link for gcc to latest gcc-* 
+# Create symbolic link for gcc to latest gcc-*
 ln -sf "/home/linuxbrew/.linuxbrew/bin/gcc-\$max_version" "/home/linuxbrew/.linuxbrew/bin/gcc"
 # Create symbolic links for gcc-11 to max_version-1 pointing to latest gcc-*
 for ((i = 11; i < max_version; i++)); do
@@ -223,14 +198,15 @@ for ((i = 11; i < max_version; i++)); do
 done
 
 eval "\$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
-[[ -f ~/.scripts/fzf-git.sh ]] && source ~/.scripts/fzf-git.sh
+
+# fzf-git.sh has been removed from this script due to issues, we will add this again shortly
+[[ -f $HOME/.scripts/fzf-git.sh ]] && source $HOME/.scripts/fzf-git.sh
 
 if [[ -x \$(command -v perl) && \$(perl -Mlocal::lib -e '1' 2>/dev/null) ]]; then
     eval "\$(perl -I$HOME/perl5/lib/perl5 -Mlocal::lib=\$HOME/perl5)"
 fi
 
 EOF
-
 
 # Begin Homebrew install. Remove brew git env if it does not exist
 [[ ! -x /home/linuxbrew/.linuxbrew/bin/git ]] && unset HOMEBREW_GIT_PATH
@@ -242,6 +218,7 @@ brew install --quiet git 2> /dev/null
 brew install --quiet ruby 2> /dev/null
 brew install --quiet clang-build-analyzer 2> /dev/null
 brew install --quiet zsh 2> /dev/null
+brew install --quiet yq 2> /dev/null
 brew upgrade --quiet 2> /dev/null
 source ~/.profile
 
@@ -267,9 +244,9 @@ fi
 # Create a brew list of installed packages into an array
 BREW_LIST_ARRAY=($(brew list -1))
 
-# Read JSON and process packages
-jq -r '.packages | to_entries[] | .key' <<< "$CONFIG_JSON" | while IFS= read -r package; do
-    install_status=$(jq -r ".packages[\"$package\"].install" <<< "$CONFIG_JSON")
+# Read YAML and process packages
+yq eval -r '.packages | to_entries[] | .key' <<< "$CONFIG_YAML" | while IFS= read -r package; do
+    install_status=$(yq eval -r ".packages[\"$package\"].install" <<< "$CONFIG_YAML")
     base_package=$(basename "$package")
 
     if [[ " ${BREW_LIST_ARRAY[*]} " =~ " ${base_package} " ]]; then
@@ -300,50 +277,50 @@ create_symlink /home/linuxbrew/.linuxbrew/bin/pip3 /home/linuxbrew/.linuxbrew/bi
 create_symlink /home/linuxbrew/.linuxbrew/bin/gcc /home/linuxbrew/.linuxbrew/bin/cc
 echo "Finished creating symlinks"
 
-
 # Enable perl in homebrew
-if [[ $(echo "$CONFIG_JSON" | jq -r '.packages.perl.install') == true ]]; then
-        echo "Fixing perl symlink..."
-        sudo ln -sf /home/linuxbrew/.linuxbrew/bin/perl /usr/bin/perl
-    #if ! perl -Mlocal::lib -e '1' &> /dev/null; then
-	echo "Enabling perl cpan with defaults and permission fix"
-        sudo -E PERL_MM_USE_DEFAULT=1 PERL_MM_OPT=INSTALL_BASE=$HOME/perl5 cpan local::lib
-        cpan local::lib
-        sudo chown -R $(whoami):root $HOME/perl5 $HOME/.cpan
-        sudo chmod 775  $HOME/perl5 $HOME/.cpan -R 
-    #fi
+if [[ $(echo "$CONFIG_YAML" | yq eval -r '.packages.perl.install') == "true" ]]; then
+    echo "Fixing perl symlink..."
+    sudo ln -sf /home/linuxbrew/.linuxbrew/bin/perl /usr/bin/perl
+
+    echo "Enabling perl cpan with defaults and permission fix"
+    sudo -E PERL_MM_USE_DEFAULT=1 PERL_MM_OPT=INSTALL_BASE=$HOME/perl5 cpan local::lib
+
+    sudo chown -R $(whoami):root $HOME/perl5 $HOME/.cpan  # Adjust ownership before cpan
+    sudo chmod 775 $HOME/perl5 $HOME/.cpan -R  # Set permissions before cpan
+
+    cpan local::lib # cpan can now resolve locally with above permissions
 fi
 
 # oh-my-zsh will always be installed with the latest version
 [[ -e ~/.oh-my-zsh ]] && rm -rf ~/.oh-my-zsh
 if [[ -x $(command -v zsh) ]]; then
-	sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
-	chmod -R 755 ~/.oh-my-zsh
+    sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
+    chmod -R 755 ~/.oh-my-zsh
 fi
 
 # Check if additional Neovim packages should be installed
 echo "-----------------------------------------------------------------"
-if [[ $(echo "$CONFIG_JSON" | jq -r '.packages.neovim.install') == true ]]; then
+if [[ $(echo "$CONFIG_YAML" | yq eval -r '.packages.neovim.install') == "true" ]]; then
     echo "Calling $SCRIPT_DIR/nvim_config.sh for additional setup packages"
-    # Create a temporary file to store JSON data
+    # Create a temporary file to store YAML data
     temp_file=$(mktemp)
-    echo "$CONFIG_JSON" > "$temp_file"
+    echo "$CONFIG_YAML" > "$temp_file"
+
     bash "$SCRIPT_DIR/nvim_config.sh" "$temp_file"
-    CONFIG_JSON=$(<"$temp_file")
+    CONFIG_YAML=$(<"$temp_file")
     rm "$temp_file"
 else
-    echo "SKIPPING: Neovim components as config.json install flag is set to false."
+    echo "SKIPPING: Neovim components as config.yaml install flag is set to false."
 fi
 
 # Check if any zsh packages should be configured
 echo "-----------------------------------------------------------------"
 echo "Calling $SCRIPT_DIR/zsh_config.sh for additional zsh configuration"
-bash "$SCRIPT_DIR/zsh_config.sh" "$CONFIG_JSON"
+bash "$SCRIPT_DIR/zsh_config.sh" "$CONFIG_YAML"
 
-# Read JSON and install/uninstall plugins
-echo "$CONFIG_JSON" | jq -r '.plugins | to_entries[] | "\(.key) \(.value.install) \(.value.directory) \(.value.url)"' | while read -r plugin install directory url; do
+# Read YAML and install/uninstall plugins
+echo "$CONFIG_YAML" | yq eval -r '.plugins | to_entries[] | "\(.key) \(.value.install) \(.value.directory) \(.value.url)"' | while read -r plugin install directory url; do
     eval directory="$directory"
-
     if [[ "$install" == "true" && ! -d "$directory" ]]; then
         echo "$plugin is not installed, cloning..."
         git clone "$url" "$directory"
@@ -351,32 +328,30 @@ echo "$CONFIG_JSON" | jq -r '.plugins | to_entries[] | "\(.key) \(.value.install
         echo "$plugin is already installed."
     elif [[ "$install" == "false" ]]; then
         if [[ -d "$directory" ]]; then
-            echo "$plugin install flag is set to false in config.json. Removing plugin directory..."
+            echo "$plugin install flag is set to false in config.yaml. Removing plugin directory..."
             rm -rf "$directory"
         fi
     elif [[ "$install" == "skip" ]]; then
-        echo "$plugin install flag is set to skip in config.json. No action will be taken."
+        echo "$plugin install flag is set to skip in config.yaml. No action will be taken."
     elif [[ "$install" == "handled" ]]; then
         echo "$plugin has already been handled by nvim_config.sh."
     else
-        echo "Invalid install status for $plugin in config.json. No action will be taken."
+        echo "Invalid install status for $plugin in config.yaml. No action will be taken."
     fi
 done
 
-# PROFILE DEFAULTS: zsh and p10k are copied to home and can be reconfigured later.
-[[ ! -e ~/.p10k.zsh ]] && cp "$SCRIPT_DIR/.p10k.zsh" ~/
-cp "$SCRIPT_DIR/.zshrc" ~/
+
 
 # Set default plugins
 default_plugins="git web-search"
 
-# Use jq to get the list of plugins to add
-add_plugins=$(echo "$CONFIG_JSON" | jq -r '
-  .plugins | to_entries[] | 
-  select(.value.install == true and (.value.directory | contains("custom/plugins"))) | 
+# Use yq to get the list of plugins to add
+add_plugins=$(echo "$CONFIG_YAML" | yq eval -r '
+  .plugins | to_entries[] |
+  select(.value.install == "true" and (.value.directory | contains("custom/plugins"))) |
   .key')
 
-# Combine default plugins with those from the JSON config
+# Combine default plugins with those from the YAML config
 plugins="$default_plugins"
 for plugin in $add_plugins; do
   plugins="$plugins $plugin"
@@ -391,34 +366,68 @@ func_sed "s|^plugins=.*$|$plugins_array|" ~/.zshrc
 # Ensure the theme is set to powerlevel10k
 func_sed 's|^ZSH_THEME=.*$|ZSH_THEME="powerlevel10k/powerlevel10k"|' ~/.zshrc
 
-# Iterate over the aliases in JSON and add them to ~/.zshrc if install is not set to false.
-echo -e "\n# ----config.json----" >> ~/.zshrc
-echo "$CONFIG_JSON" | jq -r '
-  .packages, .plugins 
-  | to_entries[] 
-  | select(.value.aliases != "" and .value.install != false) 
-  | .value.aliases 
-  | to_entries[] 
-  | "alias \(.key)=\(.value|@sh)"
+# Copy a p10k powerline config to home folder
+if [[ -e ./.p10k.zsh ]]; then
+  cp ./.p10k.zsh ~/.p10k.zsh
+fi  
+
+
+# Create a temporary file
+tmpfile=$(mktemp)
+
+# Add Powerlevel10k instant prompt initialization code to the temporary file
+cat << 'EOF' > "$tmpfile"
+# Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.zshrc.
+# Initialization code that may require console input (password prompts, [y/n]
+# confirmations, etc.) must go above this block; everything else may go below.
+if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
+  source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
+fi
+
+# To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
+[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
+
+EOF
+
+# Append the existing .zshrc content to the temporary file
+cat ~/.zshrc >> "$tmpfile"
+
+# Replace the original .zshrc with the temporary file
+mv "$tmpfile" ~/.zshrc
+
+
+
+# Iterate over the aliases in YAML and add them to ~/.zshrc if install is not set to false.
+echo -e "\n# ----config.yaml----" >> ~/.zshrc
+echo "Adding aliases..."
+printf '%s\n' "$CONFIG_YAML" | yq -r '
+  (.packages + .plugins)
+  | to_entries[]
+  | select(.value.aliases != "" and .value.install != false)
+  | .value.aliases
+  | to_entries[]
+  | "alias \(.key)=\(.value)"
 ' | while read -r alias_command; do
-    if ! grep -qF "$alias_command" ~/.zshrc; then
-        echo "Adding alias command: $alias_command"
-        echo "$alias_command" >> ~/.zshrc
+    # Escape only embedded quotes within alias values
+    key=$(echo "$alias_command" | cut -d'=' -f1)
+    value=$(echo "$alias_command" | cut -d'=' -f2- | sed 's/"/\\"/g')
+    formatted_alias="alias ${key}=\"${value}\""
+    
+    if ! grep -qF "$formatted_alias" ~/.zshrc; then
+        echo "Adding alias command: $formatted_alias"
+        printf '%s\n' "$formatted_alias" >> ~/.zshrc
     else
-        echo "Alias already exists: $alias_command"
+        echo "Alias already exists: $formatted_alias"
     fi
 done
 
-# Iterate over the eval in JSON and add them to ~/.zshrc if install is not set to false.
-echo "$CONFIG_JSON" | jq -r '
-  .packages, .plugins
-  | to_entries[]
-  | select(.value.eval != "" and .value.install != false)
-  | if (.value.eval | type) == "object" then
-      .value.eval | to_entries[] | "eval \"$(\(.value))\""
-    else
-      "eval \"$(\(.value.eval))\""
-    end
+# Iterate over the eval in YAML and add them to ~/.zshrc if install is not set to false.
+echo "Adding eval..."
+echo "$CONFIG_YAML" | yq eval -r '
+    (.packages + .plugins) |
+    to_entries[] |
+    select(.value.install != "false" and .value.eval != "" and .value.eval != null) |
+    "eval \"$(\(.value.eval))\""
 ' | while read -r eval_command; do
     if ! grep -qF "$eval_command" ~/.zshrc; then
         echo "Adding eval command: $eval_command"
@@ -428,7 +437,7 @@ echo "$CONFIG_JSON" | jq -r '
     fi
 done
 
-# Finalise with zsh execution in Synology ash ~/.profile
+# Finalize with zsh execution in Synology ash ~/.profile
 command_to_add='[[ -x /home/linuxbrew/.linuxbrew/bin/zsh ]] && exec /home/linuxbrew/.linuxbrew/bin/zsh'
 if ! grep -xF "$command_to_add" ~/.profile; then
     echo "$command_to_add" >> ~/.profile

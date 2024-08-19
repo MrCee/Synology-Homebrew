@@ -1,50 +1,49 @@
 #!/bin/bash
 
-echo "Sucessfully called $(basename "$0")"
+echo "Successfully called $(basename "$0")"
 
 source "./functions.sh"
 
 temp_file=$1
 
-# Read JSON from the temporary file
-[[ -n $temp_file ]] && CONFIG_JSON=$(<"$temp_file")
+# Read YAML from the temporary file
+[[ -n $temp_file ]] && CONFIG_YAML=$(<"$temp_file")
 
-# For an independent manual run of this script we add packages to an empty CONFIG_JSON
+# For an independent manual run of this script, we add packages to an empty CONFIG_YAML
 if [[ -z $temp_file ]]; then
-    CONFIG_JSON_PATH="./config.json"
+    CONFIG_YAML_PATH="./config.yaml"
 
-    # Ensure config.json exists
-    if [[ ! -f "$CONFIG_JSON_PATH" ]]; then
-        echo "config.json not found in this directory"
+    # Ensure config.yaml exists
+    if [[ ! -f "$CONFIG_YAML_PATH" ]]; then
+        echo "config.yaml not found in this directory"
         exit 1
     fi
-
 
     echo "-----------------------------------------------------------------"
     read -p "Would you like to check and install neovim dependencies? (y/n): " answer
     if [[ "$answer" = "y" ]]; then
-        CONFIG_JSON=$(jq '.packages.neovim += {"install": true}' "$CONFIG_JSON_PATH")
-    fi 
+        CONFIG_YAML=$(yq '.packages.neovim += {install: "true"}' "$CONFIG_YAML_PATH")
+    fi
     read -p "Would you like to check and install kickstart.nvim? (y/n): " answer
     if [[ "$answer" = "y" ]]; then
-        CONFIG_JSON=$(jq '.plugins."kickstart.nvim" += {"install": true}' "$CONFIG_JSON_PATH")
+        CONFIG_YAML=$(yq '.plugins."kickstart.nvim" += {install: "true"}' "$CONFIG_YAML_PATH")
     fi
 fi
 
-# Function to update the install status in the JSON
+# Function to update the install status in the YAML
 update_install_status() {
     local plugin="$1"
-    CONFIG_JSON=$(echo "$CONFIG_JSON" | jq --arg plugin "$plugin" '.plugins[$plugin].install = "handled"')
+    CONFIG_YAML=$(echo "$CONFIG_YAML" | yq ".plugins[\"$plugin\"].install = \"handled\"")
 }
 
-#Install kickstart.nvim if install is true in config.json 
-if [[ $(echo "$CONFIG_JSON" | jq -r '.plugins."kickstart.nvim".install') == "true" ]]; then
-    kickstart_dir=$(echo "$CONFIG_JSON" | jq -r '.plugins."kickstart.nvim".directory')
+# Install kickstart.nvim if install is true in config.yaml
+if [[ $(echo "$CONFIG_YAML" | yq -r '.plugins."kickstart.nvim".install') == "true" ]]; then
+    kickstart_dir=$(echo "$CONFIG_YAML" | yq -r '.plugins."kickstart.nvim".directory')
     eval kickstart_dir="$kickstart_dir"
 
     if [[ ! -d "$kickstart_dir" ]]; then
         echo "Installing kickstart.nvim..."
-        git clone "$(echo "$CONFIG_JSON" | jq -r '.plugins."kickstart.nvim".url')" "$kickstart_dir"
+        git clone "$(echo "$CONFIG_YAML" | yq -r '.plugins."kickstart.nvim".url')" "$kickstart_dir"
         update_install_status "kickstart.nvim"
     else
         update_install_status "kickstart.nvim"
@@ -82,7 +81,7 @@ if [[ -n "$config_files" ]]; then
         if ! grep -q "Added by Synology-Homebrew OSC52" "$config_file"; then
             # Add the code after the line containing "unnamedplus"
             func_sed "/unnamedplus/ r /dev/stdin" "$config_file" <<<"$code_to_add"
-            echo "OSC52 code for remote/system clipbard successfully added to $config_file"
+            echo "OSC52 code for remote/system clipboard successfully added to $config_file"
         else
             echo "OSC52 code for remote/system clipboard already exists in $config_file"
         fi
@@ -91,13 +90,10 @@ else
     echo "No file containing 'unnamedplus' found in ~/.config folder."
 fi
 
-
-
-
 # Install additional packages for neovim
 echo "----------------------------------------"
-if [[ -n "$CONFIG_JSON" ]]; then
-    if [[ $(echo "$CONFIG_JSON" | jq -r '.packages.neovim.install') = true ]]; then
+if [[ -n "$CONFIG_YAML" ]]; then
+    if [[ $(echo "$CONFIG_YAML" | yq -r '.packages.neovim.install') == "true" ]]; then
         echo "Installing additional neovim components..."
 
         # Install or upgrade pynvim
@@ -112,7 +108,7 @@ if [[ -n "$CONFIG_JSON" ]]; then
         # Upgrade pip
         python3 -m pip install --upgrade pip --break-system-packages
 
-         echo "npm changes:"
+        echo "npm check:"
 
         # Check if npm is installed, if not, install it
         if ! command -v npm &> /dev/null; then
@@ -136,20 +132,12 @@ if [[ -n "$CONFIG_JSON" ]]; then
         if ! gem list neovim -i; then
             gem install neovim
         fi
-
-        # Download and install the fzf-git.sh script if not already present
-        if [[ ! -e ~/.scripts/fzf-git.sh ]]; then
-            mkdir -p ~/.scripts
-            curl -o ~/.scripts/fzf-git.sh https://raw.githubusercontent.com/junegunn/fzf-git.sh/main/fzf-git.sh
-        fi
     else
-        echo "SKIPPING: neovim components as config.json install flag is set to false."
+        echo "SKIPPING: neovim components as config.yaml install flag is set to false."
     fi
 else
     echo "SKIPPING: neovim components installation. This is expected when running this script independently."
 fi
 
-
-# Write updated JSON back to the temporary file
-[[ -n $temp_file ]] && echo "$CONFIG_JSON" > "$temp_file"
-
+# Write updated YAML back to the temporary file
+[[ -n $temp_file ]] && echo "$CONFIG_YAML" > "$temp_file"
