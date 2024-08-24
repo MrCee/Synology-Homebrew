@@ -74,22 +74,20 @@ The below is a snippet of how config.yaml should be formatted. Please see the fi
 
 ```yaml
 packages:
-  neovim:
-    install: true
-    aliases:
-      vim: nvim
-    eval: ""
-  stow:
-    install: skip
+  make:
+    install: "true"
     aliases: ""
     eval: ""
-  bat:
-    install: true
-    aliases:
-      cat: "bat --paging=never"
+  jq:
+    install: "true"
+    aliases: ""
+    eval: ""
+  stow:
+    install: "false"
+    aliases: ""
     eval: ""
   eza:
-    install: true
+    install: "true"
     aliases:
       ls: "eza --color=always --group-directories-first --icons"
       ll: "eza -la --icons --octal-permissions --group-directories-first --icons"
@@ -102,24 +100,30 @@ packages:
       l.: "eza -a | grep -E '^\\.'"
     eval: ""
   thefuck:
-    install: true
+    install: "true"
     aliases: ""
     eval: "thefuck --alias"
   zoxide:
-    install: true
+    install: "true"
     aliases:
       cd: z
     eval: "zoxide init zsh"
   jesseduffield/lazygit/lazygit:
-    install: true
+    install: "true"
     aliases:
       lg: lazygit
     eval: ""
 plugins:
   powerlevel10k:
-    install: true
+    install: "true"
     url: "https://github.com/romkatv/powerlevel10k"
     directory: "~/.oh-my-zsh/custom/themes/powerlevel10k"
+    aliases: ""
+    eval: ""
+  zsh-syntax-highlighting:
+    install: "true"
+    url: "https://github.com/zsh-users/zsh-syntax-highlighting"
+    directory: "~/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting"
     aliases: ""
     eval: ""
   kickstart.nvim:
