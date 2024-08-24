@@ -44,101 +44,96 @@ git clone https://github.com/MrCee/Synology-Homebrew.git ~/Synology-Homebrew && 
 
 ### Select your install type:
 
-#### 1) Minimal Install: This will provide the homebrew basics, ignore packages in config.json, leaving the rest to you.
+#### 1) Minimal Install: This will provide the homebrew basics, ignore packages in config.yaml, leaving the rest to you.
 
-_You can also use this option to uninstall packages in config.json installed by option 2 by running the script again._
+_You can also use this option to uninstall packages in config.yaml installed by option 2 by running the script again._
 
-#### 2) Advanced Install: Full setup includes packages in config.json
+#### 2) Advanced Install: Full setup includes packages in config.yaml
 
 _Recommended if you want to get started with Neovim or install some of the great packages listed._
 
 #### Both install types include the following essential packages to ensure Homebrew runs smoothly on Synology:
 
-git, ruby, glibc, gcc, clang-build-analyzer (which includes latest python & pip), zsh, oh-my-zsh.
+git, ruby, glibc, gcc, clang-build-analyzer (which includes latest python & pip), yq, zsh, oh-my-zsh.
 
-## Configuration for Advanced install (config.json)
+## Configuration for Advanced install (config.yaml)
 
-To manage packages, plugins, and themes, edit the `config.json` file and set the install flag to one of three options: **true**, **false**, or **skip**.
+To manage packages, plugins, and themes, edit the `config.yaml` file and set the install flag to one of three options: **true**, **false**, or **skip**.
 
 - **true**: Install the package, plugin, or theme.
 - **false**: Uninstall the package, plugin, or theme.
 - **skip**: Do nothing, leaving the current state unchanged.
 
-Plugins and themes can be defined under the **plugins** section. During script processing, `config.json` will be updated to use the last part of the URL as the plugin name, ensuring consistency in stdout and further processing.
+Plugins and themes can be defined under the **plugins** section. During script processing, `config.yaml` will be updated to use the last part of the URL as the plugin name, ensuring consistency in stdout and further processing.
 
-Additionally, you can define **aliases** and **eval** commands across all `config.json` entries, which will be reflected in `~/.zshrc`.
+Additionally, you can define **aliases** and **eval** commands across all `config.yaml` entries, which will be reflected in `~/.zshrc`.
 
-### **config.json example**
+### **config.yaml example**
 
-The script will attempt to fix formatting errors and validate `config.json` providing a response to stdout if error is detected. The below is a snippet of how config.json should be formatted. Please see the file downloaded from this repository for the full scope.
+The below is a snippet of how config.yaml should be formatted. Please see the file downloaded from this repository for the full scope.
 
-```json
-{
-  "packages": {
-    "neovim": {
-      "install": true,
-      "aliases": {
-        "vim": "nvim"
-      },
-      "eval": ""
-    },
-    "stow": {
-      "install": "skip",
-      "aliases": "",
-      "eval": ""
-    },
-    "bat": {
-      "install": true,
-      "aliases": {
-        "cat": "bat --paging=never"
-      },
-      "eval": ""
-    },
-    "eza": {
-      "install": true,
-      "aliases": {
-        "ls": "eza --color=always --group-directories-first --icons",
-        "ll": "eza -la --icons --octal-permissions --group-directories-first --icons",
-        "l": "eza -bGF --header --git --color=always --group-directories-first --icons",
-        "llm": "eza -lbGd --header --git --sort=modified --color=always --group-directories-first --icons",
-        "la": "eza --long --all --group --group-directories-first",
-        "lx": "eza -lbhHigUmuSa@ --time-style=long-iso --git --color-scale --color=always --group-directories-first --icons",
-        "lS": "eza -1 --color=always --group-directories-first --icons",
-        "lt": "eza --tree --level=2 --color=always --group-directories-first --icons",
-        "l.": "eza -a | grep -E '^\\.'"
-      },
-      "eval": ""
-    },
-    "thefuck": {
-      "install": true,
-      "aliases": "",
-      "eval": "thefuck --alias"
-    }
-  },
-  "plugins": {
-    "powerlevel10k": {
-      "install": true,
-      "url": "https://github.com/romkatv/powerlevel10k",
-      "directory": "~/.oh-my-zsh/custom/themes/powerlevel10k",
-      "aliases": "",
-      "eval": ""
-    },
-    "kickstart.nvim": {
-      "install": true,
-      "url": "https://github.com/nvim-lua/kickstart.nvim",
-      "directory": "~/.config/nvim-kickstart",
-      "aliases": {
-        "nvim": "NVIM_APPNAME=\"nvim-kickstart\" nvim"
-      },
-      "eval": ""
-    }
-  }
-}
+```yaml
+packages:
+  neovim:
+    install: true
+    aliases:
+      vim: nvim
+    eval: ""
+  stow:
+    install: skip
+    aliases: ""
+    eval: ""
+  bat:
+    install: true
+    aliases:
+      cat: "bat --paging=never"
+    eval: ""
+  eza:
+    install: true
+    aliases:
+      ls: "eza --color=always --group-directories-first --icons"
+      ll: "eza -la --icons --octal-permissions --group-directories-first --icons"
+      l: "eza -bGF --header --git --color=always --group-directories-first --icons"
+      llm: "eza -lbGd --header --git --sort=modified --color=always --group-directories-first --icons"
+      la: "eza --long --all --group --group-directories-first"
+      lx: "eza -lbhHigUmuSa@ --time-style=long-iso --git --color-scale --color=always --group-directories-first --icons"
+      lS: "eza -1 --color=always --group-directories-first --icons"
+      lt: "eza --tree --level=2 --color=always --group-directories-first --icons"
+      l.: "eza -a | grep -E '^\\.'"
+    eval: ""
+  thefuck:
+    install: true
+    aliases: ""
+    eval: "thefuck --alias"
+  zoxide:
+    install: true
+    aliases:
+      cd: z
+    eval: "zoxide init zsh"
+  jesseduffield/lazygit/lazygit:
+    install: true
+    aliases:
+      lg: lazygit
+    eval: ""
+plugins:
+  powerlevel10k:
+    install: true
+    url: "https://github.com/romkatv/powerlevel10k"
+    directory: "~/.oh-my-zsh/custom/themes/powerlevel10k"
+    aliases: ""
+    eval: ""
+  kickstart.nvim:
+    install: "true"
+    url: "https://github.com/nvim-lua/kickstart.nvim"
+    directory: "~/.config/nvim-kickstart"
+    aliases:
+      nvim: "NVIM_APPNAME=\"nvim-kickstart\" nvim"
+    eval: ""
 ```
 
 ## Installed packages
 
-Modify packages to be installed by editing config.json and setting the install flag to true, false, or skip.
+Modify packages to be installed by editing config.yaml and setting the install flag to true, false, or skip.
 
 | Package                                                                         | Description                                                                                                 | Dependency                              |
 | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | --------------------------------------- |
@@ -188,7 +183,7 @@ This includes:
 
 ### Kickstart Neovim with Lazy (optional)
 
-In the plugins section of `config.json`, set `kickstart.nvim` to true to install and configure Neovim with kickstart.nvim. This provides a lazy configuration with everything working out of the box. It will be installed to the specified directory in config.json with a backup of any existing config to your home folder.
+In the plugins section of `config.yaml`, set `kickstart.nvim` to true to install and configure Neovim with kickstart.nvim. This provides a lazy configuration with everything working out of the box. It will be installed to the specified directory in config.yaml with a backup of any existing config to your home folder.
 
 To switch between Neovim configurations easily, use aliases in `~/.zshrc` and swap to your config:
 
@@ -197,7 +192,7 @@ alias nvim='NVIM_APPNAME="nvim-kickstart" nvim'
 alias nvim='NVIM_APPNAME="nvim-mrcee" nvim'
 ```
 
-See kickstart.nvim provided in the [config.json example](#configjson-example) above.
+See kickstart.nvim provided in the [config.yaml example](#configyaml-example) above.
 
 If no alias is set, Neovim will attempt to use the default nvim config location `~/.config/nvim`
 
