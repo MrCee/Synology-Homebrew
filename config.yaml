@@ -69,12 +69,12 @@ packages:
   zoxide:
     install: "true"
     aliases:
-      cd: z
+      cd: "z"
     eval: "zoxide init zsh"
   jesseduffield/lazygit/lazygit:
     install: "true"
     aliases:
-      lg: lazygit
+      lg: "lazygit"
     eval: ""
 plugins:
   powerlevel10k:
@@ -102,12 +102,12 @@ plugins:
     aliases:
       nvim: "NVIM_APPNAME=\"nvim-kickstart\" nvim"
     eval: ""
-  OPTIONAL_SET_INSTALL_TO_TRUE_WITH_NO_DIRECTORY_FOR_ADDITIONAL_ALIASES_OR_EVAL:
+  OPTIONAL_SET_INSTALL_TO_TRUE_WITH_NO_DIRECTORY_FOR_ADDITIONAL_ALIASES_OR_EVAL_TO_CREATE_MANY:
     install: "false"
-    url: "OPTIONAL_SET_INSTALL_TO_TRUE_WITH_NO_DIRECTORY_FOR_ADDITIONAL_ALIASES_OR_EVAL"
+    url: ""
     directory: ""
     aliases:
-      nvim: "NVIM_APPNAME=\"nvim\" nvim"
+      nvim: "NVIM_APPNAME=\"nvim-YOUR-CONFIG-LOCATION\" nvim"
       aliasexample1: "aliastest1"
       aliasexample2: "aliastest2"
     eval:
