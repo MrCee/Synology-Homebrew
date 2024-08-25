@@ -88,9 +88,6 @@ packages:
     aliases:
       cat: "bat --paging=never"
     eval: ""
-  eza:
-    install: true
-=======
   make:
     install: "true"
     aliases: ""
