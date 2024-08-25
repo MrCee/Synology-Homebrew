@@ -368,6 +368,7 @@ func_sed "s|^plugins=.*$|$plugins_array|" ~/.zshrc
 # Ensure the theme is set to powerlevel10k
 func_sed 's|^ZSH_THEME=.*$|ZSH_THEME="powerlevel10k/powerlevel10k"|' ~/.zshrc
 
+<<<<<<< HEAD
 # Copy a p10k powerline config to home folder
 if [[ -e ./.p10k.zsh ]]; then
   cp ./.p10k.zsh ~/.p10k.zsh
