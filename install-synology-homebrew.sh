@@ -204,7 +204,6 @@ eval "\$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
 [[ -f $HOME/.scripts/fzf-git.sh ]] && rm $HOME/.scripts/fzf-git.sh
 
 
-
 if [[ -x \$(command -v perl) && \$(perl -Mlocal::lib -e '1' 2>/dev/null) ]]; then
     eval "\$(perl -I$HOME/perl5/lib/perl5 -Mlocal::lib=\$HOME/perl5)"
 fi
@@ -369,9 +368,9 @@ func_sed "s|^plugins=.*$|$plugins_array|" ~/.zshrc
 # Ensure the theme is set to powerlevel10k
 func_sed 's|^ZSH_THEME=.*$|ZSH_THEME="powerlevel10k/powerlevel10k"|' ~/.zshrc
 
-# Copy a p10k powerline config to home folders
+# Copy a p10k powerline config to home folder
 if [[ -e ./.p10k.zsh ]]; then
-  cp ./,p10k.zsh ~/.p10k.zsh
+  cp ./.p10k.zsh ~/.p10k.zsh
 fi  
 
 

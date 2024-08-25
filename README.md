@@ -74,6 +74,23 @@ The below is a snippet of how config.yaml should be formatted. Please see the fi
 
 ```yaml
 packages:
+  neovim:
+    install: true
+    aliases:
+      vim: nvim
+    eval: ""
+  stow:
+    install: skip
+    aliases: ""
+    eval: ""
+  bat:
+    install: true
+    aliases:
+      cat: "bat --paging=never"
+    eval: ""
+  eza:
+    install: true
+=======
   make:
     install: "true"
     aliases: ""
@@ -106,12 +123,12 @@ packages:
   zoxide:
     install: "true"
     aliases:
-      cd: z
+      cd: "z"
     eval: "zoxide init zsh"
   jesseduffield/lazygit/lazygit:
     install: "true"
     aliases:
-      lg: lazygit
+      lg: "lazygit"
     eval: ""
 plugins:
   powerlevel10k:
