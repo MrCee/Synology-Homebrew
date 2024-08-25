@@ -74,32 +74,38 @@ The below is a snippet of how config.yaml should be formatted. Please see the fi
 
 ```yaml
 packages:
-  neovim:
-    install: true
-    aliases:
-      vim: nvim
-    eval: ""
-  stow:
-    install: skip
-    aliases: ""
-    eval: ""
-  bat:
-    install: true
-    aliases:
-      cat: "bat --paging=never"
-    eval: ""
   make:
     install: "true"
-    aliases: ""
-    eval: ""
+    aliases: []
+    eval: []
   jq:
     install: "true"
-    aliases: ""
-    eval: ""
+    aliases: []
+    eval: []
+  perl:
+    install: "true"
+    aliases: []
+    eval:
+      - "perl -I$HOME/perl5/lib/perl5 -Mlocal::lib=$HOME/perl5"
+  neovim:
+    install: "true"
+    aliases:
+      vim: "nvim"
+    eval: []
   stow:
-    install: "false"
-    aliases: ""
-    eval: ""
+    install: "skip"
+    aliases: []
+    eval: []
+  fzf:
+    install: "true"
+    aliases: []
+    eval:
+      - "fzf --zsh"
+  bat:
+    install: "true"
+    aliases:
+      cat: "bat --paging=never"
+    eval: []
   eza:
     install: "true"
     aliases:
@@ -112,41 +118,37 @@ packages:
       lS: "eza -1 --color=always --group-directories-first --icons"
       lt: "eza --tree --level=2 --color=always --group-directories-first --icons"
       l.: "eza -a | grep -E '^\\.'"
-    eval: ""
+    eval: []
   thefuck:
     install: "true"
-    aliases: ""
-    eval: "thefuck --alias"
+    aliases: []
+    eval:
+      - "thefuck --alias"
   zoxide:
     install: "true"
     aliases:
       cd: "z"
-    eval: "zoxide init zsh"
+    eval:
+      - "zoxide init zsh"
   jesseduffield/lazygit/lazygit:
     install: "true"
     aliases:
       lg: "lazygit"
-    eval: ""
+    eval: []
 plugins:
   powerlevel10k:
     install: "true"
     url: "https://github.com/romkatv/powerlevel10k"
     directory: "~/.oh-my-zsh/custom/themes/powerlevel10k"
-    aliases: ""
-    eval: ""
-  zsh-syntax-highlighting:
-    install: "true"
-    url: "https://github.com/zsh-users/zsh-syntax-highlighting"
-    directory: "~/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting"
-    aliases: ""
-    eval: ""
+    aliases: []
+    eval: []
   kickstart.nvim:
     install: "true"
     url: "https://github.com/nvim-lua/kickstart.nvim"
     directory: "~/.config/nvim-kickstart"
     aliases:
       nvim: "NVIM_APPNAME=\"nvim-kickstart\" nvim"
-    eval: ""
+    eval: []
 ```
 
 ## Installed packages

@@ -1,4 +1,7 @@
+#!/bin/bash
 
+DEBUG=0
+[[ $DEBUG == 1 ]] && echo "DEBUG mode"
 
 # Cache sudo credentials
 sudo -k
@@ -35,9 +38,6 @@ $CURRENT_USER ALL=NOPASSWD: ALL
 EOF
 
 [[ $(uname) == "Darwin" ]] && echo "This script is for Synology NAS. You don't run this from macOS. Script will now exit" && exit 1
-
-DEBUG=0
-[[ $DEBUG == 1 ]] && echo "DEBUG mode"
 
 # Check if the script is being run as root
 if [ "$EUID" -eq 0 ]; then
@@ -88,8 +88,9 @@ source "$SCRIPT_DIR/functions.sh"
 
 # ------- Begin YAML Cleanup ------
 func_sed 's/([^\\])\\([^\\"])/\1\\\\\2/g' "$CONFIG_YAML_PATH" # double escape a backslash within double quotes
-func_sed 's/^([^:]*:[[:space:]])'\''(.*)'\''/\1"\2"/g' "$CONFIG_YAML_PATH" # all values should start and end with double quotes
-func_sed 's/(^.*:[[:space:]]"[^\"]*)("[^"]*)(".*"$)/\1\\\\\\\2\\\\\\\3/g' "$CONFIG_YAML_PATH" # add escape backslash to embedded double quotes
+#func_sed 's/^(.*: )([^"].*[^"])$/\1"\2"/' "$CONFIG_YAML_PATH"  # ensures every entry is double quoted
+#func_sed 's/^([^:]*:[[:space:]])'\''(.*)'\''/\1"\2"/g' "$CONFIG_YAML_PATH" # all values should start and end with double quotes
+func_sed 's/(^.*:[[:space:]]"[^\"]*)("[^"]*)(".*"$)/\1\\\2\\\3/g' "$CONFIG_YAML_PATH" # add escape backslash to embedded double quotes
 func_sed 's/install: skip/install: \"skip\"/g' "$CONFIG_YAML_PATH" # convert to string
 func_sed 's/install: true/install: \"true\"/g' "$CONFIG_YAML_PATH" # convert to string
 func_sed 's/install: false/install: \"false\"/g' "$CONFIG_YAML_PATH" # convert to string
@@ -187,9 +188,9 @@ export CPPFLAGS="-I/home/linuxbrew/.linuxbrew/opt/glibc/include"
 export XDG_CONFIG_HOME="\$HOME"/.config
 export HOMEBREW_GIT_PATH=/home/linuxbrew/.linuxbrew/bin/git
 
-# Keep gcc up to date. Find the latest version of gcc installed and set symbolic links
+# Keep gcc up to date. Find the latest version of gcc installed and set symbolic links from version 11 onwards
 # Extract the version number from latest gcc
-max_version=\$(ls -d /home/linuxbrew/.linuxbrew/opt/gcc/bin/gcc-* | grep -oE '[0-9]+$' | sort -nr | head -n1)
+max_version=\$(/bin/ls -d /home/linuxbrew/.linuxbrew/opt/gcc/bin/gcc-* | grep -oE '[0-9]+$' | sort -nr | head -n1)
 # Create symbolic link for gcc to latest gcc-*
 ln -sf "/home/linuxbrew/.linuxbrew/bin/gcc-\$max_version" "/home/linuxbrew/.linuxbrew/bin/gcc"
 # Create symbolic links for gcc-11 to max_version-1 pointing to latest gcc-*
@@ -227,6 +228,10 @@ source ~/.profile
 echo --------------------------PATH SET-------------------------------
 echo $PATH
 echo -----------------------------------------------------------------
+
+# Validate the YAML file using yq
+yq eval '.' "$CONFIG_YAML_PATH" > /dev/null 2>&1 || { echo "Error: The YAML file '$CONFIG_YAML_PATH' is invalid."; exit 1; }
+echo "The YAML file '$CONFIG_YAML_PATH' is valid."
 
 # Check if Ruby is properly linked via Homebrew
 ruby_path=$(which ruby)
@@ -342,7 +347,8 @@ echo "$CONFIG_YAML" | yq eval -r '.plugins | to_entries[] | "\(.key) \(.value.in
     fi
 done
 
-
+# copy this profile which can be adjusted later
+cp ./.p10k.zsh ~/.p10k.zsh
 
 # Set default plugins
 default_plugins="git web-search"
@@ -368,35 +374,6 @@ func_sed "s|^plugins=.*$|$plugins_array|" ~/.zshrc
 # Ensure the theme is set to powerlevel10k
 func_sed 's|^ZSH_THEME=.*$|ZSH_THEME="powerlevel10k/powerlevel10k"|' ~/.zshrc
 
-# Copy a p10k powerline config to home folder
-if [[ -e ./.p10k.zsh ]]; then
-  cp ./.p10k.zsh ~/.p10k.zsh
-fi  
-
-# Create a temporary file
-tmpfile=$(mktemp)
-
-# Add Powerlevel10k instant prompt initialization code to the temporary file
-cat << 'EOF' > "$tmpfile"
-# Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.zshrc.
-# Initialization code that may require console input (password prompts, [y/n]
-# confirmations, etc.) must go above this block; everything else may go below.
-if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
-  source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
-fi
-
-# To customize prompt, run `p10k configure` or edit ~/.p10k.zsh.
-[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh
-
-EOF
-
-# Append the existing .zshrc content to the temporary file
-cat ~/.zshrc >> "$tmpfile"
-
-# Replace the original .zshrc with the temporary file
-mv "$tmpfile" ~/.zshrc
-
-
 
 # Iterate over the aliases in YAML and add them to ~/.zshrc if install is not set to false.
 echo -e "\n# ----config.yaml----" >> ~/.zshrc
@@ -404,16 +381,21 @@ echo "Adding aliases..."
 printf '%s\n' "$CONFIG_YAML" | yq -r '
   (.packages + .plugins)
   | to_entries[]
-  | select(.value.aliases != "" and .value.install != false)
+  | select(.value.aliases != [] and .value.install != "false")
   | .value.aliases
   | to_entries[]
   | "alias \(.key)=\(.value)"
-' | while read -r alias_command; do
-    # Escape only embedded quotes within alias values
+' | while IFS= read -r alias_command; do
+    # Extract key and value from the alias command
     key=$(echo "$alias_command" | cut -d'=' -f1)
-    value=$(echo "$alias_command" | cut -d'=' -f2- | sed 's/"/\\"/g')
-    formatted_alias="alias ${key}=\"${value}\""
-    
+    value=$(echo "$alias_command" | cut -d'=' -f2-)
+
+    # Escape double quotes in the value
+    value=$(printf '%s' "$value" | sed 's/"/\\"/g')
+
+    # Format the alias command with the properly escaped value
+    formatted_alias="${key}=\"${value}\""
+
     if ! grep -qF "$formatted_alias" ~/.zshrc; then
         echo "Adding alias command: $formatted_alias"
         printf '%s\n' "$formatted_alias" >> ~/.zshrc
@@ -427,14 +409,19 @@ echo "Adding eval..."
 echo "$CONFIG_YAML" | yq eval -r '
     (.packages + .plugins) |
     to_entries[] |
-    select(.value.install != "false" and .value.eval != "" and .value.eval != null) |
-    "eval \"$(\(.value.eval))\""
-' | while read -r eval_command; do
-    if ! grep -qF "$eval_command" ~/.zshrc; then
-        echo "Adding eval command: $eval_command"
-        echo "$eval_command" >> ~/.zshrc
-    else
-        echo "Eval command already exists: $eval_command"
+    select(.value.install != "false" and .value.eval != [] and .value.eval != null) |
+    .value.eval[]
+' | while IFS= read -r eval_command; do
+    if [[ -n "$eval_command" ]]; then
+        # Wrap the eval command in $() for proper execution context
+        wrapped_eval_command="eval \"\$($eval_command)\""
+        
+        if ! grep -qF "$wrapped_eval_command" ~/.zshrc; then
+            echo "Adding eval command: $wrapped_eval_command"
+            echo "$wrapped_eval_command" >> ~/.zshrc
+        else
+            echo "Eval command already exists: $wrapped_eval_command"
+        fi
     fi
 done
 

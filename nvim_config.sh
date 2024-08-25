@@ -22,18 +22,18 @@ if [[ -z $temp_file ]]; then
     echo "-----------------------------------------------------------------"
     read -p "Would you like to check and install neovim dependencies? (y/n): " answer
     if [[ "$answer" = "y" ]]; then
-        CONFIG_YAML=$(yq '.packages.neovim += {install: "true"}' "$CONFIG_YAML_PATH")
+        CONFIG_YAML=$(yq e '.packages.neovim.install = "true"' "$CONFIG_YAML_PATH")
     fi
     read -p "Would you like to check and install kickstart.nvim? (y/n): " answer
     if [[ "$answer" = "y" ]]; then
-        CONFIG_YAML=$(yq '.plugins."kickstart.nvim" += {install: "true"}' "$CONFIG_YAML_PATH")
+        CONFIG_YAML=$(yq e '.plugins."kickstart.nvim".install = "true"' "$CONFIG_YAML_PATH")
     fi
 fi
 
 # Function to update the install status in the YAML
 update_install_status() {
     local plugin="$1"
-    CONFIG_YAML=$(echo "$CONFIG_YAML" | yq ".plugins[\"$plugin\"].install = \"handled\"")
+    CONFIG_YAML=$(echo "$CONFIG_YAML" | yq e ".plugins[\"$plugin\"].install = \"handled\"" -)
 }
 
 # Install kickstart.nvim if install is true in config.yaml
@@ -54,7 +54,7 @@ fi
 config_files=$(find -L ~/.config -type f -exec grep -l 'unnamedplus' {} +)
 echo "----------------------------------------"
 echo "FOUND files with 'unnamedplus':"
-echo "$config_files"
+printf "%s\n" "$config_files"
 echo "----------------------------------------"
 
 # Use a heredoc to store the code block in a variable which is used to activate clipboard over ssh
@@ -141,3 +141,4 @@ fi
 
 # Write updated YAML back to the temporary file
 [[ -n $temp_file ]] && echo "$CONFIG_YAML" > "$temp_file"
+

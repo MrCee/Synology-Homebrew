@@ -11,11 +11,25 @@ fi
 fi
 
 
+# Ensure the Powerlevel10k sourcing line is in ~/.zshrc
+p10k_line='[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh'
+
+# Check if the line already exists in ~/.zshrc
+if ! grep -Fxq "$p10k_line" ~/.zshrc; then
+    echo "Adding Powerlevel10k source line to ~/.zshrc..."
+    echo -e "\n# Source Powerlevel10k if installed\n# To customize prompt, run \`p10k configure\` or edit ~/.p10k.zsh." >> ~/.zshrc
+    echo "$p10k_line" >> ~/.zshrc
+else
+    echo "Powerlevel10k source line already exists in ~/.zshrc."
+fi
+
+
+
 # Function to install bat theme if required
 install_bat_theme() {
     local theme_name="tokyonight_night"
 
-    if [[ $(echo "$CONFIG_YAML" | yq -r '.packages.bat.install') == true ]]; then
+    if [[ $(echo "$CONFIG_YAML" | yq -r '.packages.bat.install') == "true" ]]; then
         echo "Installing bat theme: $theme_name"
         mkdir -p "$(bat --config-dir)/themes"
         cd "$(bat --config-dir)/themes" || exit
