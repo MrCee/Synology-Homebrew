@@ -58,6 +58,7 @@ sudo rm -rf ~/perl5 ~/.cpan ~/.npm
 
 # Remove Symbolic links
 [ -L /usr/bin/perl ] && [[ $(readlink /usr/bin/perl) =~ .linuxbrew ]] && sudo rm -rf /usr/bin/perl
+[ -L /bin/zsh ] && [[ $(readlink /bin/zsh) =~ .linuxbrew ]] && sudo rm -rf /bin/zsh
 
 # echo attempting to delete linuxbrew directory....
 sudo rm -rf /home/linuxbrew

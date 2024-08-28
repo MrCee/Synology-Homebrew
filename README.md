@@ -208,8 +208,11 @@ In the plugins section of `config.yaml`, set `kickstart.nvim` to true to install
 To switch between Neovim configurations easily, use aliases in `~/.zshrc` and swap to your config:
 
 ```zsh
-alias nvim='NVIM_APPNAME="nvim-kickstart" nvim'
-alias nvim='NVIM_APPNAME="nvim-mrcee" nvim'
+alias nvim="NVIM_APPNAME=\"nvim-kickstart\" nvim"
+
+# or for example...
+
+alias nvim="NVIM_APPNAME=\"nvim-mrcee\" nvim"
 ```
 
 See kickstart.nvim provided in the [config.yaml example](#configyaml-example) above.

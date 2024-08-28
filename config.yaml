@@ -106,17 +106,3 @@ plugins:
     aliases:
       nvim: "NVIM_APPNAME=\"nvim-kickstart\" nvim"
     eval: []
-OPTIONAL_SET_INSTALL_TO_TRUE_WITH_NO_DIRECTORY_FOR_ADDITIONAL_ALIASES_OR_EVAL_TO_CREATE_MANY:
-  install: "false"
-  url: ""
-  directory: ""
-  aliases:
-    nvim: "NVIM_APPNAME=\"nvim-YOUR-CONFIG-LOCATION\" nvim"
-    aliasexample1: "aliastest1"
-    aliasexample2: "aliastest2"
-  eval:
-    - "evalexample1"
-    - "evalexample2"
-
-
-
