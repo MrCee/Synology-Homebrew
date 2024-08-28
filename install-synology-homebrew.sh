@@ -136,8 +136,11 @@ fi
 echo "Starting $( [[ "$selection" -eq 1 ]] && echo 'Minimal Install' || echo 'Full Setup' )..."
 
 if [[ "$selection" -eq 1 ]]; then
-    # Update install fields to false
-    CONFIG_YAML=$(yq -e '.packages |= with_entries(.value.install = "false")' <<< "$CONFIG_YAML")
+	# Modify the install field within each entry in .packages and .plugins
+	CONFIG_YAML=$(printf '%s\n' "$CONFIG_YAML" | yq -e '
+	  .packages |= map_values(.install = "false") |
+	  .plugins |= map_values(.install = "false")
+	')
 fi
 
 export HOMEBREW_NO_ENV_HINTS=1
@@ -203,7 +206,6 @@ eval "\$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
 # fzf-git.sh has been removed from this script due to issues, we will add this again shortly
 # [[ -f $HOME/.scripts/fzf-git.sh ]] && source $HOME/.scripts/fzf-git.sh
 [[ -f $HOME/.scripts/fzf-git.sh ]] && rm $HOME/.scripts/fzf-git.sh
-
 
 if [[ -x \$(command -v perl) && \$(perl -Mlocal::lib -e '1' 2>/dev/null) ]]; then
     eval "\$(perl -I$HOME/perl5/lib/perl5 -Mlocal::lib=\$HOME/perl5)"
@@ -271,21 +273,15 @@ yq eval -r '.packages | to_entries[] | .key' <<< "$CONFIG_YAML" | while IFS= rea
     echo "$package is $action."
 done
 
-# Function to create symlink with or without sudo
-create_symlink() {
-    src=$1
-    dest=$2
-    ln -sf "$src" "$dest" || sudo ln -sf "$src" "$dest"
-}
-# Attempt to create the symlinks
+# Create the symlinks
 echo "Creating symlinks"
-create_symlink /home/linuxbrew/.linuxbrew/bin/python3 /home/linuxbrew/.linuxbrew/bin/python
-create_symlink /home/linuxbrew/.linuxbrew/bin/pip3 /home/linuxbrew/.linuxbrew/bin/pip
-create_symlink /home/linuxbrew/.linuxbrew/bin/gcc /home/linuxbrew/.linuxbrew/bin/cc
+sudo ln -sf /home/linuxbrew/.linuxbrew/bin/python3 /home/linuxbrew/.linuxbrew/bin/python
+sudo ln -sf /home/linuxbrew/.linuxbrew/bin/pip3 /home/linuxbrew/.linuxbrew/bin/pip
+sudo ln -sf /home/linuxbrew/.linuxbrew/bin/gcc /home/linuxbrew/.linuxbrew/bin/cc
 echo "Finished creating symlinks"
 
 # Enable perl in homebrew
-if [[ $(echo "$CONFIG_YAML" | yq eval -r '.packages.perl.install') == "true" ]]; then
+if [[ $(printf '%s\n' "$CONFIG_YAML" | yq eval -r '.packages.perl.install') == "true" ]]; then
     echo "Fixing perl symlink..."
     sudo ln -sf /home/linuxbrew/.linuxbrew/bin/perl /usr/bin/perl
 
@@ -307,11 +303,11 @@ fi
 
 # Check if additional Neovim packages should be installed
 echo "-----------------------------------------------------------------"
-if [[ $(echo "$CONFIG_YAML" | yq eval -r '.packages.neovim.install') == "true" ]]; then
+if [[ $(printf '%s\n' "$CONFIG_YAML" | yq eval -r '.packages.neovim.install') == "true" ]]; then
     echo "Calling $SCRIPT_DIR/nvim_config.sh for additional setup packages"
     # Create a temporary file to store YAML data
     temp_file=$(mktemp)
-    echo "$CONFIG_YAML" > "$temp_file"
+    printf '%s\n' "$CONFIG_YAML" > "$temp_file"
 
     bash "$SCRIPT_DIR/nvim_config.sh" "$temp_file"
     CONFIG_YAML=$(<"$temp_file")
@@ -321,12 +317,11 @@ else
 fi
 
 # Check if any zsh packages should be configured
-echo "-----------------------------------------------------------------"
 echo "Calling $SCRIPT_DIR/zsh_config.sh for additional zsh configuration"
 bash "$SCRIPT_DIR/zsh_config.sh" "$CONFIG_YAML"
-
+echo "-----------------------------------------------------------------"
 # Read YAML and install/uninstall plugins
-echo "$CONFIG_YAML" | yq eval -r '.plugins | to_entries[] | "\(.key) \(.value.install) \(.value.directory) \(.value.url)"' | while read -r plugin install directory url; do
+printf '%s\n' "$CONFIG_YAML" | yq eval -r '.plugins | to_entries[] | "\(.key) \(.value.install) \(.value.directory) \(.value.url)"' | while read -r plugin install directory url; do
     eval directory="$directory"
     if [[ "$install" == "true" && ! -d "$directory" ]]; then
         echo "$plugin is not installed, cloning..."
@@ -347,83 +342,68 @@ echo "$CONFIG_YAML" | yq eval -r '.plugins | to_entries[] | "\(.key) \(.value.in
     fi
 done
 
-# copy this profile which can be adjusted later
-cp ./.p10k.zsh ~/.p10k.zsh
-
-# Set default plugins
-default_plugins="git web-search"
-
-# Use yq to get the list of plugins to add
-add_plugins=$(echo "$CONFIG_YAML" | yq eval -r '
-  .plugins | to_entries[] |
-  select(.value.install == "true" and (.value.directory | contains("custom/plugins"))) |
-  .key')
-
-# Combine default plugins with those from the YAML config
-plugins="$default_plugins"
-for plugin in $add_plugins; do
-  plugins="$plugins $plugin"
-done
-
-# Convert space-separated plugins list to a format suitable for .zshrc
-plugins_array="plugins=($plugins)"
-
-# Update ~/.zshrc with the selected plugins
-func_sed "s|^plugins=.*$|$plugins_array|" ~/.zshrc
-
-# Ensure the theme is set to powerlevel10k
-func_sed 's|^ZSH_THEME=.*$|ZSH_THEME="powerlevel10k/powerlevel10k"|' ~/.zshrc
-
-
-# Iterate over the aliases in YAML and add them to ~/.zshrc if install is not set to false.
-echo -e "\n# ----config.yaml----" >> ~/.zshrc
-echo "Adding aliases..."
-printf '%s\n' "$CONFIG_YAML" | yq -r '
+# Extract and filter alias commands
+alias_commands=$(printf '%s\n' "$CONFIG_YAML" | yq eval -r '
   (.packages + .plugins)
   | to_entries[]
   | select(.value.aliases != [] and .value.install != "false")
   | .value.aliases
   | to_entries[]
+  | select(.key != "" and .key != null and .value != "" and .value != null)  # Ensure both key and value are non-empty and not null
   | "alias \(.key)=\(.value)"
-' | while IFS= read -r alias_command; do
-    # Extract key and value from the alias command
-    key=$(echo "$alias_command" | cut -d'=' -f1)
-    value=$(echo "$alias_command" | cut -d'=' -f2-)
+' | grep -v "^alias =$")  # Filter out lines that are just "alias ="
 
-    # Escape double quotes in the value
-    value=$(printf '%s' "$value" | sed 's/"/\\"/g')
+# Only proceed with the while loop if alias_commands is not empty
+if [[ -n "$alias_commands" ]]; then
+    printf '%s\n' "$alias_commands" | while IFS= read -r alias_command; do
+        # Extract key and value from the alias command
+        key=$(echo "$alias_command" | cut -d'=' -f1)
+        value=$(echo "$alias_command" | cut -d'=' -f2-)
 
-    # Format the alias command with the properly escaped value
-    formatted_alias="${key}=\"${value}\""
+        # Escape double quotes in the value
+        value=$(printf '%s' "$value" | sed 's/"/\\"/g')
 
-    if ! grep -qF "$formatted_alias" ~/.zshrc; then
-        echo "Adding alias command: $formatted_alias"
-        printf '%s\n' "$formatted_alias" >> ~/.zshrc
-    else
-        echo "Alias already exists: $formatted_alias"
-    fi
-done
+        # Format the alias command with the properly escaped value
+        formatted_alias="${key}=\"${value}\""
 
-# Iterate over the eval in YAML and add them to ~/.zshrc if install is not set to false.
-echo "Adding eval..."
-echo "$CONFIG_YAML" | yq eval -r '
-    (.packages + .plugins) |
-    to_entries[] |
-    select(.value.install != "false" and .value.eval != [] and .value.eval != null) |
-    .value.eval[]
-' | while IFS= read -r eval_command; do
-    if [[ -n "$eval_command" ]]; then
-        # Wrap the eval command in $() for proper execution context
-        wrapped_eval_command="eval \"\$($eval_command)\""
-        
-        if ! grep -qF "$wrapped_eval_command" ~/.zshrc; then
-            echo "Adding eval command: $wrapped_eval_command"
-            echo "$wrapped_eval_command" >> ~/.zshrc
+        if ! grep -qF "$formatted_alias" ~/.zshrc; then
+            echo "Adding alias command: $formatted_alias"
+            printf '%s\n' "$formatted_alias" >> ~/.zshrc
         else
-            echo "Eval command already exists: $wrapped_eval_command"
+            echo "Alias already exists: $formatted_alias"
         fi
-    fi
-done
+    done
+else
+    echo "No aliases to add."
+fi
+
+# Extract and filter eval commands
+eval_commands=$(printf '%s\n' "$CONFIG_YAML" | yq eval -r '
+  (.packages + .plugins)
+  | to_entries[]
+  | select(.value.eval != [] and .value.install != "false")
+  | .value.eval[]
+' | grep -v "^$")  # Filter out empty lines
+
+# Only proceed with the while loop if eval_commands is not empty
+if [[ -n "$eval_commands" ]]; then
+    printf '%s\n' "$eval_commands" | while IFS= read -r eval_command; do
+        # Escape double quotes in the eval command
+        eval_command=$(printf '%s' "$eval_command" | sed 's/"/\\"/g')
+
+        # Format the eval command for execution
+        formatted_eval="eval \"\$($eval_command)\""
+
+        if ! grep -qF "$formatted_eval" ~/.zshrc; then
+            echo "Adding eval command: $formatted_eval"
+            printf '%s\n' "$formatted_eval" >> ~/.zshrc
+        else
+            echo "Eval command already exists: $formatted_eval"
+        fi
+    done
+else
+    echo "No eval commands to add."
+fi
 
 # Finalize with zsh execution in Synology ash ~/.profile
 command_to_add='[[ -x /home/linuxbrew/.linuxbrew/bin/zsh ]] && exec /home/linuxbrew/.linuxbrew/bin/zsh'

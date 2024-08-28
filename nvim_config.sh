@@ -33,17 +33,17 @@ fi
 # Function to update the install status in the YAML
 update_install_status() {
     local plugin="$1"
-    CONFIG_YAML=$(echo "$CONFIG_YAML" | yq e ".plugins[\"$plugin\"].install = \"handled\"" -)
+    CONFIG_YAML=$(printf '%s\n' "$CONFIG_YAML" | yq e ".plugins[\"$plugin\"].install = \"handled\"" -)
 }
 
 # Install kickstart.nvim if install is true in config.yaml
-if [[ $(echo "$CONFIG_YAML" | yq -r '.plugins."kickstart.nvim".install') == "true" ]]; then
-    kickstart_dir=$(echo "$CONFIG_YAML" | yq -r '.plugins."kickstart.nvim".directory')
+if [[ $(printf '%s\n' "$CONFIG_YAML" | yq eval -r '.plugins."kickstart.nvim".install') == "true" ]]; then
+    kickstart_dir=$(printf '%s\n' "$CONFIG_YAML" | yq eval -r '.plugins."kickstart.nvim".directory')
     eval kickstart_dir="$kickstart_dir"
 
     if [[ ! -d "$kickstart_dir" ]]; then
         echo "Installing kickstart.nvim..."
-        git clone "$(echo "$CONFIG_YAML" | yq -r '.plugins."kickstart.nvim".url')" "$kickstart_dir"
+        git clone "$(printf '%s\n' "$CONFIG_YAML" | yq eval -r '.plugins."kickstart.nvim".url')" "$kickstart_dir"
         update_install_status "kickstart.nvim"
     else
         update_install_status "kickstart.nvim"
@@ -93,7 +93,7 @@ fi
 # Install additional packages for neovim
 echo "----------------------------------------"
 if [[ -n "$CONFIG_YAML" ]]; then
-    if [[ $(echo "$CONFIG_YAML" | yq -r '.packages.neovim.install') == "true" ]]; then
+    if [[ $(printf '%s\n' "$CONFIG_YAML" | yq eval -r '.packages.neovim.install') == "true" ]]; then
         echo "Installing additional neovim components..."
 
         # Install or upgrade pynvim
@@ -140,5 +140,5 @@ else
 fi
 
 # Write updated YAML back to the temporary file
-[[ -n $temp_file ]] && echo "$CONFIG_YAML" > "$temp_file"
+[[ -n $temp_file ]] && printf '%s\n' "$CONFIG_YAML" > "$temp_file"
 
