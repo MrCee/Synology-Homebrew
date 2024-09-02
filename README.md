@@ -66,8 +66,6 @@ To manage packages, plugins, and themes, edit the `config.yaml` file and set the
 
 Plugins and themes can be defined under the **plugins** section. During script processing, `config.yaml` will be updated to use the last part of the URL as the plugin name, ensuring consistency in stdout and further processing.
 
-Additionally, you can define **aliases** and **eval** commands across all `config.yaml` entries, which will be reflected in `~/.zshrc`.
-
 ### **config.yaml example**
 
 The below is a snippet of how config.yaml should be formatted. Please see the file downloaded from this repository for the full scope.
