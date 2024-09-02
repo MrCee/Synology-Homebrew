@@ -108,18 +108,68 @@ if [[ -n "$CONFIG_YAML" ]]; then
         # Upgrade pip
         python3 -m pip install --upgrade pip --break-system-packages
 
-        echo "npm check:"
+echo "npm check:"
 
-        # Check if npm is installed, if not, install it
-        if ! command -v npm &> /dev/null; then
-            echo "npm is not installed. Installing npm..."
-            brew install --quiet npm
-        fi
-        rm -rf /home/linuxbrew/.linuxbrew/lib/node_modules
-        brew postinstall node
-        npm install -g npm@latest
-        npm config set fund false --location=global
-        npm install -g neovim@latest
+# Check if npm is installed, if not, install it
+if ! command -v npm &> /dev/null; then
+    echo "npm is not installed. Installing npm..."
+    brew install --quiet npm
+fi
+
+# Ensure icu4c is installed
+if ! brew list icu4c &>/dev/null; then
+    echo "icu4c is not installed. Installing icu4c..."
+    brew install icu4c
+else
+    echo "icu4c is already installed."
+fi
+
+# Check if icu4c is already linked
+if ! brew list --versions icu4c &>/dev/null; then
+    echo "Linking icu4c libraries..."
+    brew link --force icu4c
+else
+    echo "icu4c is already linked. Skipping linking step."
+fi
+
+# Remove existing global node_modules directory
+sudo rm -rf /home/linuxbrew/.linuxbrew/lib/node_modules
+
+# Function to find the latest version of libicui18n.so.*
+find_latest_libicui18n() {
+    echo "Searching for the latest version of libicui18n.so..."
+
+    # Use Homebrew's prefix to find the installation path
+    brew_prefix=$(brew --prefix icu4c)
+
+    # Set the search paths
+    search_paths="$brew_prefix/lib /usr/local/lib"
+
+    # Find the latest version of libicui18n.so.* in the available directories
+    latest_lib_path=$(find $search_paths -name 'libicui18n.so.*' 2>/dev/null | sort -V | tail -n 1)
+
+    if [ -z "$latest_lib_path" ]; then
+        echo "No libicui18n.so versions found. Please check your icu4c installation."
+        exit 1
+    else
+        echo "Found the latest version: $latest_lib_path"
+    fi
+}
+
+# Fix the libicui18n.so issue by finding the latest version
+find_latest_libicui18n
+
+# Run the postinstall step for Node.js
+brew postinstall node
+
+# Install the latest npm globally
+sudo npm install -g npm@latest
+
+# Disable npm funding messages globally
+sudo npm config set fund false --location=global
+
+# Install neovim globally using npm
+sudo npm install -g neovim@latest
 
         echo
         echo -e "Checking for gem updates:\n"
