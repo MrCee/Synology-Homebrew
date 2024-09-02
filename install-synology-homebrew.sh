@@ -426,5 +426,18 @@ fi
 
 # Finish script with cleanup and transport
 sudo rm -rf "$SUDOERS_FILE"
+
+# Check if Perl is installed via Synology Package Center
+if synopkg list | grep -q "Perl"; then
+    echo ""
+    echo "#############################################################"
+    echo "#                                                           #"
+    echo "#   Perl is installed via the Synology Package Center.      #"
+    echo "#   It is recommended that you uninstall this version       #"
+    echo "#   and use the Homebrew version instead.                   #"
+    echo "#                                                           #"
+    echo "#############################################################"
+    echo ""
+fi
 echo "Script completed successfully. You will now be transported to ZSH!!!"
 exec zsh --login
