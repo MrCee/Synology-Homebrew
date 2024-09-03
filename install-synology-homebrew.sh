@@ -3,10 +3,6 @@
 DEBUG=0
 [[ $DEBUG == 1 ]] && echo "DEBUG mode"
 
-# Cache sudo credentials
-sudo -k
-sudo -v || { echo "Failed to cache sudo credentials" >&2; exit 1; }
-
 SCRIPT_PATH=$(realpath "$0")
 SCRIPT_DIR=$(dirname "$SCRIPT_PATH")
 
@@ -14,28 +10,11 @@ SCRIPT_DIR=$(dirname "$SCRIPT_PATH")
 cd "$SCRIPT_DIR" || { echo "Failed to change directory to $SCRIPT_DIR" >&2; exit 1; }
 echo "Working directory: $SCRIPT_DIR"
 
-# Define the sudoers file
-SUDOERS_FILE="/etc/sudoers.d/custom_homebrew_sudoers"
-CURRENT_USER=$(whoami)
+# Source the functions file
+source "$SCRIPT_DIR/functions.sh"
 
-# Function to clean up and exit the script
-cleanup() {
-    echo -e "\nAborting install..."
-    sudo rm -f "$SUDOERS_FILE"
-    sudo -k
-    echo "Sudo access revoked."
-    exit 1
-}
-
-# Set traps for various signals
-trap cleanup INT TERM HUP QUIT ABRT ALRM PIPE
-
-# Install the sudoers file
-sudo install -m 0440 /dev/stdin "$SUDOERS_FILE" <<EOF
-Defaults syslog=authpriv
-root ALL=(ALL) ALL
-$CURRENT_USER ALL=NOPASSWD: ALL
-EOF
+# login and cache sudo which creates a sudoers file
+func_sudoers
 
 if [[ $(uname) == "Darwin" ]]; then
     echo "This script is for Synology NAS. Do not run it from macOS. Exiting." >&2
@@ -85,9 +64,6 @@ if [[ ! -f "$CONFIG_YAML_PATH" ]]; then
     echo "config.yaml not found in $SCRIPT_DIR"
     exit 1
 fi
-
-# Source the functions file
-source "$SCRIPT_DIR/functions.sh"
 
 # ------- Begin YAML Cleanup ------
 func_sed 's/([^\\])\\([^\\"])/\1\\\\\2/g' "$CONFIG_YAML_PATH"
@@ -433,8 +409,8 @@ if synopkg list | grep -q "Perl"; then
     echo "#############################################################"
     echo "#                                                           #"
     echo "#   Perl is installed via the Synology Package Center.      #"
-    echo "#   It is recommended that you uninstall this version       #"
-    echo "#   and use the Homebrew version instead.                   #"
+    echo "#   It is recommended that you uninstall this version.      #"
+    echo "#   The Homebrew version will be used instead.              #"
     echo "#                                                           #"
     echo "#############################################################"
     echo ""

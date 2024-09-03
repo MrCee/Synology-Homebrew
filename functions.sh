@@ -30,3 +30,33 @@ func_sed() {
     [[ -f "$tmp_file" ]] && rm "$tmp_file"
 }
 
+func_sudoers() {
+    local sudoers_file="/etc/sudoers.d/custom_homebrew_sudoers"
+    local current_user=$(whoami)
+
+    # Cleanup function on exit or interruption
+    cleanup() {
+        echo -e "\nAborting install..."
+        sudo rm -f "$sudoers_file"
+        sudo -k
+        echo "Sudo access revoked."
+        exit 1
+    }
+
+    # Set traps for signals to ensure cleanup on exit or termination
+    trap cleanup INT TERM HUP QUIT ABRT ALRM PIPE
+
+    # Cache sudo credentials
+    sudo -k
+    if ! sudo -v; then
+        echo "Failed to cache sudo credentials" >&2
+        exit 1
+    fi
+
+    # Install the sudoers file
+    sudo install -m 0440 /dev/stdin "$sudoers_file" <<EOF
+Defaults syslog=authpriv
+root ALL=(ALL) ALL
+$current_user ALL=NOPASSWD: ALL
+EOF
+}

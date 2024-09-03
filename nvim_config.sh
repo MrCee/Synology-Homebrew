@@ -1,33 +1,45 @@
 #!/bin/bash
 
-echo "Successfully called $(basename "$0")"
+printf "Successfully called %s\n" "$(basename "$0")"
 
 source "./functions.sh"
 
+# Assign the first argument to temp_file
 temp_file=$1
 
-# Read YAML from the temporary file
-[[ -n $temp_file ]] && CONFIG_YAML=$(<"$temp_file")
-
-# For an independent manual run of this script, we add packages to an empty CONFIG_YAML
-if [[ -z $temp_file ]]; then
+# Validate and read YAML from the temporary file
+if [[ -n $temp_file ]]; then
+    if ! CONFIG_YAML=$(<"$temp_file"); then
+        printf "Error: Failed to read YAML file at %s\n" "$temp_file" >&2
+        exit 1
+    fi
+    echo "tempfile parsed in correctly: $temp_file"
+else
+    # No temp file on manaual run. We will parse in the original config.yaml
     CONFIG_YAML_PATH="./config.yaml"
 
     # Ensure config.yaml exists
     if [[ ! -f "$CONFIG_YAML_PATH" ]]; then
-        echo "config.yaml not found in this directory"
+        printf "Error: config.yaml not found in this directory\n" >&2
         exit 1
     fi
 
-    echo "-----------------------------------------------------------------"
+    if ! CONFIG_YAML=$(<"$CONFIG_YAML_PATH"); then
+        printf "Error: Failed to read YAML file at %s\n" "$CONFIG_YAML_PATH" >&2
+        exit 1
+    fi
+
+    echo -e "-----------------------------------------------------------------\n"
     read -p "Would you like to check and install neovim dependencies? (y/n): " answer
-    if [[ "$answer" = "y" ]]; then
-        CONFIG_YAML=$(yq e '.packages.neovim.install = "true"' "$CONFIG_YAML_PATH")
+    if [[ "$answer" == "y" ]]; then
+        CONFIG_YAML=$(printf '%s\n' "$CONFIG_YAML" | yq e '.packages.neovim.install = "true"')
     fi
+
     read -p "Would you like to check and install kickstart.nvim? (y/n): " answer
-    if [[ "$answer" = "y" ]]; then
-        CONFIG_YAML=$(yq e '.plugins."kickstart.nvim".install = "true"' "$CONFIG_YAML_PATH")
+    if [[ "$answer" == "y" ]]; then
+        CONFIG_YAML=$(printf '%s\n' "$CONFIG_YAML" | yq e '.plugins."kickstart.nvim".install = "true"')
     fi
+    func_sudoers
 fi
 
 # Function to update the install status in the YAML
@@ -111,7 +123,7 @@ if [[ -n "$CONFIG_YAML" ]]; then
 echo "npm check:"
 
 # Check if npm is installed, if not, install it
-if ! command -v npm &> /dev/null; then
+if ! brew list npm &> /dev/null; then
     echo "npm is not installed. Installing npm..."
     brew install --quiet npm
 fi
@@ -129,7 +141,7 @@ if ! brew list --versions icu4c &>/dev/null; then
     echo "Linking icu4c libraries..."
     brew link --force icu4c
 else
-    echo "icu4c is already linked. Skipping linking step."
+    echo "icu4c is already linked."
 fi
 
 # Remove existing global node_modules directory
