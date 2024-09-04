@@ -31,7 +31,7 @@ fi
 error=false
 
 # Check if Synology Homes is enabled
-if [[ ! -d /var/services/homes/$CURRENT_USER ]]; then
+if [[ ! -d /var/services/homes/$(whoami) ]]; then
     echo "Synology Homes has NOT been enabled. Please enable in DSM Control Panel >> Users & Groups >> Advanced >> User Home." >&2
     error=true
 fi
@@ -127,7 +127,7 @@ EOF
 if [[ ! -d /home ]]; then
     sudo mkdir -p /home
     sudo mount -o bind "/volume1/homes" /home
-    sudo chown -R "$CURRENT_USER":root /home
+    sudo chown -R "$(whoami)":root /home
 fi
 
 # Create a new .profile and add homebrew paths
@@ -272,14 +272,23 @@ echo "Finished creating symlinks"
 # Enable perl in homebrew
 if [[ $(printf '%s\n' "$CONFIG_YAML" | yq eval -r '.packages.perl.install') == "true" ]]; then
     echo "Fixing perl symlink..."
+    # Create symlink to Homebrew's Perl in /usr/bin
     sudo ln -sf /home/linuxbrew/.linuxbrew/bin/perl /usr/bin/perl
 
+    echo "Setting up permissions for perl environment..."
+    # Ensure permissions on perl5 and .cpan directories before any creation
+    sudo mkdir -p $HOME/perl5 $HOME/.cpan
+    sudo chown -R "$(whoami)":root $HOME/perl5 $HOME/.cpan
+    sudo chmod -R 775 $HOME/perl5 $HOME/.cpan
+
     echo "Enabling perl cpan with defaults and permission fix"
+    # Configure CPAN to install local::lib in $HOME/perl5 with default settings
     sudo -E PERL_MM_USE_DEFAULT=1 PERL_MM_OPT=INSTALL_BASE=$HOME/perl5 cpan local::lib
 
-    sudo chown -R "$CURRENT_USER":root $HOME/perl5 $HOME/.cpan
-    sudo chmod 775 $HOME/perl5 $HOME/.cpan -R
+    # Re-run local::lib setup to ensure environment is correctly configured
+    eval $(perl -I$HOME/perl5/lib/perl5 -Mlocal::lib=$HOME/perl5)
 
+    # Now make sure local::lib is set up properly in CPAN
     cpan local::lib
 fi
 
