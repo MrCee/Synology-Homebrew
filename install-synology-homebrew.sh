@@ -168,8 +168,8 @@ done
 
 eval "\$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
 
-# fzf-git.sh has been removed from this script due to issues, we will add this again shortly
-[[ -f \$HOME/.scripts/fzf-git.sh ]] && rm "\$HOME/.scripts/fzf-git.sh"
+# fzf-git.sh source git key bindings for fzf-git
+[[ -f \$HOME/.scripts/fzf-git.sh ]] && source "\$HOME/.scripts/fzf-git.sh"
 
 if [[ -x \$(command -v perl) && \$(perl -Mlocal::lib -e '1' 2>/dev/null) ]]; then
     eval "\$(perl -I\$HOME/perl5/lib/perl5 -Mlocal::lib=\$HOME/perl5 2>/dev/null)"
