@@ -196,8 +196,8 @@ This includes:
 
 - Enable clipboard over SSH using OSC52 for all nvim configurations stored or symlinked in `~/.config`.
 - Linting Python with `pip3 install pynvim`.
-- Updating outdated gems.
 - Installing neovim gem.
+- Updating outdated gems.
 - Adding fzf-git.sh with Git key bindings to `~/.scripts` directory.
 
 ### Kickstart Neovim with Lazy (optional)
