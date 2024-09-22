@@ -65,9 +65,7 @@ To manage packages, plugins, and themes, edit the `config.yaml` file and set the
 - **skip**: Do nothing, leaving the current state unchanged.
 
 Plugins and themes can be defined under the **plugins** section. 
-During script processing, `config.yaml` will be updated to use the last part of the URL as the plugin name, ensuring consistency in stdout and further processing. What does this mean? In summary you could call the plugin powerlevel10k "XYZ" or what ever you like, the plugin name will be updated to the last part of the URL which is "powerlevel10k".
-
-
+Plugin names will be updated to reflect the last part of the URL for consitency.
 
 ### **config.yaml example**
 
