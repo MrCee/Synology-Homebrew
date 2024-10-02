@@ -122,6 +122,22 @@ echo -n "Architecture: "
 uname -m
 echo
 
+# Derive the full version number as major.minor
+current_version=$(echo "$majorversion.$minorversion")
+required_version="7.2"
+
+
+
+# Convert the major and minor versions into a comparable number (e.g., 7.2 -> 702, 8.1 -> 801)
+current_version=$((majorversion * 100 + minorversion))
+required_version=$((7 * 100 + 2))
+
+# Compare the versions as integers
+if [ "$current_version" -lt "$required_version" ]; then
+    echo "Your DSM version does not meet minimum requirements. DSM 7.2 is required."
+    exit 1
+fi
+
 echo "Starting $( [[ "$selection" -eq 1 ]] && echo 'Minimal Install' || echo 'Full Setup' )..."
 
 export HOMEBREW_NO_ENV_HINTS=1
