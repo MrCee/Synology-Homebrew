@@ -119,11 +119,7 @@ awk -F': ' '/model name/ {print $2; exit}' /proc/cpuinfo
 
 # Retrieve System Architecture
 echo -n "Architecture: "
-if [ "$(getconf LONG_BIT)" -eq 64 ]; then
-    echo "64-bit"
-else
-    echo "32-bit"
-fi
+uname -m
 echo
 
 echo "Starting $( [[ "$selection" -eq 1 ]] && echo 'Minimal Install' || echo 'Full Setup' )..."
@@ -299,11 +295,12 @@ if [[ $(printf '%s\n' "$CONFIG_YAML" | yq eval -r '.packages.perl.install') == "
     # Ensure permissions on perl5 and .cpan directories before any creation
     sudo mkdir -p $HOME/perl5 $HOME/.cpan
     sudo chown -R "$(whoami)":root $HOME/perl5 $HOME/.cpan
-    sudo chmod -R 775 $HOME/perl5 $HOME/.cpan
+    sudo chmod -R 775 $HOME/perl5 $HOME/.cpan  # Or use 775 if you want group write access
+
 
     echo "Enabling perl cpan with defaults and permission fix"
     # Configure CPAN to install local::lib in $HOME/perl5 with default settings
-    sudo -E PERL_MM_USE_DEFAULT=1 PERL_MM_OPT=INSTALL_BASE=$HOME/perl5 cpan local::lib
+    PERL_MM_USE_DEFAULT=1 PERL_MM_OPT=INSTALL_BASE=$HOME/perl5 cpan local::lib
 
     # Re-run local::lib setup to ensure environment is correctly configured
     eval $(perl -I$HOME/perl5/lib/perl5 -Mlocal::lib=$HOME/perl5)
