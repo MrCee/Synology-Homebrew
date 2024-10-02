@@ -196,7 +196,7 @@ sudo npm install -g neovim@latest
         fi
 # Clone fzf-git.sh into scripts directory for fzf git keybindings. This will be sources in .profile
 echo Cloning fzf-git.sh into ~/.scripts directory
-curl -o ~/.scripts/fzf-git.sh https://raw.githubusercontent.com/junegunn/fzf-git.sh/main/fzf-git.sh
+mkdir -p ~/.scripts && curl -o ~/.scripts/fzf-git.sh https://raw.githubusercontent.com/junegunn/fzf-git.sh/main/fzf-git.sh
 
 else
         echo "SKIPPING: neovim components as config.yaml install flag is set to false."
