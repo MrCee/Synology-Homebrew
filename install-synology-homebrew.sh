@@ -106,6 +106,26 @@ if [[ "$selection" -eq 2 && ! -f "$CONFIG_YAML_PATH" ]]; then
     exit 1
 fi
 
+
+
+# Retrieve DSM OS Version without Percentage Sign
+source /etc.defaults/VERSION
+clean_smallfix="${smallfixnumber%\%}"
+printf 'DSM Version: %s-%s Update %s\n' "$productversion" "$buildnumber" "$clean_smallfix"
+
+# Retrieve CPU Model Name
+echo -n "CPU: "
+awk -F': ' '/model name/ {print $2; exit}' /proc/cpuinfo
+
+# Retrieve System Architecture
+echo -n "Architecture: "
+if [ "$(getconf LONG_BIT)" -eq 64 ]; then
+    echo "64-bit"
+else
+    echo "32-bit"
+fi
+echo
+
 echo "Starting $( [[ "$selection" -eq 1 ]] && echo 'Minimal Install' || echo 'Full Setup' )..."
 
 export HOMEBREW_NO_ENV_HINTS=1
