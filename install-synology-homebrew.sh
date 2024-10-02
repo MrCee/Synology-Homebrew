@@ -106,8 +106,6 @@ if [[ "$selection" -eq 2 && ! -f "$CONFIG_YAML_PATH" ]]; then
     exit 1
 fi
 
-
-
 # Retrieve DSM OS Version without Percentage Sign
 source /etc.defaults/VERSION
 clean_smallfix="${smallfixnumber%\%}"
@@ -125,8 +123,6 @@ echo
 # Derive the full version number as major.minor
 current_version=$(echo "$majorversion.$minorversion")
 required_version="7.2"
-
-
 
 # Convert the major and minor versions into a comparable number (e.g., 7.2 -> 702, 8.1 -> 801)
 current_version=$((majorversion * 100 + minorversion))
@@ -311,7 +307,7 @@ if [[ $(printf '%s\n' "$CONFIG_YAML" | yq eval -r '.packages.perl.install') == "
     # Ensure permissions on perl5 and .cpan directories before any creation
     sudo mkdir -p $HOME/perl5 $HOME/.cpan
     sudo chown -R "$(whoami)":root $HOME/perl5 $HOME/.cpan
-    sudo chmod -R 775 $HOME/perl5 $HOME/.cpan  # Or use 775 if you want group write access
+    sudo chmod -R 775 $HOME/perl5 $HOME/.cpan=
 
 
     echo "Enabling perl cpan with defaults and permission fix"
