@@ -13,7 +13,7 @@ Homebrew, a package manager for macOS and Linux, unlocks a vast ecosystem of mod
 - **Installation Options:** Choose between a Minimal or Advanced installation. If you just want homebrew to work then Minimal install is for you.
 - **Profile Creation:** Configures the default Synology ash/sh profile and newly installed zsh to work seamlessly with Homebrew.
 - **Synology Integration:** Resolves conflicts with existing Synology packages without removing anything from your NAS.
-- **Easy Uninstall:** Revert to the original state with the included uninstall script.
+- **Easy Uninstall:** Revert to the original state of your NAS with the included uninstall script.
 
 ## Prerequisites
 
@@ -23,14 +23,12 @@ Before you begin, ensure you have the following:
     - A Synology NAS running DSM 7.2 or later.
     - SSH access to your NAS.
     - User homes enabled on your NAS.
+    - A scheduled task which ensures Homebrew is mounted after each restart. Detailed instructions are provided below.
 
 2. **Git Installation:**
     - Git is necessary for the installation process and can be installed via the Package Center Manager from [SynoCommunity](https://synocommunity.com). During Homebrew installation, Git will be updated to the latest version in Homebrew's path. If desired, you can uninstall the Synology Package Center version of Git afterwards.
 
-3. **Homebrew Setup:**
-    - Create a scheduled task to ensure Homebrew is mounted after each restart. Detailed instructions are provided below.
-
-4. **iTerm2 Configuration:**
+3. **iTerm2 Configuration:**
     - iTerm2 (or alternative other than the default MacOS Terminal.app) running on your local machine with compatible Nerd Fonts and a color profile for an improved visual experience. <BR>Refer to the [iTerm2 Configuration Guide](https://github.com/MrCee/Synology-Homebrew/wiki/iTerm2-Configuration) for a quick setup.
 
 ## Installation
@@ -230,14 +228,19 @@ The Synology-Homebrew + Neovim setup comes pre-configured with a sleek Zsh theme
 
 ## Synology Task Scheduler to Persist Installation after Restart
 
-We need to ensure the Homebrew directory is mounted after each restart. Add the following to Synology Task Scheduler:
+To ensure the Homebrew directory is mounted after each restart, add a Triggered Task with a User-defined script.
+Go to Control Panel > Task Scheduler, click Create, and select Triggered Task >> User-defined Script and enter the following...
 
-1. Triggered Task | User-defined script
-   - Task name: Homebrew Boot
+1st tab:
+
+   - Task name: "Homebrew Boot"
    - User: root
    - Event: Boot-up
    - Enabled: True
-   - Task Settings | Run Command:
+
+2nd tab:
+
+   - Paste the following User-defined script...
 
 ```bash
 #!/bin/bash
