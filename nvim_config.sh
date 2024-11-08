@@ -187,12 +187,12 @@ sudo npm install -g neovim@latest
         echo -e "Checking for gem updates:\n"
         # Check for outdated gems and update them
         if [[ -n $(gem outdated) ]]; then
-            gem update
+            gem update --no-document
         fi
 
         # Install the neovim gem if it's not already installed
         if ! gem list neovim -i; then
-            gem install neovim
+            gem install neovim --no-document
         fi
 # Clone fzf-git.sh into scripts directory for fzf git keybindings. This will be sources in .profile
 echo Cloning fzf-git.sh into ~/.scripts directory
