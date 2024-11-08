@@ -163,7 +163,7 @@ cat > "$HOME/.profile" <<EOF
 PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/syno/sbin:/usr/syno/bin:/usr/local/sbin:/usr/local/bin
 # Directories to add to PATH
 directories=(
-  "/home/linuxbrew/.linuxbrew/lib/ruby/gems/3.3.0/bin"
+  "$(find /home/linuxbrew/.linuxbrew/lib/ruby/gems/ -maxdepth 1 -type d -name '[0-9]*' | sort -V | tail -n 1)/bin"
   "/home/linuxbrew/.linuxbrew/opt/glibc/sbin"
   "/home/linuxbrew/.linuxbrew/opt/glibc/bin"
   "/home/linuxbrew/.linuxbrew/opt/binutils/bin"
