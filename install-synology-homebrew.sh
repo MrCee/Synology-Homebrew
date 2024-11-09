@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DEBUG=0
+DEBUG=1
 [[ $DEBUG == 1 ]] && echo "DEBUG mode"
 
 SCRIPT_PATH=$(realpath "$0")
@@ -39,13 +39,25 @@ fi
 # Check if Homebrew is installed
 if [[ ! -x /home/linuxbrew/.linuxbrew/bin/brew ]]; then
     echo "Homebrew is not installed. Checking environment for requirements..."
-    
+
     # Check if Git is installed
     if ! command -v git > /dev/null; then
-        echo "Git not installed. Please install Git via package manager before running." >&2
-        error=true
-    else
-        echo "Git has been found"
+        echo "Git not installed. Attempting to install from SynoCommunity..."
+        if [[ ! -f /usr/syno/etc/packages/feeds ]]; then
+sudo install -m 755 /dev/stdin /usr/syno/etc/packages/feeds <<EOF
+[{"feed":"https://packages.synocommunity.com/","name":"SynoCommunity"}]
+EOF
+		fi
+		if ! sudo grep -q "https://packages.synocommunity.com/" /usr/syno/etc/packages/feeds; then
+            sudo echo [{"feed":"https://packages.synocommunity.com/","name":"SynoCommunity"}] >> /usr/syno/etc/packages/feeds
+        fi
+        sudo synopkg install_from_server Git
+        if command -v git > /dev/null; then
+            echo "Git has been installed"
+        else
+            echo "Git could not be installed, please do this via the SynoCommunity in Package Centre. (https://packages.synocommunity.com)"
+            error=true
+        fi
     fi
 else
     echo "Homebrew is installed. Checking your environment to see if further actions are required. Please wait..."
@@ -332,7 +344,7 @@ fi
 echo "-----------------------------------------------------------------"
 if [[ $(printf '%s\n' "$CONFIG_YAML" | yq eval -r '.packages.neovim.install') == "true" ]]; then
     echo "Calling $SCRIPT_DIR/nvim_config.sh for additional setup packages"
-    
+
     # Create a temporary file to store YAML data
     temp_file=$(mktemp)
     printf '%s\n' "$CONFIG_YAML" > "$temp_file"
@@ -455,3 +467,5 @@ if synopkg list | grep -q "Perl"; then
 fi
 echo "Script completed successfully. You will now be transported to ZSH!!!"
 exec zsh --login
+
+
