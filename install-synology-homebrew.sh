@@ -29,6 +29,7 @@ fi
 
 # Check prerequisites of this script
 error=false
+git_install_flag=false
 
 # Check if Synology Homes is enabled
 if [[ ! -d /var/services/homes/$(whoami) ]]; then
@@ -39,22 +40,50 @@ fi
 # Check if Homebrew is installed
 if [[ ! -x /home/linuxbrew/.linuxbrew/bin/brew ]]; then
     echo "Homebrew is not installed. Checking environment for requirements..."
-    
+
     # Check if Git is installed
-    if ! command -v git > /dev/null; then
-        echo "Git not installed. Please install Git via package manager before running." >&2
-        error=true
+    if ! git --version > /dev/null 2>&1; then
+        echo "Git not installed. Adding the SynoCommunity repository..."
+
+        # Add SynoCommunity feed if not present
+        if [[ ! -f /usr/syno/etc/packages/feeds ]]; then
+            echo "Adding SynoCommunity feed..."
+            echo '[{"feed":"https://packages.synocommunity.com/","name":"SynoCommunity"}]' | sudo tee /usr/syno/etc/packages/feeds > /dev/null
+            sudo chmod 755 /usr/syno/etc/packages/feeds
+        fi
+
+        # Append to feeds if SynoCommunity is missing
+        if ! sudo grep -q "https://packages.synocommunity.com/" /usr/syno/etc/packages/feeds; then
+            echo "Appending SynoCommunity feed..."
+            echo '[{"feed":"https://packages.synocommunity.com/","name":"SynoCommunity"}]' | sudo tee -a /usr/syno/etc/packages/feeds > /dev/null
+        fi
+
+        # Attempt to install Git
+        echo "Attempting to install Git..."
+        sudo synopkg install_from_server Git
+        git_install_flag=true
+
+        # Confirm if Git was installed successfully
+        if git --version > /dev/null 2>&1; then
+            echo "Git has been installed"
+        else
+            echo "Git could not be installed. Please install it manually from SynoCommunity in Package Centre (https://packages.synocommunity.com)." >&2
+            error=true
+        fi
     else
-        echo "Git has been found"
+        echo "Git is already installed."
     fi
 else
-    echo "Homebrew is installed. Checking your environment to see if further actions are required. Please wait..."
+    echo "Homebrew is already installed."
 fi
 
 # If any error occurred, exit with status 1
-if $error; then
+if $error ; then
+    echo "Exiting due to errors."
     exit 1
 fi
+
+
 
 # Define the location of YAML
 CONFIG_YAML_PATH="$SCRIPT_DIR/config.yaml"
@@ -436,6 +465,10 @@ fi
 command_to_add='[[ -x /home/linuxbrew/.linuxbrew/bin/zsh ]] && exec /home/linuxbrew/.linuxbrew/bin/zsh'
 if ! grep -xF "$command_to_add" ~/.profile; then
     echo "$command_to_add" >> ~/.profile
+fi
+
+if $git_install_flag; then
+    sudo synopkg uninstall Git > /dev/null 2>&1
 fi
 
 # Finish script with cleanup and transport
