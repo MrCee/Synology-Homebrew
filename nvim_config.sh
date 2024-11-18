@@ -3,6 +3,8 @@
 printf "Successfully called %s\n" "$(basename "$0")"
 
 source "./functions.sh"
+func_get_os_vars
+echo "DARWIN: $DARWIN"
 
 # Assign the first argument to temp_file
 temp_file=$1
@@ -147,30 +149,6 @@ fi
 # Remove existing global node_modules directory
 sudo rm -rf /home/linuxbrew/.linuxbrew/lib/node_modules
 
-# Function to find the latest version of libicui18n.so.*
-find_latest_libicui18n() {
-    echo "Searching for the latest version of libicui18n.so..."
-
-    # Use Homebrew's prefix to find the installation path
-    brew_prefix=$(brew --prefix icu4c)
-
-    # Set the search paths
-    search_paths="$brew_prefix/lib /usr/local/lib"
-
-    # Find the latest version of libicui18n.so.* in the available directories
-    latest_lib_path=$(find $search_paths -name 'libicui18n.so.*' 2>/dev/null | sort -V | tail -n 1)
-
-    if [ -z "$latest_lib_path" ]; then
-        echo "No libicui18n.so versions found. Please check your icu4c installation."
-        exit 1
-    else
-        echo "Found the latest version: $latest_lib_path"
-    fi
-}
-
-# Fix the libicui18n.so issue by finding the latest version
-find_latest_libicui18n
-
 # Run the postinstall step for Node.js
 brew postinstall node
 
@@ -183,17 +161,23 @@ sudo npm config set fund false --location=global
 # Install neovim globally using npm
 sudo npm install -g neovim@latest
 
-        echo
-        echo -e "Checking for gem updates:\n"
-        # Check for outdated gems and update them
-        if [[ -n $(gem outdated) ]]; then
-            gem update --no-document
-        fi
+echo -e "Checking for gem updates:\n"
 
-        # Install the neovim gem if it's not already installed
-        if ! gem list neovim -i; then
-            gem install neovim --no-document
-        fi
+# Check for outdated gems, but avoid updating Bundler
+if [[ -n $(gem outdated | grep -v 'bundler') ]]; then
+    sudo gem update --no-document
+fi
+
+# Install the neovim gem if it's not already installed
+if ! gem list neovim -i; then
+    sudo gem install neovim --no-document
+fi
+
+# Ensure a compatible version of Bundler is installed
+if ! gem list bundler -i; then
+    sudo gem install bundler -v '< 2.5' --no-document
+fi
+
 # Clone fzf-git.sh into scripts directory for fzf git keybindings. This will be sources in .profile
 echo Cloning fzf-git.sh into ~/.scripts directory
 mkdir -p ~/.scripts && curl -o ~/.scripts/fzf-git.sh https://raw.githubusercontent.com/junegunn/fzf-git.sh/main/fzf-git.sh

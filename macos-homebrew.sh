@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DEBUG=0
+DEBUG=1
 [[ $DEBUG == 1 ]] && echo "DEBUG mode"
 
 SCRIPT_PATH=$(realpath "$0")
@@ -16,10 +16,13 @@ source "$SCRIPT_DIR/functions.sh"
 # login and cache sudo which creates a sudoers file
 func_sudoers
 
-if [[ $(uname) == "Darwin" ]]; then
-    echo "This script is for Synology NAS. Do not run it from macOS. Exiting." >&2
-    exit 1
-fi
+# Call the function to set DARWIN and get the Homebrew path separately
+func_get_os_vars
+
+# Check if DARWIN was set correctly
+echo "DARWIN: $DARWIN"
+echo "HOMEBREW_PATH: $HOMEBREW_PATH"
+echo "DEFAULT_GROUP: $DEFAULT_GROUP"
 
 # Check if the script is being run as root
 if [[ "$EUID" -eq 0 ]]; then
@@ -31,59 +34,61 @@ fi
 error=false
 git_install_flag=false
 
-# Check if Synology Homes is enabled
-if [[ ! -d /var/services/homes/$(whoami) ]]; then
-    echo "Synology Homes has NOT been enabled. Please enable in DSM Control Panel >> Users & Groups >> Advanced >> User Home." >&2
-    error=true
-fi
 
-# Check if Homebrew is installed
-if [[ ! -x /home/linuxbrew/.linuxbrew/bin/brew ]]; then
-    echo "Homebrew is not installed. Checking environment for requirements..."
-
-    # Check if Git is installed
-    if ! git --version > /dev/null 2>&1; then
-        echo "Git not installed. Adding the SynoCommunity repository..."
-
-        # Add SynoCommunity feed if not present
-        if [[ ! -f /usr/syno/etc/packages/feeds ]]; then
-            echo "Adding SynoCommunity feed..."
-            echo '[{"feed":"https://packages.synocommunity.com/","name":"SynoCommunity"}]' | sudo tee /usr/syno/etc/packages/feeds > /dev/null
-            sudo chmod 755 /usr/syno/etc/packages/feeds
-        fi
-
-        # Append to feeds if SynoCommunity is missing
-        if ! sudo grep -q "https://packages.synocommunity.com/" /usr/syno/etc/packages/feeds; then
-            echo "Appending SynoCommunity feed..."
-            echo '[{"feed":"https://packages.synocommunity.com/","name":"SynoCommunity"}]' | sudo tee -a /usr/syno/etc/packages/feeds > /dev/null
-        fi
-
-        # Attempt to install Git
-        echo "Attempting to install Git..."
-        sudo synopkg install_from_server Git
-        git_install_flag=true
-
-        # Confirm if Git was installed successfully
-        if git --version > /dev/null 2>&1; then
-            echo "Git has been installed"
-        else
-            echo "Git could not be installed. Please install it manually from SynoCommunity in Package Centre (https://packages.synocommunity.com)." >&2
-            error=true
-        fi
-    else
-        echo "Git is already installed."
+if [[ $DARWIN == 0 ]] ; then
+    # Check if Synology Homes is enabled
+    if [[ ! -d /var/services/homes/$(whoami) ]]; then
+        echo "Synology Homes has NOT been enabled. Please enable in DSM Control Panel >> Users & Groups >> Advanced >> User Home." >&2
+        error=true
     fi
-else
-    echo "Homebrew is already installed."
-fi
 
-# If any error occurred, exit with status 1
-if $error ; then
-    echo "Exiting due to errors."
-    exit 1
-fi
+    # Check if Homebrew is installed
+    if [[ ! -x $HOMEBREW_PATH/bin/brew ]]; then
+        echo "Homebrew is not installed. Checking environment for requirements..."
 
+        # Check if Git is installed
+        if ! git --version > /dev/null 2>&1; then
+            echo "Git not installed. Adding the SynoCommunity repository..."
 
+            # Add SynoCommunity feed if not present
+            if [[ ! -f /usr/syno/etc/packages/feeds ]]; then
+                echo "Adding SynoCommunity feed..."
+                echo '[{"feed":"https://packages.synocommunity.com/","name":"SynoCommunity"}]' | sudo tee /usr/syno/etc/packages/feeds > /dev/null
+                sudo chmod 755 /usr/syno/etc/packages/feeds
+            fi
+
+            # Append to feeds if SynoCommunity is missing
+            if ! sudo grep -q "https://packages.synocommunity.com/" /usr/syno/etc/packages/feeds; then
+                echo "Appending SynoCommunity feed..."
+                echo '[{"feed":"https://packages.synocommunity.com/","name":"SynoCommunity"}]' | sudo tee -a /usr/syno/etc/packages/feeds > /dev/null
+            fi
+
+            # Attempt to install Git
+            echo "Attempting to install Git..."
+            sudo synopkg install_from_server Git
+            git_install_flag=true
+
+            # Confirm if Git was installed successfully
+            if git --version > /dev/null 2>&1; then
+                echo "Git has been installed"
+            else
+                echo "Git could not be installed. Please install it manually from SynoCommunity in Package Centre (https://packages.synocommunity.com)." >&2
+                error=true
+            fi
+        else
+            echo "Git is already installed."
+        fi  # Closes 'if ! git --version'
+
+    else
+        echo "Homebrew is already installed."
+    fi  # Closes 'if [[ ! -x $HOMEBREW_PATH/bin/brew ]]'
+
+    # If any error occurred, exit with status 1
+    if $error ; then
+        echo "Exiting due to errors."
+        exit 1
+    fi
+fi # end $DARWIN
 
 # Define the location of YAML
 CONFIG_YAML_PATH="$SCRIPT_DIR/config.yaml"
@@ -134,6 +139,9 @@ if [[ "$selection" -eq 2 && ! -f "$CONFIG_YAML_PATH" ]]; then
     echo "config.yaml not found in this directory" >&2
     exit 1
 fi
+
+
+if [[ $DARWIN == 0 ]] ; then
 
 # Retrieve DSM OS Version without Percentage Sign
 source /etc.defaults/VERSION
@@ -192,12 +200,12 @@ cat > "$HOME/.profile" <<EOF
 PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/syno/sbin:/usr/syno/bin:/usr/local/sbin:/usr/local/bin
 # Directories to add to PATH
 directories=(
-  "$(find /home/linuxbrew/.linuxbrew/lib/ruby/gems/ -maxdepth 1 -type d -name '[0-9]*' | sort -V | tail -n 1)/bin"
-  "/home/linuxbrew/.linuxbrew/opt/glibc/sbin"
-  "/home/linuxbrew/.linuxbrew/opt/glibc/bin"
-  "/home/linuxbrew/.linuxbrew/opt/binutils/bin"
-  "/home/linuxbrew/.linuxbrew/sbin"
-  "/home/linuxbrew/.linuxbrew/bin"
+  "$(find $HOMEBREW_PATH/lib/ruby/gems/ -maxdepth 1 -type d -name '[0-9]*' | sort -V | tail -n 1)/bin"
+  "$HOMEBREW_PATH/opt/glibc/sbin"
+  "$HOMEBREW_PATH/opt/glibc/bin"
+  "$HOMEBREW_PATH/opt/binutils/bin"
+  "$HOMEBREW_PATH/sbin"
+  "$HOMEBREW_PATH/bin"
 )
 # Iterate over each directory in the 'directories' array
 for dir in "\${directories[@]}"; do
@@ -209,21 +217,21 @@ for dir in "\${directories[@]}"; do
 done
 
 # Additional environment variables
-export LDFLAGS="-L/home/linuxbrew/.linuxbrew/opt/glibc/lib"
-export CPPFLAGS="-I/home/linuxbrew/.linuxbrew/opt/glibc/include"
+export LDFLAGS="-L$HOMEBREW_PATH/opt/glibc/lib"
+export CPPFLAGS="-I$HOMEBREW_PATH/opt/glibc/include"
 export XDG_CONFIG_HOME="\$HOME/.config"
-export HOMEBREW_GIT_PATH=/home/linuxbrew/.linuxbrew/bin/git
+export HOMEBREW_GIT_PATH=$HOMEBREW_PATH/bin/git
 
 # Keep gcc up to date. Find the latest version of gcc installed and set symbolic links from version 11 onwards
-max_version=\$(/bin/ls -d /home/linuxbrew/.linuxbrew/opt/gcc/bin/gcc-* | grep -oE '[0-9]+$' | sort -nr | head -n1)
+max_version=\$(/bin/ls -d $HOMEBREW_PATH/opt/gcc/bin/gcc-* | grep -oE '[0-9]+$' | sort -nr | head -n1)
 # Create symbolic link for gcc to latest gcc-*
-ln -sf "/home/linuxbrew/.linuxbrew/bin/gcc-\$max_version" "/home/linuxbrew/.linuxbrew/bin/gcc"
+ln -sf "$HOMEBREW_PATH/bin/gcc-\$max_version" "$HOMEBREW_PATH/bin/gcc"
 # Create symbolic links for gcc-11 to max_version pointing to latest gcc-*
 for ((i = 11; i < max_version; i++)); do
-    ln -sf "/home/linuxbrew/.linuxbrew/bin/gcc-\$max_version" "/home/linuxbrew/.linuxbrew/bin/gcc-\$i"
+    ln -sf "$HOMEBREW_PATH/bin/gcc-\$max_version" "$HOMEBREW_PATH/bin/gcc-\$i"
 done
 
-eval "\$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+eval "\$($HOMEBREW_PATH/bin/brew shellenv)"
 
 # fzf-git.sh source git key bindings for fzf-git
 [[ -f \$HOME/.scripts/fzf-git.sh ]] && source "\$HOME/.scripts/fzf-git.sh"
@@ -233,10 +241,12 @@ if [[ -x \$(command -v perl) && \$(perl -Mlocal::lib -e '1' 2>/dev/null) ]]; the
 fi
 EOF
 
+
+
 # Begin Homebrew install. Remove brew git env if it does not exist
-[[ ! -x /home/linuxbrew/.linuxbrew/bin/git ]] && unset HOMEBREW_GIT_PATH
+[[ ! -x $HOMEBREW_PATH/bin/git ]] && unset HOMEBREW_GIT_PATH
 NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" 2> /dev/null
-eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+eval "$($HOMEBREW_PATH/bin/brew shellenv)"
 ulimit -n 2048
 brew install --quiet glibc gcc 2> /dev/null
 brew install --quiet git 2> /dev/null
@@ -246,6 +256,16 @@ brew install --quiet zsh 2> /dev/null
 brew install --quiet yq 2> /dev/null
 brew upgrade --quiet 2> /dev/null
 source ~/.profile
+
+fi # end DARWIN
+
+if [[ $DARWIN == 1 ]] ; then
+NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" 2> /dev/null
+eval "$($HOMEBREW_PATH/bin/brew shellenv)"
+brew install --quiet git 2> /dev/null
+brew install --quiet yq 2> /dev/null
+brew install --quiet ruby 2> /dev/null
+fi
 
 echo "--------------------------PATH SET-------------------------------"
 echo "$PATH"
@@ -270,6 +290,7 @@ if [[ "$selection" -eq 1 ]]; then
     ')
 fi
 
+if [[ $DARWIN == 0 ]] ; then
 # Check if Ruby is properly linked via Homebrew
 ruby_path=$(command -v ruby)
 if [[ "$ruby_path" != *"linuxbrew"* ]]; then
@@ -284,6 +305,8 @@ if [[ "$ruby_path" != *"linuxbrew"* ]]; then
 else
     echo "ruby is linked via Homebrew."
 fi
+fi # closes $DARWIN == 0
+
 
 # Create a brew list of installed packages into an array
 BREW_LIST_ARRAY=($(brew list -1))
@@ -320,22 +343,22 @@ done
 
 # Create the symlinks
 echo "Creating symlinks"
-sudo ln -sf /home/linuxbrew/.linuxbrew/bin/python3 /home/linuxbrew/.linuxbrew/bin/python
-sudo ln -sf /home/linuxbrew/.linuxbrew/bin/pip3 /home/linuxbrew/.linuxbrew/bin/pip
-sudo ln -sf /home/linuxbrew/.linuxbrew/bin/gcc /home/linuxbrew/.linuxbrew/bin/cc
-sudo ln -sf /home/linuxbrew/.linuxbrew/bin/zsh /bin/zsh
+sudo ln -sf $HOMEBREW_PATH/bin/python3 $HOMEBREW_PATH/bin/python
+sudo ln -sf $HOMEBREW_PATH/bin/pip3 $HOMEBREW_PATH/bin/pip
+sudo ln -sf $HOMEBREW_PATH/bin/gcc $HOMEBREW_PATH/bin/cc
+sudo ln -sf $HOMEBREW_PATH/bin/zsh /bin/zsh
 echo "Finished creating symlinks"
 
 # Enable perl in homebrew
 if [[ $(printf '%s\n' "$CONFIG_YAML" | yq eval -r '.packages.perl.install') == "true" ]]; then
     echo "Fixing perl symlink..."
     # Create symlink to Homebrew's Perl in /usr/bin
-    sudo ln -sf /home/linuxbrew/.linuxbrew/bin/perl /usr/bin/perl
+    sudo ln -sf $HOMEBREW_PATH/bin/perl /usr/bin/perl
 
     echo "Setting up permissions for perl environment..."
     # Ensure permissions on perl5 and .cpan directories before any creation
     sudo mkdir -p $HOME/perl5 $HOME/.cpan
-    sudo chown -R "$(whoami)":root $HOME/perl5 $HOME/.cpan
+    sudo chown -R "$(whoami)":$DEFAULT_GROUP $HOME/perl5 $HOME/.cpan
     sudo chmod -R 775 $HOME/perl5 $HOME/.cpan
 
 
@@ -462,17 +485,15 @@ else
 fi
 
 # Finalize with zsh execution in Synology ash ~/.profile
-command_to_add='[[ -x /home/linuxbrew/.linuxbrew/bin/zsh ]] && exec /home/linuxbrew/.linuxbrew/bin/zsh'
+if [[ $DARWIN == 0 ]] ; then
+command_to_add='[[ -x $HOMEBREW_PATH/bin/zsh ]] && exec $HOMEBREW_PATH/bin/zsh'
 if ! grep -xF "$command_to_add" ~/.profile; then
     echo "$command_to_add" >> ~/.profile
 fi
 
-if $git_install_flag; then
+if [[ "$git_install_flag" ]] ; then
     sudo synopkg uninstall Git > /dev/null 2>&1
 fi
-
-# Finish script with cleanup and transport
-sudo rm -rf "$SUDOERS_FILE"
 
 # Check if Perl is installed via Synology Package Center
 if synopkg list | grep -q "Perl"; then
@@ -486,5 +507,11 @@ if synopkg list | grep -q "Perl"; then
     echo "#############################################################"
     echo ""
 fi
+fi # closes DARWIN check
+
+# Finish script with cleanup and transport
+sudo rm -rf "$SUDOERS_FILE"
+
+
 echo "Script completed successfully. You will now be transported to ZSH!!!"
 exec zsh --login

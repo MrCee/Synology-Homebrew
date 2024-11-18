@@ -60,3 +60,52 @@ root ALL=(ALL) ALL
 $current_user ALL=NOPASSWD: ALL
 EOF
 }
+
+
+# Initialize variables without exporting immediately
+DARWIN=0
+HOMEBREW_PATH=""
+DEFAULT_GROUP="root"
+
+# Function to determine the expected Homebrew installation path
+func_get_os_vars() {
+    local arch os
+    arch=$(uname -m)
+    os=$(uname -s)
+
+    if [[ "$os" == "Darwin" ]]; then
+        DARWIN=1
+	DEFAULT_GROUP="staff"
+	if [[ "$arch" == "arm64" ]]; then
+            # Expected path for Apple Silicon (M1, M2) macOS
+            HOMEBREW_PATH="/opt/homebrew"
+        else
+            # Expected path for Intel macOS
+            HOMEBREW_PATH="/usr/local"
+        fi
+    elif [[ "$os" == "Linux" ]]; then
+        # Expected path for Linuxbrew
+        HOMEBREW_PATH="/home/linuxbrew/.linuxbrew"
+	DEFAULT_GROUP="root"
+    else
+        printf "Unsupported OS: %s\n" "$os" >&2
+        return 1
+    fi
+
+    # Export DARWIN and HOMEBREW_PATH after setting their values
+    export DARWIN HOMEBREW_PATH
+}
+
+
+RUBY_PATH=""
+GEM_BIN_PATH=""
+func_get_ruby_gem() {
+# Get the path where Homebrew installed Ruby
+RUBY_PATH=$(brew --prefix ruby)
+
+# Find the latest gem version directory and set the path to its bin directory
+GEM_BIN_PATH="$(find "$RUBY_PATH/lib/ruby/gems/" -maxdepth 1 -type d -name '[0-9]*' | sort -V | tail -n 1)/bin"
+
+EXPORT RUBY_PATH GEM_BIN_PATH
+
+}
