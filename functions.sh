@@ -106,6 +106,6 @@ RUBY_PATH=$(brew --prefix ruby)
 # Find the latest gem version directory and set the path to its bin directory
 GEM_BIN_PATH="$(find "$RUBY_PATH/lib/ruby/gems/" -maxdepth 1 -type d -name '[0-9]*' | sort -V | tail -n 1)/bin"
 
-EXPORT RUBY_PATH GEM_BIN_PATH
+export RUBY_PATH GEM_BIN_PATH
 
 }

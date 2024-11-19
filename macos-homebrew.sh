@@ -140,7 +140,6 @@ if [[ "$selection" -eq 2 && ! -f "$CONFIG_YAML_PATH" ]]; then
     exit 1
 fi
 
-
 if [[ $DARWIN == 0 ]] ; then
 
 # Retrieve DSM OS Version without Percentage Sign
@@ -195,12 +194,29 @@ if [[ ! -d /home ]]; then
     sudo chown -R "$(whoami)":root /home
 fi
 
+
+
+# Begin Homebrew install. Remove brew git env if it does not exist
+[[ ! -x $HOMEBREW_PATH/bin/git ]] && unset HOMEBREW_GIT_PATH
+NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" 2> /dev/null
+eval "$($HOMEBREW_PATH/bin/brew shellenv)"
+ulimit -n 2048
+brew install --quiet glibc gcc 2> /dev/null
+brew install --quiet git 2> /dev/null
+brew install --quiet ruby 2> /dev/null
+brew install --quiet clang-build-analyzer 2> /dev/null
+brew install --quiet zsh 2> /dev/null
+brew install --quiet yq 2> /dev/null
+brew upgrade --quiet 2> /dev/null
+func_get_ruby_gem
+
 # Create a new .profile and add homebrew paths
 cat > "$HOME/.profile" <<EOF
 PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/syno/sbin:/usr/syno/bin:/usr/local/sbin:/usr/local/bin
 # Directories to add to PATH
 directories=(
-  "$(find $HOMEBREW_PATH/lib/ruby/gems/ -maxdepth 1 -type d -name '[0-9]*' | sort -V | tail -n 1)/bin"
+#  "$(find $HOMEBREW_PATH/lib/ruby/gems/ -maxdepth 1 -type d -name '[0-9]*' | sort -V | tail -n 1)/bin"
+  "$GEM_BIN_PATH"
   "$HOMEBREW_PATH/opt/glibc/sbin"
   "$HOMEBREW_PATH/opt/glibc/bin"
   "$HOMEBREW_PATH/opt/binutils/bin"
@@ -241,22 +257,7 @@ if [[ -x \$(command -v perl) && \$(perl -Mlocal::lib -e '1' 2>/dev/null) ]]; the
 fi
 EOF
 
-
-
-# Begin Homebrew install. Remove brew git env if it does not exist
-[[ ! -x $HOMEBREW_PATH/bin/git ]] && unset HOMEBREW_GIT_PATH
-NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" 2> /dev/null
-eval "$($HOMEBREW_PATH/bin/brew shellenv)"
-ulimit -n 2048
-brew install --quiet glibc gcc 2> /dev/null
-brew install --quiet git 2> /dev/null
-brew install --quiet ruby 2> /dev/null
-brew install --quiet clang-build-analyzer 2> /dev/null
-brew install --quiet zsh 2> /dev/null
-brew install --quiet yq 2> /dev/null
-brew upgrade --quiet 2> /dev/null
 source ~/.profile
-
 fi # end DARWIN
 
 if [[ $DARWIN == 1 ]] ; then
