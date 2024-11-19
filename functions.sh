@@ -96,16 +96,17 @@ func_get_os_vars() {
     export DARWIN HOMEBREW_PATH
 }
 
-
 RUBY_PATH=""
 GEM_BIN_PATH=""
+
 func_get_ruby_gem() {
-# Get the path where Homebrew installed Ruby
-RUBY_PATH=$(brew --prefix ruby)
+    # Get the path where Homebrew installed Ruby
+    RUBY_PATH=$(brew --prefix ruby)
 
-# Find the latest gem version directory and set the path to its bin directory
-GEM_BIN_PATH="$(find "$RUBY_PATH/lib/ruby/gems/" -maxdepth 1 -type d -name '[0-9]*' | sort -V | tail -n 1)/bin"
+    # Locate the latest Ruby gems directory under Homebrew's Ruby path
+    GEM_BIN_PATH="$(find "$RUBY_PATH/lib/ruby/gems" -type d -name '[0-9]*' | sort -V | tail -n 1)/bin"
 
-export RUBY_PATH GEM_BIN_PATH
-
+    # Export the paths for use in the current session
+    export RUBY_PATH GEM_BIN_PATH
 }
+

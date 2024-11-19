@@ -270,10 +270,7 @@ func_get_ruby_gem
 
 # Create a new .profile and add homebrew paths
 cat > "$HOME/.zprofile" <<EOF
-
-#BACKUP PATH
-# /usr/local/bin:/usr/local/sbin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/Users/paul/perl5/bin:/Applications/iTerm.app/Contents/Resources/utilities
-
+PATH=$PATH
 
 # Directories to add to PATH
 directories=(
