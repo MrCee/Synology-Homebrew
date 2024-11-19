@@ -68,7 +68,7 @@ HOMEBREW_PATH=""
 DEFAULT_GROUP="root"
 
 # Function to determine the expected Homebrew installation path
-func_get_os_vars() {
+func_initialize_env_vars() {
     local arch os
     arch=$(uname -m)
     os=$(uname -s)

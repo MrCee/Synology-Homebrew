@@ -3,7 +3,7 @@
 printf "Successfully called %s\n" "$(basename "$0")"
 
 source "./functions.sh"
-func_get_os_vars
+func_initialize_env_vars
 echo "DARWIN: $DARWIN"
 
 # Assign the first argument to temp_file

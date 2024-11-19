@@ -17,7 +17,7 @@ source "$SCRIPT_DIR/functions.sh"
 func_sudoers
 
 # Call the function to set DARWIN and get the Homebrew path separately
-func_get_os_vars
+func_initialize_env_vars
 
 # Check if DARWIN was set correctly
 echo "DARWIN: $DARWIN"
