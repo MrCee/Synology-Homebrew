@@ -1,5 +1,7 @@
 #!/bin/bash
 
+source ./functions.sh 
+
 
 # Ensure sudo credentials are cached
 sudo -v || { echo "Failed to cache sudo credentials"; exit 1; }
