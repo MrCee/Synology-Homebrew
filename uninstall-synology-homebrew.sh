@@ -1,7 +1,7 @@
 #!/bin/bash
 
 source ./functions.sh 
-
+func_initialize_env_vars
 
 # Ensure sudo credentials are cached
 sudo -v || { echo "Failed to cache sudo credentials"; exit 1; }
@@ -66,5 +66,5 @@ sudo rm -rf /home/linuxbrew
 echo "Uninstall complete. Returning to the default shell.."
 
 source "$HOME/.profile"
-#exec /bin/ash --login
+[[ $DARWIN == 0 ]] && exec /bin/ash --login
 
