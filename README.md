@@ -1,4 +1,5 @@
-# Synology-Homebrew + Neovim!
+# Synology-Homebrew + Neovim
+- Includes macOS installer!
 
 ## Introduction
 
@@ -14,6 +15,8 @@ Homebrew, a package manager for macOS and Linux, unlocks a vast ecosystem of mod
 - **Profile Creation:** Configures the default Synology ash/sh profile and newly installed zsh to work seamlessly with Homebrew.
 - **Synology Integration:** Resolves conflicts with existing Synology packages without removing anything from your NAS.
 - **Easy Uninstall:** Revert to the original state of your NAS with the included uninstall script.
+- **NEW!!! This exact same script can be replicated on macOS. Linuxbrew and Hoembrew will work with the same install config files to provide tge same experience however you chose to configure it.
+- **COMING SOON!! A choice of terminal emulators preconfigured and further themes. 
 
 ## Prerequisites
 
@@ -26,7 +29,7 @@ Before you begin, here is the required set-up:
     - A scheduled task which ensures Homebrew is mounted after each restart. Detailed instructions are provided below.
 
 2. **Git Installation now AUTOMATED:**
-    - If Git is not present in your environment, you'll need it to clode this repository. it can be quicly downloaded and installed from the SynoCommunity as a temporary measure get things up and running. The updated Homebrew version of Git will replace the SynoCommunity Git when the script completes.
+    - If Git is not present in your environment and you want to clone this repository, it can be quicly downloaded and installed from the SynoCommunity as a temporary measure get things up and running. The updated Homebrew version of Git will replace the SynoCommunity Git when the script completes.
     Here's how you do this easily: ```curl -sSL https://raw.githubusercontent.com/MrCee/Synology-Git/refs/heads/main/install-synology-git.sh | bash```
 
 3. **iTerm2 Configuration:**
@@ -260,8 +263,6 @@ If you would like to use parts of this code across different environments, such 
 This file houses functions designed to standardise commands used in Synology NAS (GNU Linux), ensuring compatibility and portability across platforms, particularly with utilities like `sed`.
 
 This approach simplifies the process of adapting similar code to other systems outside of Synology NAS.
-
-**Please Note:** `install-synology-homebrew.sh` should only be run on Synology NAS.
 
 ## Usage and Contributions
 
