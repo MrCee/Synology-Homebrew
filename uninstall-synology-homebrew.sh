@@ -41,9 +41,7 @@ rm -rf ~/.local/share/nvim-kickstart
 rm -rf ~/.local/state/nvim-kickstart
 fi
 
-if [[ -e /home/linuxbrew/.linuxbrew/bin/brew ]]; then
 NONINTERACTIVE=1 sudo /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/uninstall.sh)"
-fi
 # Restore default profile
 sudo cp /etc.defaults/profile "$HOME/.profile"
 rm -rf ~/.cache/Homebrew
@@ -63,8 +61,8 @@ sudo rm -rf ~/perl5 ~/.cpan ~/.npm
 # echo attempting to delete linuxbrew directory....
 sudo rm -rf /home/linuxbrew
 
-echo "Uninstall complete. Returning to the Synology default shell.."
+echo "Uninstall complete. Returning to the default shell.."
 
 source "$HOME/.profile"
-exec /bin/ash --login
+#exec /bin/ash --login
 

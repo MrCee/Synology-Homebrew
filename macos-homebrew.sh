@@ -215,7 +215,6 @@ cat > "$HOME/.profile" <<EOF
 PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/syno/sbin:/usr/syno/bin:/usr/local/sbin:/usr/local/bin
 # Directories to add to PATH
 directories=(
-#  "$(find $HOMEBREW_PATH/lib/ruby/gems/ -maxdepth 1 -type d -name '[0-9]*' | sort -V | tail -n 1)/bin"
   "$GEM_BIN_PATH"
   "$HOMEBREW_PATH/opt/glibc/sbin"
   "$HOMEBREW_PATH/opt/glibc/bin"
@@ -266,7 +265,43 @@ eval "$($HOMEBREW_PATH/bin/brew shellenv)"
 brew install --quiet git 2> /dev/null
 brew install --quiet yq 2> /dev/null
 brew install --quiet ruby 2> /dev/null
+brew install --quiet python3 2> /dev/null
+func_get_ruby_gem
+
+# Create a new .profile and add homebrew paths
+cat > "$HOME/.zprofile" <<EOF
+
+#BACKUP PATH
+# /usr/local/bin:/usr/local/sbin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/Users/paul/perl5/bin:/Applications/iTerm.app/Contents/Resources/utilities
+
+
+# Directories to add to PATH
+directories=(
+  "$GEM_BIN_PATH"
+  "$HOMEBREW_PATH/opt/binutils/bin"
+  "$HOMEBREW_PATH/sbin"
+  "$HOMEBREW_PATH/bin"
+)
+# Iterate over each directory in the 'directories' array
+for dir in "\${directories[@]}"; do
+    # Check if the directory is already in PATH
+    if [[ ":\$PATH:" != *":\$dir:"* ]]; then
+        # If not found, append it to PATH
+        export PATH="\$dir:\$PATH"
+    fi
+done
+
+eval "\$($HOMEBREW_PATH/bin/brew shellenv)"
+
+# fzf-git.sh source git key bindings for fzf-git
+[[ -f \$HOME/.scripts/fzf-git.sh ]] && source "\$HOME/.scripts/fzf-git.sh"
+
+if [[ -x \$(command -v perl) && \$(perl -Mlocal::lib -e '1' 2>/dev/null) ]]; then
+    eval "\$(perl -I\$HOME/perl5/lib/perl5 -Mlocal::lib=\$HOME/perl5 2>/dev/null)"
 fi
+EOF
+source ~/.zprofile
+fi # close DARWIN
 
 echo "--------------------------PATH SET-------------------------------"
 echo "$PATH"
@@ -312,35 +347,97 @@ fi # closes $DARWIN == 0
 # Create a brew list of installed packages into an array
 BREW_LIST_ARRAY=($(brew list -1))
 
-# Read YAML and process packages
-yq eval -r '.packages | to_entries[] | .key' <<< "$CONFIG_YAML" | while IFS= read -r package; do
-    install_status=$(yq eval -r ".packages[\"$package\"].install" <<< "$CONFIG_YAML")
-    base_package=$(basename "$package")
+## Read YAML and process packages
+#yq eval -r '.packages | to_entries[] | .key' <<< "$CONFIG_YAML" | while IFS= read -r package; do
+#    install_status=$(yq eval -r ".packages[\"$package\"].install" <<< "$CONFIG_YAML")
+#    base_package=$(basename "$package")
+#
+#    if [[ " ${BREW_LIST_ARRAY[*]} " =~ " ${base_package} " ]]; then
+#        action="already installed"
+#        if [[ "$install_status" == "false" ]]; then
+#            action="flag is set to uninstall"
+#            brew uninstall --quiet "$package"
+#        elif [[ "$install_status" == "skip" ]]; then
+#            action="flag is set to skip"
+#        fi
+#    else
+#        action="not installed"
+#        if [[ "$install_status" == "true" ]]; then
+#            action="installing"
+#            brew install --quiet "$package"
+#        elif [[ "$install_status" == "false" || "$install_status" == "skip" ]]; then
+#            action="flag is set to $install_status"
+#        fi
+#    fi
+#
+#    if [[ "$install_status" != "true" && "$install_status" != "false" && "$install_status" != "skip" ]]; then
+#        action="invalid install status"
+#    fi
+#
+#    echo "$package is $action."
+#done
 
+# Array to store final output messages
+output_messages=()
+
+# Function to check install status and take action
+process_package() {
+    local package="$1"
+    local install_status; install_status=$(yq eval -r ".packages[\"$package\"].install" <<< "$CONFIG_YAML")
+    local base_package; base_package=$(basename "$package")
+    local action
+
+    # Check if the package is already installed
     if [[ " ${BREW_LIST_ARRAY[*]} " =~ " ${base_package} " ]]; then
-        action="already installed"
         if [[ "$install_status" == "false" ]]; then
             action="flag is set to uninstall"
-            brew uninstall --quiet "$package"
+            printf "%s: uninstalling...\n" "$package"
+            brew uninstall --quiet "$package" >/dev/null 2>&1
         elif [[ "$install_status" == "skip" ]]; then
             action="flag is set to skip"
+            printf "%s: skipping (flagged to skip)\n" "$package"
+        else
+            action="already installed"
+            printf "%s: already installed\n" "$package"
         fi
     else
-        action="not installed"
         if [[ "$install_status" == "true" ]]; then
             action="installing"
-            brew install --quiet "$package"
-        elif [[ "$install_status" == "false" || "$install_status" == "skip" ]]; then
-            action="flag is set to $install_status"
+            printf "%s: installing...\n" "$package"
+            brew install --quiet "$package" >/dev/null 2>&1
+        elif [[ "$install_status" == "false" ]]; then
+            action="flag is set to not install"
+            printf "%s: not installing (flagged not to install)\n" "$package"
+        elif [[ "$install_status" == "skip" ]]; then
+            action="flag is set to skip"
+            printf "%s: skipping (flagged to skip)\n" "$package"
+        else
+            action="invalid install status"
+            printf "%s: invalid install status\n" "$package"
         fi
     fi
 
-    if [[ "$install_status" != "true" && "$install_status" != "false" && "$install_status" != "skip" ]]; then
-        action="invalid install status"
-    fi
+    # Append the result message to the output array for summary
+    output_messages+=("$package is $action.")
+}
 
-    echo "$package is $action."
-done
+# Main execution block
+main() {
+    # Capture package keys in a variable to avoid subshell issues
+    local packages; packages=$(yq eval -r '.packages | to_entries[] | .key' <<< "$CONFIG_YAML")
+    
+    # Loop over each package and process it
+    while IFS= read -r package; do
+        process_package "$package"
+    done <<< "$packages"
+
+    # Print all output messages at once after processing for summary
+    printf "\nSummary:\n"
+    printf "%s\n" "${output_messages[@]}"
+}
+
+# Execute main function
+main
 
 # Create the symlinks
 echo "Creating symlinks"
