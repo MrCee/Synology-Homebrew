@@ -163,19 +163,15 @@ sudo npm install -g neovim@latest
 
 echo -e "Checking for gem updates:\n"
 
-# Check for outdated gems, but avoid updating Bundler
-if [[ -n $(gem outdated | grep -v 'bundler') ]]; then
-    sudo gem update --no-document
+# Check if the neovim gem is installed; install if missing
+if ! gem list -i neovim; then
+    gem install neovim --no-document
 fi
 
-# Install the neovim gem if it's not already installed
-if ! gem list neovim -i; then
-    sudo gem install neovim --no-document
-fi
-
-# Ensure a compatible version of Bundler is installed
-if ! gem list bundler -i; then
-    sudo gem install bundler -v '< 2.5' --no-document
+# Check if a compatible version of Bundler is installed
+# Install Bundler if needed, but only if it's required for your project
+if ! gem list -i bundler; then
+    gem install bundler -v '< 2.5' --no-document
 fi
 
 # Clone fzf-git.sh into scripts directory for fzf git keybindings. This will be sources in .profile
