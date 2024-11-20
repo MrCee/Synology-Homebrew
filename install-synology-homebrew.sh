@@ -1,5 +1,7 @@
 #!/bin/bash
 
+#set -x
+
 DEBUG=1
 [[ $DEBUG == 1 ]] && echo "DEBUG mode"
 
@@ -210,53 +212,13 @@ brew install --quiet yq 2> /dev/null
 brew upgrade --quiet 2> /dev/null
 func_get_ruby_gem
 
-# Create a new .profile and add homebrew paths
-cat > "$HOME/.profile" <<EOF
-PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/syno/sbin:/usr/syno/bin:/usr/local/sbin:/usr/local/bin
-# Directories to add to PATH
-directories=(
-  "$GEM_BIN_PATH"
-  "$HOMEBREW_PATH/opt/glibc/sbin"
-  "$HOMEBREW_PATH/opt/glibc/bin"
-  "$HOMEBREW_PATH/opt/binutils/bin"
-  "$HOMEBREW_PATH/sbin"
-  "$HOMEBREW_PATH/bin"
-)
-# Iterate over each directory in the 'directories' array
-for dir in "\${directories[@]}"; do
-    # Check if the directory is already in PATH
-    if [[ ":\$PATH:" != *":\$dir:"* ]]; then
-        # If not found, append it to PATH
-        export PATH="\$dir:\$PATH"
-    fi
-done
-
-# Additional environment variables
-export LDFLAGS="-L$HOMEBREW_PATH/opt/glibc/lib"
-export CPPFLAGS="-I$HOMEBREW_PATH/opt/glibc/include"
-export XDG_CONFIG_HOME="\$HOME/.config"
-export HOMEBREW_GIT_PATH=$HOMEBREW_PATH/bin/git
-
-# Keep gcc up to date. Find the latest version of gcc installed and set symbolic links from version 11 onwards
-max_version=\$(/bin/ls -d $HOMEBREW_PATH/opt/gcc/bin/gcc-* | grep -oE '[0-9]+$' | sort -nr | head -n1)
-# Create symbolic link for gcc to latest gcc-*
-ln -sf "$HOMEBREW_PATH/bin/gcc-\$max_version" "$HOMEBREW_PATH/bin/gcc"
-# Create symbolic links for gcc-11 to max_version pointing to latest gcc-*
-for ((i = 11; i < max_version; i++)); do
-    ln -sf "$HOMEBREW_PATH/bin/gcc-\$max_version" "$HOMEBREW_PATH/bin/gcc-\$i"
-done
-
-eval "\$($HOMEBREW_PATH/bin/brew shellenv)"
-
-# fzf-git.sh source git key bindings for fzf-git
-[[ -f \$HOME/.scripts/fzf-git.sh ]] && source "\$HOME/.scripts/fzf-git.sh"
-
-if [[ -x \$(command -v perl) && \$(perl -Mlocal::lib -e '1' 2>/dev/null) ]]; then
-    eval "\$(perl -I\$HOME/perl5/lib/perl5 -Mlocal::lib=\$HOME/perl5 2>/dev/null)"
-fi
-EOF
-
+# Create a new .profile with homebrew paths
+profile_filled=$(<./profiles/synology-profile-template)
+profile_filled="${profile_filled//\$HOMEBREW_PATH/$HOMEBREW_PATH}"
+profile_filled="${profile_filled//\$GEM_BIN_PATH/$GEM_BIN_PATH}"
+echo "$profile_filled" > ~/.profile
 source ~/.profile
+
 fi # end DARWIN
 
 if [[ $DARWIN == 1 ]] ; then
@@ -268,37 +230,13 @@ brew install --quiet ruby 2> /dev/null
 brew install --quiet python3 2> /dev/null
 func_get_ruby_gem
 
-# Create a new .profile and add homebrew paths
-cat > "$HOME/.zprofile" <<EOF
-PATH=$PATH
-
-# Directories to add to PATH
-directories=(
-  "$GEM_BIN_PATH"
-  "$HOMEBREW_PATH/opt/binutils/bin"
-  "$HOMEBREW_PATH/sbin"
-  "$HOMEBREW_PATH/bin"
-)
-# Iterate over each directory in the 'directories' array
-for dir in "\${directories[@]}"; do
-    # Check if the directory is already in PATH
-    if [[ ":\$PATH:" != *":\$dir:"* ]]; then
-        # If not found, append it to PATH
-        export PATH="\$dir:\$PATH"
-    fi
-done
-
-eval "\$($HOMEBREW_PATH/bin/brew shellenv)"
-
-# fzf-git.sh source git key bindings for fzf-git
-[[ -f \$HOME/.scripts/fzf-git.sh ]] && source "\$HOME/.scripts/fzf-git.sh"
-
-if [[ -x \$(command -v perl) && \$(perl -Mlocal::lib -e '1' 2>/dev/null) ]]; then
-    eval "\$(perl -I\$HOME/perl5/lib/perl5 -Mlocal::lib=\$HOME/perl5 2>/dev/null)"
-fi
-EOF
+# Create a new .zprofile with homebrew paths
+profile_filled=$(<./profiles/macos-profile-template)
+profile_filled="${profile_filled//\$HOMEBREW_PATH/$HOMEBREW_PATH}"
+profile_filled="${profile_filled//\$GEM_BIN_PATH/$GEM_BIN_PATH}"
+echo "$profile_filled" > ~/.zprofile
 source ~/.zprofile
-fi # close DARWIN
+fi # close DARWIN=1
 
 echo "--------------------------PATH SET-------------------------------"
 echo "$PATH"
@@ -381,11 +319,11 @@ output_messages=()
 process_package() {
     local package="$1"
     local install_status; install_status=$(yq eval -r ".packages[\"$package\"].install" <<< "$CONFIG_YAML")
-    local base_package; base_package=$(basename "$package")
+    local base_package="$package"
     local action
 
     # Check if the package is already installed
-    if [[ " ${BREW_LIST_ARRAY[*]} " =~ " ${base_package} " ]]; then
+    if brew list --formula -1 | grep -Fxq "$base_package"; then
         if [[ "$install_status" == "false" ]]; then
             action="flag is set to uninstall"
             printf "%s: uninstalling...\n" "$package"
@@ -399,11 +337,14 @@ process_package() {
         fi
     else
         if [[ "$install_status" == "true" ]]; then
-            action="installing"
+            action="installed"
             printf "%s: installing...\n" "$package"
-            brew install --quiet "$package" >/dev/null 2>&1
+            if ! brew install --quiet "$package" </dev/null; then
+                echo "Error installing $package" >&2
+                action="failed to install"
+            fi
         elif [[ "$install_status" == "false" ]]; then
-            action="flag is set to not install"
+            action="flag set to not install"
             printf "%s: not installing (flagged not to install)\n" "$package"
         elif [[ "$install_status" == "skip" ]]; then
             action="flag is set to skip"
@@ -415,18 +356,21 @@ process_package() {
     fi
 
     # Append the result message to the output array for summary
-    output_messages+=("$package is $action.")
+    output_messages+=("$package: $action.")
 }
 
 # Main execution block
 main() {
-    # Capture package keys in a variable to avoid subshell issues
-    local packages; packages=$(yq eval -r '.packages | to_entries[] | .key' <<< "$CONFIG_YAML")
-    
-    # Loop over each package and process it
+    # Capture package keys into an array
+    local packages_array=()
     while IFS= read -r package; do
+        packages_array+=("$package")
+    done < <(yq eval -r '.packages | to_entries[] | .key' <<< "$CONFIG_YAML")
+
+    # Loop over each package in the array
+    for package in "${packages_array[@]}"; do
         process_package "$package"
-    done <<< "$packages"
+    done
 
     # Print all output messages at once after processing for summary
     printf "\nSummary:\n"
@@ -437,7 +381,7 @@ main() {
 main
 
 # Create the symlinks
-echo "Creating symlinks"
+printf "\nCreating symlinks"
 sudo ln -sf $HOMEBREW_PATH/bin/python3 $HOMEBREW_PATH/bin/python
 sudo ln -sf $HOMEBREW_PATH/bin/pip3 $HOMEBREW_PATH/bin/pip
 sudo ln -sf $HOMEBREW_PATH/bin/gcc $HOMEBREW_PATH/bin/cc

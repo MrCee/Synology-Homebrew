@@ -1,4 +1,5 @@
 #!/bin/bash
+set -x
 
 source ./functions.sh 
 func_initialize_env_vars
@@ -44,27 +45,39 @@ rm -rf ~/.local/state/nvim-kickstart
 fi
 
 NONINTERACTIVE=1 sudo /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/uninstall.sh)"
+
 # Restore default profile
-sudo cp /etc.defaults/profile "$HOME/.profile"
+
+if [[ $DARWIN == 0 ]] ; then
+    sudo cp /etc.defaults/profile "$HOME/.profile"
+    sudo rm -rf /usr/bin/ldd /etc/ld.so.conf /etc/os-release
+    [ -L /usr/bin/perl ] && [[ $(readlink /usr/bin/perl) =~ .linuxbrew ]] && sudo rm -rf /usr/bin/perl
+    [ -L /bin/zsh ] && [[ $(readlink /bin/zsh) =~ .linuxbrew ]] && sudo rm -rf /bin/zsh
+    sudo rm -rf /home/linuxbrew
+
+fi
+
+[[ $DARWIN == 1 ]] && sudo rm ~/.zprofile
+
 rm -rf ~/.cache/Homebrew
 rm -rf ~/.cache/p10k*
 rm -rf ~/.oh-my-zsh
 rm -rf ~/.p10k.zsh
 rm -rf ~/.zshrc
-
-# Remove installed files and directories
-sudo rm -rf /usr/bin/ldd /etc/ld.so.conf /etc/os-release
 sudo rm -rf ~/perl5 ~/.cpan ~/.npm
 
-# Remove Symbolic links
-[ -L /usr/bin/perl ] && [[ $(readlink /usr/bin/perl) =~ .linuxbrew ]] && sudo rm -rf /usr/bin/perl
-[ -L /bin/zsh ] && [[ $(readlink /bin/zsh) =~ .linuxbrew ]] && sudo rm -rf /bin/zsh
 
-# echo attempting to delete linuxbrew directory....
-sudo rm -rf /home/linuxbrew
 
 echo "Uninstall complete. Returning to the default shell.."
 
-source "$HOME/.profile"
-[[ $DARWIN == 0 ]] && exec /bin/ash --login
+
+if [[ $DARWIN == 0 ]] ; then
+    source "$HOME/.profile"
+    exec /bin/ash --login
+fi
+if [[ $DARWIN == 1 ]] ; then 
+	rm ~/.zshrc 
+	source /etc/profile
+fi
+
 

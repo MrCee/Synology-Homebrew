@@ -1,0 +1,42 @@
+PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/syno/sbin:/usr/syno/bin:/usr/local/sbin:/usr/local/bin
+# Directories to add to PATH
+directories=(
+  "$HOMEBREW_PATH/lib/ruby/gems/*/bin"
+  "$HOMEBREW_PATH/opt/glibc/sbin"
+  "$HOMEBREW_PATH/opt/glibc/bin"
+  "$HOMEBREW_PATH/opt/binutils/bin"
+  "$HOMEBREW_PATH/sbin"
+  "$HOMEBREW_PATH/bin"
+)
+# Iterate over each directory in the 'directories' array
+for dir in "\${directories[@]}"; do
+    # Check if the directory is already in PATH
+    if [[ ":\$PATH:" != *":\$dir:"* ]]; then
+        # If not found, append it to PATH
+        export PATH="\$dir:\$PATH"
+    fi
+done
+
+# Additional environment variables
+export LDFLAGS="-L$HOMEBREW_PATH/opt/glibc/lib"
+export CPPFLAGS="-I$HOMEBREW_PATH/opt/glibc/include"
+export XDG_CONFIG_HOME="\$HOME/.config"
+export HOMEBREW_GIT_PATH=$HOMEBREW_PATH/bin/git
+
+# Keep gcc up to date. Find the latest version of gcc installed and set symbolic links from version 11 onwards
+max_version=\$(/bin/ls -d $HOMEBREW_PATH/opt/gcc/bin/gcc-* | grep -oE '[0-9]+$' | sort -nr | head -n1)
+# Create symbolic link for gcc to latest gcc-*
+ln -sf "$HOMEBREW_PATH/bin/gcc-\$max_version" "$HOMEBREW_PATH/bin/gcc"
+# Create symbolic links for gcc-11 to max_version pointing to latest gcc-*
+for ((i = 11; i < max_version; i++)); do
+    ln -sf "$HOMEBREW_PATH/bin/gcc-\$max_version" "$HOMEBREW_PATH/bin/gcc-\$i"
+done
+
+eval "\$($HOMEBREW_PATH/bin/brew shellenv)"
+
+# fzf-git.sh source git key bindings for fzf-git
+[[ -f \$HOME/.scripts/fzf-git.sh ]] && source "\$HOME/.scripts/fzf-git.sh"
+
+if [[ -x \$(command -v perl) && \$(perl -Mlocal::lib -e '1' 2>/dev/null) ]]; then
+    eval "\$(perl -I\$HOME/perl5/lib/perl5 -Mlocal::lib=\$HOME/perl5 2>/dev/null)"
+fi

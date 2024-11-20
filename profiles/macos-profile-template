@@ -1,0 +1,34 @@
+# macOS Profile Template
+if [ -z "$HOMEBREW_PATH" ]; then
+    echo "Error: HOMEBREW_PATH is not set."
+    exit 1
+fi
+
+# Directories to add to PATH
+directories=(
+  "$HOMEBREW_PATH/lib/ruby/gems/*/bin"
+  "$HOMEBREW_PATH/opt/binutils/bin"
+  "$HOMEBREW_PATH/sbin"
+  "$HOMEBREW_PATH/bin"
+)
+# Iterate over each directory in the 'directories' array
+for dir in "${directories[@]}"; do
+    if [[ ":$PATH:" != *":$dir:"* ]]; then
+        export PATH="$dir:$PATH"
+    fi
+done
+
+eval "$($HOMEBREW_PATH/bin/brew shellenv)"
+
+export LDFLAGS="-L$HOMBREW_PATH/opt/ruby/lib"
+export CPPFLAGS="-I$HOMEBREW_PATH/opt/ruby/include"
+export XDG_CONFIG_HOME="$HOME/.config"
+export HOMEBREW_GIT_PATH="$HOMEBREW_PATH/bin/git"
+
+# fzf-git.sh source git key bindings for fzf-git
+[[ -f $HOME/.scripts/fzf-git.sh ]] && source "$HOME/.scripts/fzf-git.sh"
+
+if [[ -x $(command -v perl) && $(perl -Mlocal::lib -e '1' 2>/dev/null) ]]; then
+    eval "$(perl -I$HOME/perl5/lib/perl5 -Mlocal::lib=$HOME/perl5 2>/dev/null)"
+fi
+
