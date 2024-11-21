@@ -1,5 +1,5 @@
 # Synology-Homebrew + Neovim
-- Includes macOS installer!
+- Includes macOS installer to sync the same config!
 
 ## Introduction
 
@@ -15,8 +15,8 @@ Homebrew, a package manager for macOS and Linux, unlocks a vast ecosystem of mod
 - **Profile Creation:** Configures the default Synology ash/sh profile and newly installed zsh to work seamlessly with Homebrew.
 - **Synology Integration:** Resolves conflicts with existing Synology packages without removing anything from your NAS.
 - **Easy Uninstall:** Revert to the original state of your NAS with the included uninstall script.
-- **NEW!!! This exact same script can be replicated on macOS. Linuxbrew and Hoembrew will work with the same install config files to provide tge same experience however you chose to configure it.
-- **COMING SOON!! A choice of terminal emulators preconfigured and further themes. 
+- **NEW!!!** This exact same script can be replicated on macOS. Linuxbrew and Hoembrew will work with the same install config files to provide the same experience however you chose to configure it.
+- **COMING SOON!!** A choice of terminal emulators preconfigured and further themes. 
 
 ## Prerequisites
 

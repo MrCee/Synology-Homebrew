@@ -1,24 +1,19 @@
 #!/bin/bash
 
-#set -x
-
-DEBUG=1
-[[ $DEBUG == 1 ]] && echo "DEBUG mode"
+DEBUG=0
+[[ $DEBUG == 1 ]] && echo "DEBUG mode on with strict -euo pipefail error handling" && set -euo pipefail
 
 SCRIPT_PATH=$(realpath "$0")
 SCRIPT_DIR=$(dirname "$SCRIPT_PATH")
 
 # Change to the script directory
 cd "$SCRIPT_DIR" || { echo "Failed to change directory to $SCRIPT_DIR" >&2; exit 1; }
-echo "Working directory: $SCRIPT_DIR"
+echo "Working directory: $(pwd)"
 
 # Source the functions file
-source "$SCRIPT_DIR/functions.sh"
+source "./functions.sh"
 
-# login and cache sudo which creates a sudoers file
-func_sudoers
-
-# Call the function to set DARWIN and get the Homebrew path separately
+# Initialize environment variables
 func_initialize_env_vars
 
 # Check if DARWIN was set correctly
@@ -26,18 +21,37 @@ echo "DARWIN: $DARWIN"
 echo "HOMEBREW_PATH: $HOMEBREW_PATH"
 echo "DEFAULT_GROUP: $DEFAULT_GROUP"
 
+# Unified Cleanup Function for Handling Exits and Interruptions
+# (Defined in functions.sh as func_cleanup_exit)
+
+# Set Trap for EXIT to Handle Normal Cleanup
+trap 'code=$?; func_cleanup_exit $code' EXIT
+
+# Set Trap for Interruption Signals to Handle Cleanup
+trap 'func_cleanup_exit 130' INT TERM HUP QUIT ABRT ALRM PIPE
+
+# Setup sudoers file
+func_sudoers
+
+# Check if sudoers setup was successful before proceeding
+if [[ "${SUDOERS_SETUP_DONE:-0}" -ne 1 ]]; then
+    echo "Sudoers setup was not completed successfully. Exiting." >&2
+    exit 1
+fi
+
+[[ $DEBUG == 1 ]] && echo "Debug: SUDOERS_FILE is set to '$SUDOERS_FILE'"
+
 # Check if the script is being run as root
 if [[ "$EUID" -eq 0 ]]; then
     echo "This script should not be run as root. Run it as a regular user, although we will need root password in a second..." >&2
-    exit 1
+    exit 1  # Triggers func_cleanup_exit via EXIT trap
 fi
 
 # Check prerequisites of this script
 error=false
 git_install_flag=false
 
-
-if [[ $DARWIN == 0 ]] ; then
+if [[ $DARWIN == 0 ]]; then
     # Check if Synology Homes is enabled
     if [[ ! -d /var/services/homes/$(whoami) ]]; then
         echo "Synology Homes has NOT been enabled. Please enable in DSM Control Panel >> Users & Groups >> Advanced >> User Home." >&2
@@ -85,7 +99,7 @@ if [[ $DARWIN == 0 ]] ; then
         echo "Homebrew is already installed."
     fi  # Closes 'if [[ ! -x $HOMEBREW_PATH/bin/brew ]]'
 
-    # If any error occurred, exit with status 1
+    # If any error occurred, exit with status 1 (triggers func_cleanup_exit)
     if $error ; then
         echo "Exiting due to errors."
         exit 1
@@ -93,12 +107,12 @@ if [[ $DARWIN == 0 ]] ; then
 fi # end $DARWIN
 
 # Define the location of YAML
-CONFIG_YAML_PATH="$SCRIPT_DIR/config.yaml"
+CONFIG_YAML_PATH="./config.yaml"
 
 # Ensure config.yaml exists
 if [[ ! -f "$CONFIG_YAML_PATH" ]]; then
-    echo "config.yaml not found in $SCRIPT_DIR"
-    exit 1
+    echo "config.yaml not found in ."
+    exit 1  # Triggers func_cleanup_exit via EXIT trap
 fi
 
 # ------- Begin YAML Cleanup ------
@@ -139,7 +153,7 @@ done
 
 if [[ "$selection" -eq 2 && ! -f "$CONFIG_YAML_PATH" ]]; then
     echo "config.yaml not found in this directory" >&2
-    exit 1
+    exit 1  # Triggers func_cleanup_exit via EXIT trap
 fi
 
 if [[ $DARWIN == 0 ]] ; then
@@ -200,7 +214,7 @@ fi
 
 # Begin Homebrew install. Remove brew git env if it does not exist
 [[ ! -x $HOMEBREW_PATH/bin/git ]] && unset HOMEBREW_GIT_PATH
-NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" 2> /dev/null
+NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" 2> /dev/null 2>&1 | sed '/==> Next steps:/,/^$/d'
 eval "$($HOMEBREW_PATH/bin/brew shellenv)"
 ulimit -n 2048
 brew install --quiet glibc gcc 2> /dev/null
@@ -210,33 +224,34 @@ brew install --quiet clang-build-analyzer 2> /dev/null
 brew install --quiet zsh 2> /dev/null
 brew install --quiet yq 2> /dev/null
 brew upgrade --quiet 2> /dev/null
-func_get_ruby_gem
+
 
 # Create a new .profile with homebrew paths
 profile_filled=$(<./profiles/synology-profile-template)
 profile_filled="${profile_filled//\$HOMEBREW_PATH/$HOMEBREW_PATH}"
-profile_filled="${profile_filled//\$GEM_BIN_PATH/$GEM_BIN_PATH}"
 echo "$profile_filled" > ~/.profile
 source ~/.profile
-
 fi # end DARWIN
 
 if [[ $DARWIN == 1 ]] ; then
-NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" 2> /dev/null
+NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" 2> /dev/null 2>&1 | sed '/==> Next steps:/,/^$/d'
 eval "$($HOMEBREW_PATH/bin/brew shellenv)"
 brew install --quiet git 2> /dev/null
 brew install --quiet yq 2> /dev/null
 brew install --quiet ruby 2> /dev/null
 brew install --quiet python3 2> /dev/null
-func_get_ruby_gem
+brew install --quiet coreutils 2> /dev/null
+brew install --quiet findutils 2> /dev/null
+brew install --quiet gnu-sed 2> /dev/null
+brew install --quiet grep 2> /dev/null
+brew install --quiet gawk 2> /dev/null
 
 # Create a new .zprofile with homebrew paths
 profile_filled=$(<./profiles/macos-profile-template)
 profile_filled="${profile_filled//\$HOMEBREW_PATH/$HOMEBREW_PATH}"
-profile_filled="${profile_filled//\$GEM_BIN_PATH/$GEM_BIN_PATH}"
 echo "$profile_filled" > ~/.zprofile
 source ~/.zprofile
-fi # close DARWIN=1
+fi # end DARWIN
 
 echo "--------------------------PATH SET-------------------------------"
 echo "$PATH"
@@ -276,132 +291,178 @@ if [[ "$ruby_path" != *"linuxbrew"* ]]; then
 else
     echo "ruby is linked via Homebrew."
 fi
-fi # closes $DARWIN == 0
+fi # end DARWIN
 
+# Arrays to store summary messages
+installed_packages=()
+uninstalled_packages=()
+skipped_packages=()
+failed_packages=()
 
-# Create a brew list of installed packages into an array
-BREW_LIST_ARRAY=($(brew list -1))
+# Define color codes (optional for enhanced readability)
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+RED='\033[0;31m'
+NC='\033[0m' # No Color
 
-## Read YAML and process packages
-#yq eval -r '.packages | to_entries[] | .key' <<< "$CONFIG_YAML" | while IFS= read -r package; do
-#    install_status=$(yq eval -r ".packages[\"$package\"].install" <<< "$CONFIG_YAML")
-#    base_package=$(basename "$package")
-#
-#    if [[ " ${BREW_LIST_ARRAY[*]} " =~ " ${base_package} " ]]; then
-#        action="already installed"
-#        if [[ "$install_status" == "false" ]]; then
-#            action="flag is set to uninstall"
-#            brew uninstall --quiet "$package"
-#        elif [[ "$install_status" == "skip" ]]; then
-#            action="flag is set to skip"
-#        fi
-#    else
-#        action="not installed"
-#        if [[ "$install_status" == "true" ]]; then
-#            action="installing"
-#            brew install --quiet "$package"
-#        elif [[ "$install_status" == "false" || "$install_status" == "skip" ]]; then
-#            action="flag is set to $install_status"
-#        fi
-#    fi
-#
-#    if [[ "$install_status" != "true" && "$install_status" != "false" && "$install_status" != "skip" ]]; then
-#        action="invalid install status"
-#    fi
-#
-#    echo "$package is $action."
-#done
-
-# Array to store final output messages
-output_messages=()
+# Function to extract the base package name
+get_base_package() {
+    local full_package="$1"
+    basename "$full_package"
+}
 
 # Function to check install status and take action
 process_package() {
     local package="$1"
-    local install_status; install_status=$(yq eval -r ".packages[\"$package\"].install" <<< "$CONFIG_YAML")
-    local base_package="$package"
+    local install_status
+    install_status=$(yq eval -r ".packages[\"$package\"].install" <<< "$CONFIG_YAML")
+    local base_package
+    base_package=$(get_base_package "$package")
     local action
 
     # Check if the package is already installed
     if brew list --formula -1 | grep -Fxq "$base_package"; then
         if [[ "$install_status" == "false" ]]; then
-            action="flag is set to uninstall"
-            printf "%s: uninstalling...\n" "$package"
-            brew uninstall --quiet "$package" >/dev/null 2>&1
+            action="uninstalling"
+            echo -e "🔄 ${YELLOW}${base_package}${NC}: Uninstalling..."
+            if brew uninstall --quiet "$base_package"; then
+                uninstalled_packages+=("$base_package")
+            else
+                echo -e "${RED}❌ Failed to uninstall ${base_package}.${NC}"
+                failed_packages+=("$base_package (uninstall)")
+            fi
         elif [[ "$install_status" == "skip" ]]; then
-            action="flag is set to skip"
-            printf "%s: skipping (flagged to skip)\n" "$package"
+            action="skipping (flagged to skip)"
+            echo -e "⏭️ ${YELLOW}${base_package}${NC}: Skipping (flagged to skip)"
+            skipped_packages+=("$base_package")
         else
             action="already installed"
-            printf "%s: already installed\n" "$package"
+            echo -e "${GREEN}✅ ${base_package}${NC}: Already installed"
+            # Optionally, you can update some status or perform other actions here
         fi
     else
         if [[ "$install_status" == "true" ]]; then
-            action="installed"
-            printf "%s: installing...\n" "$package"
-            if ! brew install --quiet "$package" </dev/null; then
-                echo "Error installing $package" >&2
-                action="failed to install"
+            action="installing"
+            echo -e "🛠️ ${GREEN}${base_package}${NC}: Installing..."
+            # Install the package and suppress unnecessary output
+            if brew install --quiet "$base_package" 2>&1 | sed '/==> Next steps:/,/^$/d; /By default/d'; then
+                installed_packages+=("$base_package")
+            else
+                echo -e "${RED}❌ Error installing ${base_package}.${NC}"
+                failed_packages+=("$base_package (install)")
             fi
         elif [[ "$install_status" == "false" ]]; then
-            action="flag set to not install"
-            printf "%s: not installing (flagged not to install)\n" "$package"
+            action="not installing (flagged not to install)"
+            echo -e "🚫 ${YELLOW}${base_package}${NC}: Not installing (flagged not to install)"
+            skipped_packages+=("$base_package")
         elif [[ "$install_status" == "skip" ]]; then
-            action="flag is set to skip"
-            printf "%s: skipping (flagged to skip)\n" "$package"
+            action="skipping (flagged to skip)"
+            echo -e "⏭️ ${YELLOW}${base_package}${NC}: Skipping (flagged to skip)"
+            skipped_packages+=("$base_package")
         else
             action="invalid install status"
-            printf "%s: invalid install status\n" "$package"
+            echo -e "${RED}⚠️ ${base_package}${NC}: Invalid install status ('${install_status}')"
+            failed_packages+=("$base_package (invalid status)")
         fi
     fi
-
-    # Append the result message to the output array for summary
-    output_messages+=("$package: $action.")
 }
 
 # Main execution block
 main() {
-    # Capture package keys into an array
-    local packages_array=()
+    # Ensure yq is installed
+    if ! command -v yq &> /dev/null; then
+        echo -e "${RED}yq is not installed. Please install yq to proceed.${NC}"
+        exit 1
+    fi
+
+    # Initialize packages_array
+    packages_array=()
+
+    # Populate packages_array using a while loop
+    yq eval -r '.packages | keys | .[]' <<< "$CONFIG_YAML" | while IFS= read -r package; do
+        packages_array+=("$package")
+    done
+
+    # Handle cases where the while loop runs in a subshell
+    # Use a temporary file to store package names
+    packages_array=()
     while IFS= read -r package; do
         packages_array+=("$package")
-    done < <(yq eval -r '.packages | to_entries[] | .key' <<< "$CONFIG_YAML")
+    done < <(yq eval -r '.packages | keys | .[]' <<< "$CONFIG_YAML")
+
+    # Check if any packages were found
+    if [ ${#packages_array[@]} -eq 0 ]; then
+        echo -e "${YELLOW}No packages found in config.yaml.${NC}"
+        exit 0
+    fi
 
     # Loop over each package in the array
     for package in "${packages_array[@]}"; do
         process_package "$package"
     done
 
-    # Print all output messages at once after processing for summary
-    printf "\nSummary:\n"
-    printf "%s\n" "${output_messages[@]}"
+    # Print summary
+    echo -e "\n📋 ${GREEN}Summary:${NC}"
+
+    if [ ${#installed_packages[@]} -ne 0 ]; then
+        echo -e "\n✅ Installed Packages:"
+        for pkg in "${installed_packages[@]}"; do
+            echo "  - $pkg"
+        done
+    fi
+
+    if [ ${#uninstalled_packages[@]} -ne 0 ]; then
+        echo -e "\n🗑️ Uninstalled Packages:"
+        for pkg in "${uninstalled_packages[@]}"; do
+            echo "  - $pkg"
+        done
+    fi
+
+    if [ ${#skipped_packages[@]} -ne 0 ]; then
+        echo -e "\n⏭️ Skipped Packages:"
+        for pkg in "${skipped_packages[@]}"; do
+            echo "  - $pkg"
+        done
+    fi
+
+    if [ ${#failed_packages[@]} -ne 0 ]; then
+        echo -e "\n❌ Failed Actions:"
+        for pkg in "${failed_packages[@]}"; do
+            echo "  - $pkg"
+        done
+    fi
+
+    echo -e "\n✅ Script execution completed."
 }
 
 # Execute main function
 main
 
 # Create the symlinks
-printf "\nCreating symlinks"
+# printf "\nCreating symlinks"
 sudo ln -sf $HOMEBREW_PATH/bin/python3 $HOMEBREW_PATH/bin/python
 sudo ln -sf $HOMEBREW_PATH/bin/pip3 $HOMEBREW_PATH/bin/pip
-sudo ln -sf $HOMEBREW_PATH/bin/gcc $HOMEBREW_PATH/bin/cc
-sudo ln -sf $HOMEBREW_PATH/bin/zsh /bin/zsh
-echo "Finished creating symlinks"
+[[ $DARWIN == 0 ]] && sudo ln -sf $HOMEBREW_PATH/bin/gcc $HOMEBREW_PATH/bin/cc
+[[ $DARWIN == 0 ]] && sudo ln -sf $HOMEBREW_PATH/bin/zsh /bin/zsh
+printf "\nFinished creating symlinks"
 
 # Enable perl in homebrew
 if [[ $(printf '%s\n' "$CONFIG_YAML" | yq eval -r '.packages.perl.install') == "true" ]]; then
-    echo "Fixing perl symlink..."
-    # Create symlink to Homebrew's Perl in /usr/bin
-    sudo ln -sf $HOMEBREW_PATH/bin/perl /usr/bin/perl
+    if [[ $DARWIN == 0 ]] ; then
+            printf "\nFixing perl symlink..."
+            # Create symlink to Homebrew's Perl in /usr/bin
+            sudo ln -sf $HOMEBREW_PATH/bin/perl /usr/bin/perl
+            # TODO: CHECK IF MACOS NEOVIM IS USING HOMEBREW PERL. ONE OF THE NVIM PLUGINS IS HARD CODED TO /usr/bin/perl
+    fi
 
-    echo "Setting up permissions for perl environment..."
+    printf "\nSetting up permissions for perl environment..."
     # Ensure permissions on perl5 and .cpan directories before any creation
     sudo mkdir -p $HOME/perl5 $HOME/.cpan
     sudo chown -R "$(whoami)":$DEFAULT_GROUP $HOME/perl5 $HOME/.cpan
     sudo chmod -R 775 $HOME/perl5 $HOME/.cpan
 
 
-    echo "Enabling perl cpan with defaults and permission fix"
+    printf "\nEnabling perl cpan with defaults and permission fix"
     # Configure CPAN to install local::lib in $HOME/perl5 with default settings
     PERL_MM_USE_DEFAULT=1 PERL_MM_OPT=INSTALL_BASE=$HOME/perl5 cpan local::lib
 
@@ -422,13 +483,12 @@ fi
 # Check if additional Neovim packages should be installed
 echo "-----------------------------------------------------------------"
 if [[ $(printf '%s\n' "$CONFIG_YAML" | yq eval -r '.packages.neovim.install') == "true" ]]; then
-    echo "Calling $SCRIPT_DIR/nvim_config.sh for additional setup packages"
-    
+    echo "Calling ./nvim_config.sh for additional setup packages"
     # Create a temporary file to store YAML data
     temp_file=$(mktemp)
     printf '%s\n' "$CONFIG_YAML" > "$temp_file"
 
-    bash "$SCRIPT_DIR/nvim_config.sh" "$temp_file"
+    bash "./nvim_config.sh" "$temp_file"
     CONFIG_YAML=$(<"$temp_file")
     rm "$temp_file"
 else
@@ -460,8 +520,8 @@ done
 
 # Check if any zsh packages should be configured
 echo "-----------------------------------------------------------------"
-echo "Calling $SCRIPT_DIR/zsh_config.sh for additional zsh configuration"
-bash "$SCRIPT_DIR/zsh_config.sh" "$CONFIG_YAML"
+echo "Calling ./zsh_config.sh for additional zsh configuration"
+bash "./zsh_config.sh" "$CONFIG_YAML"
 
 # Extract and filter alias commands directly from CONFIG_YAML
 alias_commands=$(yq eval -r '
@@ -546,11 +606,8 @@ if synopkg list | grep -q "Perl"; then
     echo "#############################################################"
     echo ""
 fi
-fi # closes DARWIN check
+fi # end DARWIN
 
-# Finish script with cleanup and transport
-sudo rm -rf "$SUDOERS_FILE"
-
-
+func_cleanup_exit 0
 echo "Script completed successfully. You will now be transported to ZSH!!!"
 exec zsh --login

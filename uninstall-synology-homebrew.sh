@@ -1,5 +1,4 @@
 #!/bin/bash
-set -x
 
 source ./functions.sh 
 func_initialize_env_vars
@@ -57,7 +56,7 @@ if [[ $DARWIN == 0 ]] ; then
 
 fi
 
-[[ $DARWIN == 1 ]] && sudo rm ~/.zprofile
+[[ $DARWIN == 1 ]] && sudo rm ~/.zprofile > /dev/null 2>&1
 
 rm -rf ~/.cache/Homebrew
 rm -rf ~/.cache/p10k*
@@ -76,8 +75,9 @@ if [[ $DARWIN == 0 ]] ; then
     exec /bin/ash --login
 fi
 if [[ $DARWIN == 1 ]] ; then 
-	rm ~/.zshrc 
+	sudo rm  ~/.zshrc ~/.zprofile > /dev/null 2>&1
 	source /etc/profile
+	/bin/zsh --login
 fi
 
 
