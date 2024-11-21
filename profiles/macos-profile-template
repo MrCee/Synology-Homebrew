@@ -6,11 +6,24 @@ fi
 
 # Directories to add to PATH
 directories=(
-  "$HOMEBREW_PATH/lib/ruby/gems/*/bin"
-  "$HOMEBREW_PATH/opt/binutils/bin"
   "$HOMEBREW_PATH/sbin"
   "$HOMEBREW_PATH/bin"
 )
+
+# Expand wildcard paths
+for gem_bin in $HOMEBREW_PATH/lib/ruby/gems/*/bin; do
+  if [[ -d "$gem_bin" ]]; then
+    directories+=("$gem_bin")
+  fi
+done
+
+# Add expanded gnubin directories
+for gnubin in $HOMEBREW_PATH/opt/*/libexec/gnubin; do
+  if [[ -d "$gnubin" ]]; then
+    directories+=("$gnubin")
+  fi
+done
+
 # Iterate over each directory in the 'directories' array
 for dir in "${directories[@]}"; do
     if [[ ":$PATH:" != *":$dir:"* ]]; then
@@ -20,7 +33,7 @@ done
 
 eval "$($HOMEBREW_PATH/bin/brew shellenv)"
 
-export LDFLAGS="-L$HOMBREW_PATH/opt/ruby/lib"
+export LDFLAGS="-L$HOMEBREW_PATH/opt/ruby/lib"
 export CPPFLAGS="-I$HOMEBREW_PATH/opt/ruby/include"
 export XDG_CONFIG_HOME="$HOME/.config"
 export HOMEBREW_GIT_PATH="$HOMEBREW_PATH/bin/git"
