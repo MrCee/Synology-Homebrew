@@ -1,43 +1,80 @@
-# Synology-Homebrew + Neovim
-- Includes macOS installer to sync the same config!
+# Synology-Homebrew
+
+- Neovim installed perfectly. 
+- Installer also supports macOS to sync same config on Intel & Apple silicon.
+
+---
 
 ## Introduction
 
-Simplify the installation of Homebrew on Synology NAS devices running DSM 7.2 or later with this script. Our repository streamlines the process, ensuring comprehensive coverage of available packages for macOS/Linux on your Synology NAS.
+Simplify the installation of Homebrew on Synology NAS devices running DSM 7.2 or later with this script. This repository streamlines the process, ensuring comprehensive coverage of available packages for macOS/Linux on Synology. If you would like everything configured exactly the same way on macOS, it's covered here. The installer will replicate the config on macOS.
 
-## Why Homebrew on Synology NAS?
+---
 
-Homebrew, a package manager for macOS and Linux, unlocks a vast ecosystem of modern software and libraries for your Synology NAS. Dive into the richer features as mentioned below...
+## Why Install Homebrew on Synology NAS or macOS?
+
+Homebrew, a package manager for macOS and Linux, unlocks a vast ecosystem of modern software and libraries. Dive into the richer features as mentioned below.
+
+---
 
 ## Key Features
 
-- **Installation Options:** Choose between a Minimal or Advanced installation. If you just want homebrew to work then Minimal install is for you.
-- **Profile Creation:** Configures the default Synology ash/sh profile and newly installed zsh to work seamlessly with Homebrew.
-- **Synology Integration:** Resolves conflicts with existing Synology packages without removing anything from your NAS.
-- **Easy Uninstall:** Revert to the original state of your NAS with the included uninstall script.
-- **NEW!!!** This exact same script can be replicated on macOS. Linuxbrew and Hoembrew will work with the same install config files to provide the same experience however you chose to configure it.
-- **COMING SOON!!** A choice of terminal emulators preconfigured and further themes. 
+- **Installation Options:**  
+  Choose between a Minimal or Advanced installation. If you just want Homebrew to work, then the Minimal install is for you.
+
+- **Profile Creation:**  
+  Configures the default Synology `ash/sh` profile and newly installed `zsh` to work seamlessly with Homebrew.
+
+- **Synology Integration:**  
+  Resolves conflicts with existing Synology packages without removing anything from your NAS.
+
+- **Easy Uninstall:**  
+  Revert to the original state of your NAS with the included uninstall script.
+
+- **Cross-Platform Compatibility:**  
+  This same installer can be used on macOS. Linuxbrew and Homebrew will work with the `config.yaml` to provide the same experience, however you choose to configure it.
+
+- **COMING SOON:**  
+  A choice of terminal emulators preconfigured and further themes.
+
+---
 
 ## Prerequisites
 
-Before you begin, here is the required set-up:
+Before you begin, ensure the following setup:
 
 1. **Synology NAS Requirements:**
-    - A Synology NAS running DSM 7.2 or later.
-    - SSH access to your NAS.
-    - User homes enabled on your NAS.
-    - A scheduled task which ensures Homebrew is mounted after each restart. Detailed instructions are provided below.
 
-2. **Git Installation now AUTOMATED:**
-    - If Git is not present in your environment and you want to clone this repository, it can be quicly downloaded and installed from the SynoCommunity as a temporary measure get things up and running. The updated Homebrew version of Git will replace the SynoCommunity Git when the script completes.
-    Here's how you do this easily: ```curl -sSL https://raw.githubusercontent.com/MrCee/Synology-Git/refs/heads/main/install-synology-git.sh | bash```
+    - A Synology NAS running DSM 7.2 or later.
+    - SSH access enabled on your NAS.
+    - User homes enabled on your NAS.
+    - A scheduled task to ensure Homebrew is mounted after each restart (detailed instructions below).
+
+2. **Synology Git Installation via CLI:**
+
+    If Git is not already installed in your Synology environment, you can quickly install it via CLI. This will later be upgraded to Homebrew's Git version:
+
+    ```bash
+    curl -sSL https://raw.githubusercontent.com/MrCee/Synology-Git/refs/heads/main/install-synology-git.sh | bash
+    ```
 
 3. **iTerm2 Configuration:**
-    - iTerm2 (or alternative other than the default MacOS Terminal.app) running on your local machine with compatible Nerd Fonts and a color profile for an improved visual experience. <BR>Refer to the [iTerm2 Configuration Guide](https://github.com/MrCee/Synology-Homebrew/wiki/iTerm2-Configuration) for a quick setup.
+
+    Use **iTerm2** (or an alternative terminal emulator other than macOS Terminal.app) on your local machine for an improved experience.  
+
+    Ensure the following:
+    - Compatible Nerd Fonts installed.
+    - A configured color profile.
+
+    Refer to the [iTerm2 Configuration Guide](https://github.com/MrCee/Synology-Homebrew/wiki/iTerm2-Configuration) for detailed setup instructions.
+
+---
 
 ## Installation
 
-**Download and Run in one command**: SSH into your Synology NAS running DSM 7.2 or above, and copy/paste the following command to download into your home directory and automatically execute the script.
+### Quick Start:
+
+SSH into your Synology NAS running DSM 7.2 or above and run the following command to download the installer into your home directory and execute it:
 
 ```bash
 git clone https://github.com/MrCee/Synology-Homebrew.git ~/Synology-Homebrew && \
@@ -46,19 +83,20 @@ git clone https://github.com/MrCee/Synology-Homebrew.git ~/Synology-Homebrew && 
 
 ### Select your install type:
 
-#### 1) Minimal Install: This will provide the homebrew basics, ignore packages in config.yaml, leaving the rest to you.
+#### 1) Minimal Install:
+This will provide the Homebrew basics, ignore packages in `config.yaml`, leaving the rest to you.
 
-_You can also use this option to uninstall packages in config.yaml installed by option 2 by running the script again._
+_You can also use this option to uninstall packages in `config.yaml` installed by option 2 by running the script again._
 
-#### 2) Advanced Install: Full setup includes packages in config.yaml
+#### 2) Advanced Install:
+Full setup includes packages in `config.yaml`.
 
 _Recommended if you want to get started with Neovim or install some of the great packages listed._
 
 #### Both install types include the following essential packages to ensure Homebrew runs smoothly on Synology:
+- git, ruby, glibc, gcc, clang-build-analyzer (which includes latest python & pip), yq, zsh, oh-my-zsh.
 
-git, ruby, glibc, gcc, clang-build-analyzer (which includes latest python & pip), yq, zsh, oh-my-zsh.
-
-## Configuration for Advanced install (config.yaml)
+## Configuration for Advanced install (`config.yaml`)
 
 To manage packages, plugins, and themes, edit the `config.yaml` file and set the install flag to one of three options: **true**, **false**, or **skip**.
 
@@ -66,12 +104,11 @@ To manage packages, plugins, and themes, edit the `config.yaml` file and set the
 - **false**: Uninstall the package, plugin, or theme.
 - **skip**: Do nothing, leaving the current state unchanged.
 
-Plugins and themes can be defined under the **plugins** section. 
-Plugin names will be updated to reflect the last part of the URL for consitency.
+Plugins and themes can be defined under the **plugins** section. Plugin names will be updated to reflect the last part of the URL for consistency.
 
 ### **config.yaml example**
 
-The below is a snippet of how config.yaml should be formatted. Please see the file downloaded from this repository for the full scope.
+The below is a snippet of how `config.yaml` should be formatted. Please see the file downloaded from this repository for the full scope.
 
 ```yaml
 packages:
@@ -189,8 +226,6 @@ Modify packages to be installed by editing config.yaml and setting the install f
 | [zoxide](https://github.com/ajeetdsouza/zoxide)                                 | Zoxide is a smarter cd command, inspired by z and autojump                                                  | Recommended for: zsh                    |
 | [lazygit](https://github.com/jesseduffield/lazygit)                             | **AMAZING** Simple terminal UI for git commands                                                             | Recommended for: zsh, neovim            |
 
-For a full list of dependancies installed, run: `brew deps --installed` after installation.
-
 ## Neovim
 
 Neovim (nvim) is ready to go with essential requirements configured within a separate file `nvim_config.sh` in which you can run indepenently to enable clipboard and further required files.
@@ -211,7 +246,7 @@ To switch between Neovim configurations easily, use aliases in `~/.zshrc` and sw
 ```zsh
 alias nvim="NVIM_APPNAME=\"nvim-kickstart\" nvim"
 
-# or for example...
+# or for example if you have your own nvim config...
 
 alias nvim="NVIM_APPNAME=\"nvim-mrcee\" nvim"
 ```
@@ -251,18 +286,6 @@ Go to Control Panel > Task Scheduler, click Create, and select Triggered Task >>
 [[ ! -d /home ]] && mkdir /home
 mount -o bind "/volume1/homes" /home
 ```
-
-## TL;TR
-
-### Portable Code (Limited)
-
-#### Regex and functions.sh Explained
-
-If you would like to use parts of this code across different environments, such as macOS (a BSD-based Unix-like operating system), you'll appreciate the addition of the `functions.sh` file.
-
-This file houses functions designed to standardise commands used in Synology NAS (GNU Linux), ensuring compatibility and portability across platforms, particularly with utilities like `sed`.
-
-This approach simplifies the process of adapting similar code to other systems outside of Synology NAS.
 
 ## Usage and Contributions
 
