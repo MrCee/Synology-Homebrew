@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Ensure DEBUG is set to 0 if unset or null
+: "${DEBUG:=0}"
+
 # Enable strict error handling
 set -euo pipefail
 
@@ -62,37 +65,200 @@ else
     echo -e "-----------------------------------------------------------------\n"
     read -p "Would you like to check and install Neovim dependencies? (y/n): " answer
     if [[ "$answer" == "y" ]]; then
-        CONFIG_YAML=$(printf '%s\n' "$CONFIG_YAML" | yq e '.packages.neovim.install = "true"')
+        CONFIG_YAML=$(printf '%s\n' "$CONFIG_YAML" | yq e '.packages.neovim.action = "install"')
     fi
 
     read -p "Would you like to check and install kickstart.nvim? (y/n): " answer
     if [[ "$answer" == "y" ]]; then
-        CONFIG_YAML=$(printf '%s\n' "$CONFIG_YAML" | yq e '.plugins."kickstart.nvim".install = "true"')
+        CONFIG_YAML=$(printf '%s\n' "$CONFIG_YAML" | yq e '.plugins."kickstart.nvim".action = "install"')
     fi
+ func_sudoers
 fi
 
-# Function to update the install status in the YAML
-update_install_status() {
+# Function to update the action status in the YAML
+update_action_status() {
     local plugin="$1"
-    CONFIG_YAML=$(printf '%s\n' "$CONFIG_YAML" | yq e ".plugins[\"$plugin\"].install = \"handled\"" -)
+    CONFIG_YAML=$(printf '%s\n' "$CONFIG_YAML" | yq e ".plugins[\"$plugin\"].action = \"handled\"" -)
 }
 
-# Install kickstart.nvim if install is true in config.yaml
-if [[ $(printf '%s\n' "$CONFIG_YAML" | yq eval -r '.plugins."kickstart.nvim".install') == "true" ]]; then
+# Install kickstart.nvim based on the action in config.yaml
+kickstart_action=$(printf '%s\n' "$CONFIG_YAML" | yq eval -r '.plugins."kickstart.nvim".action')
+
+if [[ "$kickstart_action" == "install" ]]; then
     kickstart_dir=$(printf '%s\n' "$CONFIG_YAML" | yq eval -r '.plugins."kickstart.nvim".directory')
+    # Expand variables in the directory path
     eval kickstart_dir="$kickstart_dir"
 
     if [[ ! -d "$kickstart_dir" ]]; then
         echo "${TOOLS} Installing kickstart.nvim..."
         git clone "$(printf '%s\n' "$CONFIG_YAML" | yq eval -r '.plugins."kickstart.nvim".url')" "$kickstart_dir"
-        update_install_status "kickstart.nvim"
+        update_action_status "kickstart.nvim"
     else
-        update_install_status "kickstart.nvim"
         echo "${SUCCESS} kickstart.nvim is already installed."
+        update_action_status "kickstart.nvim"
     fi
+elif [[ "$kickstart_action" == "uninstall" ]]; then
+    kickstart_dir=$(printf '%s\n' "$CONFIG_YAML" | yq eval -r '.plugins."kickstart.nvim".directory')
+    eval kickstart_dir="$kickstart_dir"
+
+    if [[ -d "$kickstart_dir" ]]; then
+        echo "${REMOVE} Uninstalling kickstart.nvim..."
+        rm -rf "$kickstart_dir"
+        update_action_status "kickstart.nvim"
+    else
+        echo "${INFO} kickstart.nvim is not installed. Nothing to uninstall."
+        update_action_status "kickstart.nvim"
+    fi
+elif [[ "$kickstart_action" == "skip" ]]; then
+    echo "${INFO} Skipping kickstart.nvim as per config.yaml."
+else
+    echo "${WARNING} Invalid action for kickstart.nvim: '$kickstart_action'. Skipping."
 fi
 
-# Additional configuration and logic here (omitted for brevity)...
+# Install Neovim dependencies based on the action in config.yaml
+neovim_action=$(printf '%s\n' "$CONFIG_YAML" | yq eval -r '.packages.neovim.action')
+
+if [[ "$neovim_action" == "install" ]]; then
+    echo "${TOOLS} Installing Neovim dependencies..."
+    if [[ $DARWIN == 0 ]]; then
+        brew install --quiet neovim 2> /dev/null || true
+    else
+        brew install --quiet neovim 2> /dev/null || true
+    fi
+    echo "${SUCCESS} Neovim dependencies installed."
+elif [[ "$neovim_action" == "uninstall" ]]; then
+    echo "${REMOVE} Uninstalling Neovim and its dependencies..."
+    brew uninstall --quiet neovim 2> /dev/null || true
+    echo "${SUCCESS} Neovim dependencies uninstalled."
+elif [[ "$neovim_action" == "skip" ]]; then
+    echo "${INFO} Skipping Neovim dependencies as per config.yaml."
+else
+    echo "${WARNING} Invalid action for Neovim: '$neovim_action'. Skipping."
+fi
+
+# Additional configuration and logic
+
+# Configure OSC52 clipboard support if Neovim is installed
+if [[ "$neovim_action" == "install" ]]; then
+    config_files=$(find -L ~/.config -type f -exec grep -l 'unnamedplus' {} +)
+    echo "----------------------------------------"
+    echo "FOUND files with 'unnamedplus':"
+    printf "%s\n" "$config_files"
+    echo "----------------------------------------"
+    # Use a heredoc to store the code block in a variable which is used to activate clipboard over SSH
+    code_to_add=$(cat <<'EOF'
+-- Added by Synology-Homebrew OSC52
+vim.g.clipboard = {
+    name = 'OSC52',
+    copy = {
+        ['+'] = require('vim.ui.clipboard.osc52').copy('+'),
+        ['*'] = require('vim.ui.clipboard.osc52').copy('*'),
+    },
+    paste = {
+        ['+'] = require('vim.ui.clipboard.osc52').paste('+'),
+        ['*'] = require('vim.ui.clipboard.osc52').paste('*'),
+    },
+}
+EOF
+)
+    # Check if any files are found
+    if [[ -n "$config_files" ]]; then
+        for config_file in $config_files; do
+            if ! grep -q "Added by Synology-Homebrew OSC52" "$config_file"; then
+                # Add the code after the line containing "unnamedplus"
+                func_sed "/unnamedplus/ r /dev/stdin" "$config_file" <<<"$code_to_add"
+                echo "OSC52 code for remote/system clipboard successfully added to $config_file"
+            else
+                echo "OSC52 code for remote/system clipboard already exists in $config_file"
+            fi
+        done
+    else
+        echo "No file containing 'unnamedplus' found in ~/.config folder."
+    fi
+
+    # Install additional packages for Neovim
+    echo "----------------------------------------"
+    if [[ -n "$CONFIG_YAML" ]]; then
+        if [[ "$neovim_action" == "install" ]]; then
+            echo "Installing additional Neovim components..."
+
+            # Install or upgrade pynvim
+            if ! pip3 show pynvim &> /dev/null; then
+                echo "pynvim is not installed. Installing pynvim..."
+                pip3 install pynvim --break-system-packages
+            else
+                echo "pynvim is already installed. Upgrading pynvim..."
+                pip3 install --upgrade pynvim --break-system-packages
+            fi
+
+            # Upgrade pip
+            python3 -m pip install --upgrade pip --break-system-packages
+
+            echo "npm check:"
+            # Check if npm is installed, if not, install it
+            if ! brew list npm &> /dev/null; then
+                echo "npm is not installed. Installing npm..."
+                brew install --quiet npm
+            fi
+
+            # Ensure icu4c is installed
+            if ! brew list icu4c &>/dev/null; then
+                echo "icu4c is not installed. Installing icu4c..."
+                brew install icu4c
+            else
+                echo "icu4c is already installed."
+            fi
+
+            # Check if icu4c is already linked
+            if ! brew list --versions icu4c &>/dev/null; then
+                echo "Linking icu4c libraries..."
+                brew link --force icu4c
+            else
+                echo "icu4c is already linked."
+            fi
+
+            # Remove existing global node_modules directory
+            sudo rm -rf "$HOMEBREW_PATH/lib/node_modules"
+
+            # Run the postinstall step for Node.js
+            brew postinstall node
+
+            # Install the latest npm globally
+            sudo npm install -g npm@latest
+
+            # Disable npm funding messages globally
+            sudo npm config set fund false --location=global
+
+            # Install neovim globally using npm
+            sudo npm install -g neovim@latest
+
+            echo -e "Checking for gem updates:\n"
+
+            # Check if the neovim gem is installed; install if missing
+            if ! gem list -i neovim; then
+                gem install neovim --no-document
+            fi
+
+            # Check if a compatible version of Bundler is installed
+            if ! gem list -i bundler; then
+                gem install bundler -v '< 2.5' --no-document
+            fi
+
+            # Clone fzf-git.sh into scripts directory for fzf git keybindings. This will be sourced in .profile
+            echo "Cloning fzf-git.sh into ~/.scripts directory"
+            mkdir -p ~/.scripts && curl -o ~/.scripts/fzf-git.sh https://raw.githubusercontent.com/junegunn/fzf-git.sh/main/fzf-git.sh
+        else
+            echo "SKIPPING: Neovim components as config.yaml action is not set to 'install'."
+        fi
+    else
+        echo "SKIPPING: Neovim components installation. This is expected when running this script independently."
+    fi
+else
+    echo "Neovim is not set to install. Skipping additional configuration."
+fi
+
+# Write updated YAML back to the temporary file
+[[ -n $temp_file ]] && printf '%s\n' "$CONFIG_YAML" > "$temp_file"
 
 # Perform cleanup only if run directly
 if [[ "$CALLED_BY_MAIN" -eq 0 ]]; then
@@ -101,4 +267,3 @@ if [[ "$CALLED_BY_MAIN" -eq 0 ]]; then
 else
     echo "${INFO} Skipping cleanup because the main script is managing it."
 fi
-

@@ -118,9 +118,6 @@ fi
 # ------- Begin YAML Cleanup ------
 func_sed 's/([^\\])\\([^\\"])/\1\\\\\2/g' "$CONFIG_YAML_PATH"
 func_sed 's/(^.*:[[:space:]]"[^\"]*)("[^"]*)(".*"$)/\1\\\2\\\3/g' "$CONFIG_YAML_PATH"
-func_sed 's/install: skip/install: \"skip\"/g' "$CONFIG_YAML_PATH"
-func_sed 's/install: true/install: \"true\"/g' "$CONFIG_YAML_PATH"
-func_sed 's/install: false/install: \"false\"/g' "$CONFIG_YAML_PATH"
 
 # Function to display the menu
 display_menu() {
@@ -214,7 +211,11 @@ fi
 
 # Begin Homebrew install. Remove brew git env if it does not exist
 [[ ! -x $HOMEBREW_PATH/bin/git ]] && unset HOMEBREW_GIT_PATH
+if ! command -v brew >/dev/null 2>&1; then
 NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" 2> /dev/null 2>&1 | sed '/==> Next steps:/,/^$/d'
+else
+    printf "brew command found. Please wait...\n"
+fi
 eval "$($HOMEBREW_PATH/bin/brew shellenv)"
 ulimit -n 2048
 brew install --quiet glibc gcc 2> /dev/null
@@ -234,7 +235,11 @@ source ~/.profile
 fi # end DARWIN
 
 if [[ $DARWIN == 1 ]] ; then
+if ! command -v brew >/dev/null 2>&1; then
 NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" 2> /dev/null 2>&1 | sed '/==> Next steps:/,/^$/d'
+else
+    printf "brew command found. Please wait...\n"
+fi
 eval "$($HOMEBREW_PATH/bin/brew shellenv)"
 brew install --quiet git 2> /dev/null
 brew install --quiet yq 2> /dev/null
@@ -269,10 +274,10 @@ fi
 CONFIG_YAML=$(<"$CONFIG_YAML_PATH")
 
 if [[ "$selection" -eq 1 ]]; then
-    # Modify the install field within each entry in .packages and .plugins
+    # Modify the action field with the value "uninstall" in temp variable CONFIG_YAML for .packages and .plugins
     CONFIG_YAML=$(printf '%s\n' "$CONFIG_YAML" | yq -e '
-      .packages |= map_values(.install = "false") |
-      .plugins |= map_values(.install = "false")
+      .packages |= map_values(.action = "uninstall") |
+      .plugins |= map_values(.action = "uninstall")
     ')
 fi
 
@@ -308,62 +313,66 @@ NC='\033[0m' # No Color
 # Function to extract the base package name
 get_base_package() {
     local full_package="$1"
-    basename "$full_package"
+    # Extract the text after the last slash
+    local base_package="${full_package##*/}"
+    echo "$base_package"
 }
 
 # Function to check install status and take action
 process_package() {
     local package="$1"
-    local install_status
-    install_status=$(yq eval -r ".packages[\"$package\"].install" <<< "$CONFIG_YAML")
+    local action="$2"
     local base_package
     base_package=$(get_base_package "$package")
-    local action
 
     # Check if the package is already installed
     if brew list --formula -1 | grep -Fxq "$base_package"; then
-        if [[ "$install_status" == "false" ]]; then
-            action="uninstalling"
-            echo -e "🔄 ${YELLOW}${base_package}${NC}: Uninstalling..."
-            if brew uninstall --quiet "$base_package"; then
-                uninstalled_packages+=("$base_package")
-            else
-                echo -e "${RED}❌ Failed to uninstall ${base_package}.${NC}"
-                failed_packages+=("$base_package (uninstall)")
-            fi
-        elif [[ "$install_status" == "skip" ]]; then
-            action="skipping (flagged to skip)"
-            echo -e "⏭️ ${YELLOW}${base_package}${NC}: Skipping (flagged to skip)"
-            skipped_packages+=("$base_package")
-        else
-            action="already installed"
-            echo -e "${GREEN}✅ ${base_package}${NC}: Already installed"
-            # Optionally, you can update some status or perform other actions here
-        fi
+        case "$action" in
+            uninstall)
+                echo -e "🔄 ${YELLOW}${base_package}${NC}: Uninstalling..."
+                if brew uninstall --quiet "$base_package"; then
+                    uninstalled_packages+=("$base_package")
+                else
+                    echo -e "${RED}❌ Failed to uninstall ${base_package}.${NC}"
+                    failed_packages+=("$base_package (uninstall)")
+                fi
+                ;;
+            skip)
+                echo -e "⏭️ ${YELLOW}${base_package}${NC}: Skipping (flagged to skip)"
+                skipped_packages+=("$base_package")
+                ;;
+            install)
+                echo -e "${GREEN}✅ ${base_package}${NC}: Already installed"
+                ;;
+            *)
+                echo -e "${RED}⚠️ ${base_package}${NC}: Invalid action ('${action}')"
+                failed_packages+=("$base_package (invalid action)")
+                ;;
+        esac
     else
-        if [[ "$install_status" == "true" ]]; then
-            action="installing"
-            echo -e "🛠️ ${GREEN}${base_package}${NC}: Installing..."
-            # Install the package and suppress unnecessary output
-            if brew install --quiet "$base_package" 2>&1 | sed '/==> Next steps:/,/^$/d; /By default/d'; then
-                installed_packages+=("$base_package")
-            else
-                echo -e "${RED}❌ Error installing ${base_package}.${NC}"
-                failed_packages+=("$base_package (install)")
-            fi
-        elif [[ "$install_status" == "false" ]]; then
-            action="not installing (flagged not to install)"
-            echo -e "🚫 ${YELLOW}${base_package}${NC}: Not installing (flagged not to install)"
-            skipped_packages+=("$base_package")
-        elif [[ "$install_status" == "skip" ]]; then
-            action="skipping (flagged to skip)"
-            echo -e "⏭️ ${YELLOW}${base_package}${NC}: Skipping (flagged to skip)"
-            skipped_packages+=("$base_package")
-        else
-            action="invalid install status"
-            echo -e "${RED}⚠️ ${base_package}${NC}: Invalid install status ('${install_status}')"
-            failed_packages+=("$base_package (invalid status)")
-        fi
+        case "$action" in
+            install)
+                echo -e "🛠️ ${GREEN}${base_package}${NC}: Installing..."
+                if brew install --quiet "$base_package" 2>&1 | sed '/==> Next steps:/,/^$/d; /By default/d'; then
+                    installed_packages+=("$base_package")
+                else
+                    echo -e "${RED}❌ Error installing ${base_package}.${NC}"
+                    failed_packages+=("$base_package (install)")
+                fi
+                ;;
+            uninstall)
+                echo -e "🚫 ${YELLOW}${base_package}${NC}: Not installed but flagged for uninstall"
+                skipped_packages+=("$base_package")
+                ;;
+            skip)
+                echo -e "⏭️ ${YELLOW}${base_package}${NC}: Skipping (flagged to skip)"
+                skipped_packages+=("$base_package")
+                ;;
+            *)
+                echo -e "${RED}⚠️ ${base_package}${NC}: Invalid action ('${action}')"
+                failed_packages+=("$base_package (invalid action)")
+                ;;
+        esac
     fi
 }
 
@@ -375,20 +384,17 @@ main() {
         exit 1
     fi
 
-    # Initialize packages_array
-    packages_array=()
+# Initialize arrays
+packages_array=()
+actions_array=()
 
-    # Populate packages_array using a while loop
-    yq eval -r '.packages | keys | .[]' <<< "$CONFIG_YAML" | while IFS= read -r package; do
-        packages_array+=("$package")
-    done
-
-    # Handle cases where the while loop runs in a subshell
-    # Use a temporary file to store package names
-    packages_array=()
-    while IFS= read -r package; do
-        packages_array+=("$package")
-    done < <(yq eval -r '.packages | keys | .[]' <<< "$CONFIG_YAML")
+# Populate packages_array and actions_array
+while IFS= read -r package; do
+    packages_array+=("$package")
+    # Extract the action for each package
+    action=$(yq eval -r ".packages[\"$package\"].action" <<< "$CONFIG_YAML")
+    actions_array+=("$action")
+done < <(yq eval -r '.packages | keys | .[]' <<< "$CONFIG_YAML")
 
     # Check if any packages were found
     if [ ${#packages_array[@]} -eq 0 ]; then
@@ -396,10 +402,12 @@ main() {
         exit 0
     fi
 
-    # Loop over each package in the array
-    for package in "${packages_array[@]}"; do
-        process_package "$package"
-    done
+# Loop over each package in the array
+for idx in "${!packages_array[@]}"; do
+    package="${packages_array[$idx]}"
+    action="${actions_array[$idx]}"
+    process_package "$package" "$action"
+done
 
     # Print summary
     echo -e "\n📋 ${GREEN}Summary:${NC}"
@@ -434,7 +442,6 @@ main() {
 
     echo -e "\n✅ Script execution completed."
 }
-
 # Execute main function
 main
 
@@ -447,8 +454,8 @@ sudo ln -sf $HOMEBREW_PATH/bin/pip3 $HOMEBREW_PATH/bin/pip
 printf "\nFinished creating symlinks"
 
 # Enable perl in homebrew
-if [[ $(printf '%s\n' "$CONFIG_YAML" | yq eval -r '.packages.perl.install') == "true" ]]; then
-    if [[ $DARWIN == 0 ]] ; then
+if [[ $(yq eval -r '.packages.perl.action' <<< "$CONFIG_YAML") == "install" ]]; then
+if [[ $DARWIN == 0 ]] ; then
             printf "\nFixing perl symlink..."
             # Create symlink to Homebrew's Perl in /usr/bin
             sudo ln -sf $HOMEBREW_PATH/bin/perl /usr/bin/perl
@@ -482,7 +489,7 @@ fi
 
 # Check if additional Neovim packages should be installed
 echo "-----------------------------------------------------------------"
-if [[ $(printf '%s\n' "$CONFIG_YAML" | yq eval -r '.packages.neovim.install') == "true" ]]; then
+if [[ $(yq eval -r '.packages.neovim.action' <<< "$CONFIG_YAML") == "install" ]]; then
     echo "Calling ./nvim_config.sh for additional setup packages"
     # Create a temporary file to store YAML data
     temp_file=$(mktemp)
@@ -496,25 +503,23 @@ else
 fi
 
 # Read YAML and install/uninstall plugins
-yq eval -r '.plugins | to_entries[] | "\(.key) \(.value.install) \(.value.directory) \(.value.url)"' <<< "$CONFIG_YAML" | while read -r plugin install directory url; do
+yq eval -r '.plugins | to_entries[] | "\(.key) \(.value.action) \(.value.directory) \(.value.url)"' <<< "$CONFIG_YAML" | while read -r plugin action directory url; do
     # Expand the tilde (~) manually if it's present
     directory=${directory/#\~/$HOME}
-    if [[ "$install" == "true" && ! -d "$directory" ]]; then
+    if [[ "$action" == "install" && ! -d "$directory" ]]; then
         echo "$plugin is not installed, cloning..."
         git clone "$url" "$directory"
-    elif [[ "$install" == "true" && -d "$directory" ]]; then
+    elif [[ "$action" == "install" && -d "$directory" ]]; then
         echo "$plugin is already installed."
-    elif [[ "$install" == "false" && -d "$directory" ]]; then
-        echo "$plugin install flag is set to false in config.yaml. Removing plugin directory..."
+    elif [[ "$action" == "uninstall" && -d "$directory" ]]; then
+        echo "$plugin action is set to uninstall in config.yaml. Removing plugin directory..."
         rm -rf "$directory"
-    elif [[ "$install" == "false" && ! -d "$directory" ]]; then
-        echo "$plugin flag is set to false and is not installed. No action needed."
-    elif [[ "$install" == "skip" ]]; then
-        echo "$plugin install flag is set to skip in config.yaml. No action will be taken."
-    elif [[ "$install" == "handled" ]]; then
-        echo "$plugin has already been handled by nvim_config.sh."
+    elif [[ "$action" == "uninstall" && ! -d "$directory" ]]; then
+        echo "$plugin is set to uninstall and is not installed. No action needed."
+    elif [[ "$action" == "skip" ]]; then
+        echo "$plugin action is set to skip in config.yaml. No action will be taken."
     else
-        echo "Invalid install status for $plugin in config.yaml. No action will be taken."
+        echo "Invalid action for $plugin in config.yaml. No action will be taken."
     fi
 done
 
@@ -527,10 +532,10 @@ bash "./zsh_config.sh" "$CONFIG_YAML"
 alias_commands=$(yq eval -r '
   (.packages + .plugins)
   | to_entries[]
-  | select(.value.aliases != [] and .value.install != "false")
+  | select(.value.aliases != [] and .value.action != "uninstall")
   | .value.aliases
   | to_entries[]
-  | select(.key != "" and .key != null and .value != "" and .value != null)
+  | select(.key != "" and .value != "")
   | "alias \(.key)=\(.value)"
 ' <<< "$CONFIG_YAML" | grep -v "^alias =$")
 
@@ -558,7 +563,7 @@ fi
 eval_commands=$(yq eval -r '
   (.packages + .plugins)
   | to_entries[]
-  | select(.value.eval != [] and .value.install != "false")
+  | select(.value.eval != [] and .value.action != "uninstall")
   | .value.eval[]
 ' <<< "$CONFIG_YAML" | grep -v "^$")
 

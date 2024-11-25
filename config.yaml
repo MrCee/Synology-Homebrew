@@ -1,54 +1,54 @@
 packages:
   make:
-    install: "true"
+    action: install
     aliases: []
     eval: []
   jq:
-    install: "true"
+    action: install
     aliases: []
     eval: []
   node:
-    install: "true"
+    action: install
     aliases: []
     eval: []
   perl:
-    install: "true"
+    action: install
     aliases: []
     eval:
       - "perl -I$HOME/perl5/lib/perl5 -Mlocal::lib=$HOME/perl5"
   neovim:
-    install: "true"
+    action: install
     aliases:
       vim: "nvim"
     eval: []
   stow:
-    install: "false"
+    action: skip
     aliases: []
     eval: []
   ripgrep:
-    install: "true"
+    action: install
     aliases: []
     eval: []
   fd:
-    install: "true"
+    action: install
     aliases: []
     eval: []
   fzf:
-    install: "true"
+    action: install
     aliases: []
     eval:
       - "fzf --zsh"
   bat:
-    install: "true"
+    action: install
     aliases:
       cat: "bat --paging=never"
     eval: []
   git-delta:
-    install: "true"
+    action: install
     aliases: []
     eval: []
   eza:
-    install: "true"
+    action: install
     aliases:
       ls: "eza --color=always --group-directories-first --icons"
       ll: "eza -la --icons --octal-permissions --group-directories-first --icons"
@@ -61,46 +61,46 @@ packages:
       l.: "eza -a | grep -E '^\\.'"
     eval: []
   tlrc:
-    install: "true"
+    action: install
     aliases: []
     eval: []
   thefuck:
-    install: "true"
+    action: install
     aliases: []
     eval:
       - "thefuck --alias"
   zoxide:
-    install: "true"
+    action: install
     aliases:
       cd: "z"
     eval:
       - "zoxide init zsh"
   jesseduffield/lazygit/lazygit:
-    install: "true"
+    action: install
     aliases:
       lg: "lazygit"
     eval: []
 plugins:
   powerlevel10k:
-    install: "true"
+    action: install
     url: "https://github.com/romkatv/powerlevel10k"
     directory: "~/.oh-my-zsh/custom/themes/powerlevel10k"
     aliases: []
     eval: []
   zsh-syntax-highlighting:
-    install: "true"
+    action: install
     url: "https://github.com/zsh-users/zsh-syntax-highlighting"
     directory: "~/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting"
     aliases: []
     eval: []
   zsh-autosuggestions:
-    install: "true"
+    action: install
     url: "https://github.com/zsh-users/zsh-autosuggestions"
     directory: "~/.oh-my-zsh/custom/plugins/zsh-autosuggestions"
     aliases: []
     eval: []
   kickstart.nvim:
-    install: "true"
+    action: install
     url: "https://github.com/nvim-lua/kickstart.nvim"
     directory: "~/.config/nvim-kickstart"
     aliases:
