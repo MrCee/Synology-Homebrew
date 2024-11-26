@@ -98,10 +98,10 @@ _Recommended if you want to get started with Neovim or install some of the great
 
 ## Configuration for Advanced install (`config.yaml`)
 
-To manage packages, plugins, and themes, edit the `config.yaml` file and set the install flag to one of three options: **true**, **false**, or **skip**.
+To manage packages, plugins, and themes, edit the `config.yaml` file and set the action flag to one of three options:
 
-- **true**: Install the package, plugin, or theme.
-- **false**: Uninstall the package, plugin, or theme.
+- **install**: Install the package, plugin, or theme.
+- **uninstall**: Uninstall the package, plugin, or theme.
 - **skip**: Do nothing, leaving the current state unchanged.
 
 Plugins and themes can be defined under the **plugins** section. Plugin names will be updated to reflect the last part of the URL for consistency.
@@ -113,39 +113,39 @@ The below is a snippet of how `config.yaml` should be formatted. Please see the 
 ```yaml
 packages:
   make:
-    install: "true"
+    action: install
     aliases: []
     eval: []
   jq:
-    install: "true"
+    action: install
     aliases: []
     eval: []
   perl:
-    install: "true"
+    action: install
     aliases: []
     eval:
       - "perl -I$HOME/perl5/lib/perl5 -Mlocal::lib=$HOME/perl5"
   neovim:
-    install: "true"
+    action: install
     aliases:
       vim: "nvim"
     eval: []
   stow:
-    install: "skip"
+    action: skip
     aliases: []
     eval: []
   fzf:
-    install: "true"
+    action: install
     aliases: []
     eval:
       - "fzf --zsh"
   bat:
-    install: "true"
+    action: install
     aliases:
       cat: "bat --paging=never"
     eval: []
   eza:
-    install: "true"
+    action: install
     aliases:
       ls: "eza --color=always --group-directories-first --icons"
       ll: "eza -la --icons --octal-permissions --group-directories-first --icons"
@@ -158,30 +158,30 @@ packages:
       l.: "eza -a | grep -E '^\\.'"
     eval: []
   thefuck:
-    install: "true"
+    action: install
     aliases: []
     eval:
       - "thefuck --alias"
   zoxide:
-    install: "true"
+    action: install
     aliases:
       cd: "z"
     eval:
       - "zoxide init zsh"
   jesseduffield/lazygit/lazygit:
-    install: "true"
+    action: install
     aliases:
       lg: "lazygit"
     eval: []
 plugins:
   powerlevel10k:
-    install: "true"
+    action: install
     url: "https://github.com/romkatv/powerlevel10k"
     directory: "~/.oh-my-zsh/custom/themes/powerlevel10k"
     aliases: []
     eval: []
   kickstart.nvim:
-    install: "true"
+    action: install
     url: "https://github.com/nvim-lua/kickstart.nvim"
     directory: "~/.config/nvim-kickstart"
     aliases:
@@ -191,7 +191,7 @@ plugins:
 
 ## Installed packages
 
-Modify packages to be installed by editing config.yaml and setting the install flag to true, false, or skip.
+Modify packages to be installed by editing config.yaml and setting the action flag to install, uninstall, or skip.
 
 | Package                                                                         | Description                                                                                                 | Dependency                              |
 | ------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- | --------------------------------------- |

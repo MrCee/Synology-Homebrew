@@ -9,11 +9,11 @@ install_zsh_plugins() {
     local default_plugins=("git" "web-search")
     local plugins_array=("${default_plugins[@]}")
 
-    # Use yq to get the list of plugins to add where install is true and directory contains custom/plugins
+    # Use yq to get the list of plugins to add where action is "install" and directory contains custom/plugins
     local add_plugins
     add_plugins=$(yq eval -r '
       .plugins | to_entries[] |
-      select(.value.install == "true" and (.value.directory | contains("custom/plugins"))) |
+      select(.value.action == "install" and (.value.directory | contains("custom/plugins"))) |
       .key' <<< "$CONFIG_YAML")
 
     # Iterate over the add_plugins, appending them to plugins_array
@@ -31,23 +31,35 @@ install_zsh_plugins() {
     func_sed "s|^plugins=.*$|plugins=($plugins)|" ~/.zshrc
 }
 
+# Function to uninstall zsh plugins
+uninstall_zsh_plugins() {
+    echo "uninstall_zsh_plugins..."
+
+    # Reset to default plugins
+    local default_plugins=("git" "web-search")
+    local plugins="${default_plugins[*]}"
+
+    # Update ~/.zshrc with the default plugins
+    func_sed "s|^plugins=.*$|plugins=($plugins)|" ~/.zshrc
+}
+
 # Function to install Powerlevel10k theme if required
 install_powerlevel10k_theme() {
     echo "install_powerlevel10k_theme..."
-    cp $SCRIPT_DIR/.p10k.zsh ~/.p10k.zsh
+    cp "$SCRIPT_DIR/.p10k.zsh" ~/.p10k.zsh
 
     # Ensure the theme is set to Powerlevel10k
     func_sed 's|^ZSH_THEME=.*$|ZSH_THEME="powerlevel10k/powerlevel10k"|' ~/.zshrc
 
-if ! grep -q "Enable Powerlevel10k instant prompt" ~/.zshrc; then
-  echo '# Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.zshrc.
+    if ! grep -q "Enable Powerlevel10k instant prompt" ~/.zshrc; then
+        echo '# Enable Powerlevel10k instant prompt. Should stay close to the top of ~/.zshrc.
 # Initialization code that may require console input (password prompts, [y/n]
 # confirmations, etc.) must go above this block; everything else may go below.
 if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]; then
   source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
 fi
 ' | cat - ~/.zshrc > /tmp/.zshrc && mv /tmp/.zshrc ~/.zshrc
-fi
+    fi
 
     # Ensure the Powerlevel10k sourcing line is in ~/.zshrc
     local p10k_line='[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh'
@@ -60,6 +72,24 @@ fi
     else
         echo "Powerlevel10k source line already exists in ~/.zshrc."
     fi
+}
+
+# Function to uninstall Powerlevel10k theme
+uninstall_powerlevel10k_theme() {
+    echo "uninstall_powerlevel10k_theme..."
+
+    # Remove .p10k.zsh file
+    rm -f ~/.p10k.zsh
+
+    # Reset ZSH_THEME to default
+    func_sed 's|^ZSH_THEME=.*$|ZSH_THEME="robbyrussell"|' ~/.zshrc
+
+    # Remove Powerlevel10k instant prompt block
+    sed -i '/Enable Powerlevel10k instant prompt/,/fi/d' ~/.zshrc
+
+    # Remove Powerlevel10k source line
+    local p10k_line='[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh'
+    func_sed "/$p10k_line/d" ~/.zshrc
 }
 
 # Function to install bat theme if required
@@ -78,6 +108,15 @@ install_bat_theme() {
     fi
 }
 
+# Function to uninstall bat theme
+uninstall_bat_theme() {
+    local theme_name="tokyonight_night"
+    echo "Uninstalling bat theme: $theme_name"
+    rm -f "$(bat --config-dir)/themes/${theme_name}.tmTheme"
+    bat cache --build
+    func_sed "/--theme=\"$theme_name\"/d" "$(bat --config-dir)/config"
+}
+
 # Main
 echo "Successfully called $(basename "$0")"
 SCRIPT_DIR=$(realpath "$(dirname "$0")")
@@ -91,16 +130,38 @@ if [[ -z "$CONFIG_YAML" ]]; then
     exit 1
 fi
 
-install_zsh_plugins
+# Handle zsh plugins
+zsh_plugins_action=$(printf '%s\n' "$CONFIG_YAML" | yq eval -r '.plugins | to_entries[] | select(.value.directory | contains("custom/plugins")) | .value.action' | uniq)
 
-if [[ $(printf '%s\n' "$CONFIG_YAML" | yq eval -r '.packages.bat.install') == "true" ]]; then
+if [[ "$zsh_plugins_action" == "install" ]]; then
+    install_zsh_plugins
+elif [[ "$zsh_plugins_action" == "uninstall" ]]; then
+    uninstall_zsh_plugins
+fi
+
+# Handle bat package action
+bat_action=$(printf '%s\n' "$CONFIG_YAML" | yq eval -r '.packages.bat.action')
+
+if [[ "$bat_action" == "install" ]]; then
     if [[ -x $(command -v bat) ]]; then
         install_bat_theme
     else
         echo "bat not installed. Cannot install theme."
     fi
+elif [[ "$bat_action" == "uninstall" ]]; then
+    if [[ -x $(command -v bat) ]]; then
+        uninstall_bat_theme
+    else
+        echo "bat not installed. Nothing to uninstall."
+    fi
 fi
 
-if [[ $(printf '%s\n' "$CONFIG_YAML" | yq eval -r '.plugins.powerlevel10k.install') == "true" ]]; then
+# Handle powerlevel10k plugin action
+p10k_action=$(printf '%s\n' "$CONFIG_YAML" | yq eval -r '.plugins.powerlevel10k.action')
+
+if [[ "$p10k_action" == "install" ]]; then
     install_powerlevel10k_theme
+elif [[ "$p10k_action" == "uninstall" ]]; then
+    uninstall_powerlevel10k_theme
 fi
+
