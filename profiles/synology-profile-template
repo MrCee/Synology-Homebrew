@@ -1,3 +1,9 @@
+if [ -z "$HOMEBREW_PATH" ]; then
+    echo "Error: HOMEBREW_PATH is not set."
+    exit 1
+fi
+
+
 PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/syno/sbin:/usr/syno/bin:/usr/local/sbin:/usr/local/bin
 # Directories to add to PATH
 directories=(
@@ -8,6 +14,16 @@ directories=(
   "$HOMEBREW_PATH/sbin"
   "$HOMEBREW_PATH/bin"
 )
+
+# Expand wildcard paths for Ruby gem binaries
+if [ -d "$HOMEBREW_PATH/lib/ruby/gems" ]; then
+    for gem_bin in "$HOMEBREW_PATH"/lib/ruby/gems/*/bin; do
+        if [ -d "$gem_bin" ]; then
+            directories+=("$gem_bin")
+        fi
+    done
+fi
+
 # Iterate over each directory in the 'directories' array
 for dir in "${directories[@]}"; do
     # Check if the directory is already in PATH

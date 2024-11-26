@@ -253,6 +253,8 @@ EOF
     else
         echo "SKIPPING: Neovim components installation. This is expected when running this script independently."
     fi
+fi
+
 # Perform cleanup only if run directly
 if [[ "$CALLED_BY_MAIN" -eq 0 ]]; then
     echo "${REMOVE} Performing cleanup since script was run directly."

@@ -16,6 +16,11 @@ source "./functions.sh"
 # Initialize environment variables
 func_initialize_env_vars
 
+# Save original stty settings and disable echoctl
+orig_stty=$(stty -g)
+export orig_stty
+stty -echoctl
+
 # Check if DARWIN was set correctly
 echo "DARWIN: $DARWIN"
 echo "HOMEBREW_PATH: $HOMEBREW_PATH"

@@ -136,6 +136,11 @@ func_cleanup_exit() {
 
     [[ $DEBUG == 1 ]] && echo "🔄 Debug: func_cleanup_exit called with exit code $exit_code."
 
+    # Restore original stty settings
+    if [[ -n "${orig_stty:-}" ]]; then
+        stty "$orig_stty"
+    fi
+
     if [[ $exit_code -eq 0 ]]; then
         echo "🎉 Script completed successfully."
     else
