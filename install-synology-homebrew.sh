@@ -495,12 +495,12 @@ fi
 # Check if additional Neovim packages should be installed
 echo "-----------------------------------------------------------------"
 if [[ $(yq eval -r '.packages.neovim.action' <<< "$CONFIG_YAML") == "install" ]]; then
-    echo "Calling ./nvim_config.sh for additional setup packages"
+    echo "Calling ./install-neovim.sh for additional setup packages"
     # Create a temporary file to store YAML data
     temp_file=$(mktemp)
     printf '%s\n' "$CONFIG_YAML" > "$temp_file"
 
-    bash "./nvim_config.sh" "$temp_file"
+    bash "./install-neovim.sh" "$temp_file"
     CONFIG_YAML=$(<"$temp_file")
     rm "$temp_file"
 else

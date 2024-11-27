@@ -6,6 +6,14 @@
 # Enable strict error handling
 set -euo pipefail
 
+SCRIPT_PATH=$(realpath "$0")
+SCRIPT_DIR=$(dirname "$SCRIPT_PATH")
+
+# Change to the script directory
+cd "$SCRIPT_DIR" || { echo "Failed to change directory to $SCRIPT_DIR" >&2; exit 1; }
+echo "Working directory: $(pwd)"
+
+
 # Define icons for better readability
 INFO="ℹ️"
 SUCCESS="✅"
@@ -38,7 +46,7 @@ else
     CALLED_BY_MAIN=0
 fi
 
-# Main logic of nvim_config.sh
+# Main logic of install-neovim.sh
 echo "${TOOLS} Running Neovim configuration tasks..."
 
 # Validate and read YAML from the temporary file or config.yaml
@@ -66,11 +74,16 @@ else
     read -p "Would you like to check and install Neovim dependencies? (y/n): " answer
     if [[ "$answer" == "y" ]]; then
         CONFIG_YAML=$(printf '%s\n' "$CONFIG_YAML" | yq e '.packages.neovim.action = "install"')
+    else
+        CONFIG_YAML=$(printf '%s\n' "$CONFIG_YAML" | yq e '.packages.neovim.action = "skip"')
     fi
 
     read -p "Would you like to check and install kickstart.nvim? (y/n): " answer
     if [[ "$answer" == "y" ]]; then
         CONFIG_YAML=$(printf '%s\n' "$CONFIG_YAML" | yq e '.plugins."kickstart.nvim".action = "install"')
+    else
+        CONFIG_YAML=$(printf '%s\n' "$CONFIG_YAML" | yq e '.plugins."kickstart.nvim".action = "skip"')
+
     fi
  func_sudoers
 fi
@@ -223,12 +236,13 @@ EOF
             # Run the postinstall step for Node.js
             brew postinstall node
 
-            # Install the latest npm globally
-            sudo npm install -g npm@latest
 
             # Disable npm funding messages globally
             sudo npm config set fund false --location=global
 
+            #fix the permission
+            sudo chown -R $(whoami) ~/.npm
+            
             # Install neovim globally using npm
             sudo npm install -g neovim@latest
 
@@ -253,14 +267,6 @@ EOF
     else
         echo "SKIPPING: Neovim components installation. This is expected when running this script independently."
     fi
-fi
-
-# Perform cleanup only if run directly
-if [[ "$CALLED_BY_MAIN" -eq 0 ]]; then
-    echo "${REMOVE} Performing cleanup since script was run directly."
-    func_cleanup_exit 0
-else
-    echo "Neovim is not set to install. Skipping additional configuration."
 fi
 
 # Write updated YAML back to the temporary file
