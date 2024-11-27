@@ -17,23 +17,34 @@ func_sed() {
     local sed_expr="$1"
     local input_file="$2"
     local tmp_file
-    tmp_file=$(mktemp)
 
-    if sed -E "$sed_expr" "$input_file" > "$tmp_file" 2>&1; then
+    tmp_file=$(mktemp) || { echo "❌ Error: Failed to create temporary file." >&2; return 1; }
+
+    # Run sed and capture output
+    if sed -E "$sed_expr" "$input_file" > "$tmp_file"; then
+        # Check if the file actually needs changes
         if cmp -s "$input_file" "$tmp_file"; then
             echo "✅ Sed operation: No changes needed in '$input_file'."
         else
-            mv "$tmp_file" "$input_file"
+            mv "$tmp_file" "$input_file" || {
+                echo "❌ Error: Failed to move temporary file to '$input_file'." >&2
+                rm -f "$tmp_file"
+                return 1
+            }
             echo "🛠️ Sed operation: Fix applied in '$input_file' :: '$sed_expr'"
         fi
     else
+        # Handle sed errors
         echo "❌ Error: Sed operation failed for '$input_file' with expression '$sed_expr'" >&2
         rm -f "$tmp_file"
         return 1
     fi
+    # Cleanup temporary file
+    rm -f "$tmp_file"
 
-    [[ -f "$tmp_file" ]] && rm -f "$tmp_file"
+    return 0  # Ensure the function returns success
 }
+
 
 # -----------------------------------------------
 # Function: func_sudoers
@@ -52,7 +63,7 @@ func_sudoers() {
         sudoers_dir="/private/etc/sudoers.d"
     else
         # Detect Synology DSM
-        if [[ -f /usr/syno/bin/synoservice ]]; then
+        if [[ -f /usr/syno/bin/synopkg ]]; then
             sudoers_dir="/etc/sudoers.d"
             is_synology=1
         else

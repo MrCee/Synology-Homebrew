@@ -2,9 +2,7 @@
 
 # Ensure DEBUG is set to 0 if unset or null
 : "${DEBUG:=0}"
-
-# Enable strict error handling
-set -euo pipefail
+[[ $DEBUG == 1 ]] && echo "DEBUG mode on with strict -euo pipefail error handling" && set -euo pipefail
 
 SCRIPT_PATH=$(realpath "$0")
 SCRIPT_DIR=$(dirname "$SCRIPT_PATH")
@@ -158,8 +156,9 @@ if [[ "$neovim_action" == "install" ]]; then
     echo "FOUND files with 'unnamedplus':"
     printf "%s\n" "$config_files"
     echo "----------------------------------------"
-    # Use a heredoc to store the code block in a variable which is used to activate clipboard over SSH
-    code_to_add=$(cat <<'EOF'
+
+# Use a heredoc to store the code block in a variable which is used to activate clipboard over SSH
+code_to_add=$(cat <<'EOF'
 -- Added by Synology-Homebrew OSC52
 vim.g.clipboard = {
     name = 'OSC52',
@@ -174,20 +173,27 @@ vim.g.clipboard = {
 }
 EOF
 )
-    # Check if any files are found
-    if [[ -n "$config_files" ]]; then
-        for config_file in $config_files; do
-            if ! grep -q "Added by Synology-Homebrew OSC52" "$config_file"; then
-                # Add the code after the line containing "unnamedplus"
-                func_sed "/unnamedplus/ r /dev/stdin" "$config_file" <<<"$code_to_add"
-                echo "OSC52 code for remote/system clipboard successfully added to $config_file"
+
+# Check if any files are found
+if [[ -n "$config_files" ]]; then
+    echo "Processing files:"
+    while IFS= read -r config_file; do
+        echo "Checking: $config_file"
+        if ! grep -q "Added by Synology-Homebrew OSC52" "$config_file"; then
+            echo "Adding OSC52 code to $config_file"
+            if func_sed "/unnamedplus/ r /dev/stdin" "$config_file" <<<"$code_to_add"; then
+                echo "OSC52 code successfully added to $config_file"
             else
-                echo "OSC52 code for remote/system clipboard already exists in $config_file"
+                echo "Error: Failed to apply sed to $config_file" >&2
+                continue
             fi
-        done
-    else
-        echo "No file containing 'unnamedplus' found in ~/.config folder."
-    fi
+        else
+            echo "OSC52 code already exists in $config_file"
+        fi
+    done <<< "$config_files"
+else
+    echo "No file containing 'unnamedplus' found in ~/.config folder."
+fi
 
     # Install additional packages for Neovim
     echo "----------------------------------------"
