@@ -210,9 +210,11 @@ if [[ ! -d /home ]]; then
     sudo mkdir -p /home
     sudo mount -o bind "/volume1/homes" /home
     sudo chown -R "$(whoami)":root /home
+	sudo chmod 775 /home -R 
 fi
 
-
+# Permission fix for re-install
+sudo chmod 775 /home -R 
 
 # Begin Homebrew install. Remove brew git env if it does not exist
 [[ ! -x $HOMEBREW_PATH/bin/git ]] && unset HOMEBREW_GIT_PATH
@@ -233,7 +235,7 @@ brew upgrade --quiet 2> /dev/null
 
 
 # Create a new .profile with homebrew paths
-profile_filled=$(<./profiles/synology-profile-template)
+profile_filled=$(<./profile-templates/synology-profile-template)
 profile_filled="${profile_filled//\$HOMEBREW_PATH/$HOMEBREW_PATH}"
 echo "$profile_filled" > ~/.profile
 source ~/.profile
@@ -257,7 +259,7 @@ brew install --quiet grep 2> /dev/null
 brew install --quiet gawk 2> /dev/null
 
 # Create a new .zprofile with homebrew paths
-profile_filled=$(<./profiles/macos-profile-template)
+profile_filled=$(<./profile-templates/macos-profile-template)
 profile_filled="${profile_filled//\$HOMEBREW_PATH/$HOMEBREW_PATH}"
 echo "$profile_filled" > ~/.zprofile
 source ~/.zprofile
@@ -279,11 +281,20 @@ fi
 CONFIG_YAML=$(<"$CONFIG_YAML_PATH")
 
 if [[ "$selection" -eq 1 ]]; then
-    # Modify the action field with the value "uninstall" in temp variable CONFIG_YAML for .packages and .plugins
-    CONFIG_YAML=$(printf '%s\n' "$CONFIG_YAML" | yq -e '
-      .packages |= map_values(.action = "uninstall") |
-      .plugins |= map_values(.action = "uninstall")
-    ')
+# 1) Set everything to uninstall
+CONFIG_YAML_ORIG="$CONFIG_YAML"  # Save original first
+CONFIG_YAML=$(printf '%s\n' "$CONFIG_YAML_ORIG" | yq e '
+  .packages[].action = "uninstall" |
+  .plugins[].action = "uninstall"
+')
+
+# 2) For each special plugin, if it was "install" in the original, put it back
+for plugin in powerlevel10k zsh-syntax-highlighting zsh-autosuggestions; do
+  was_install=$(printf '%s\n' "$CONFIG_YAML_ORIG" | yq e ".plugins.${plugin}.action")
+  if [[ "$was_install" == "install" ]]; then
+    CONFIG_YAML=$(printf '%s\n' "$CONFIG_YAML" | yq e ".plugins.${plugin}.action = \"install\"")
+  fi
+done
 fi
 
 if [[ $DARWIN == 0 ]] ; then
@@ -456,7 +467,7 @@ sudo ln -sf $HOMEBREW_PATH/bin/python3 $HOMEBREW_PATH/bin/python
 sudo ln -sf $HOMEBREW_PATH/bin/pip3 $HOMEBREW_PATH/bin/pip
 [[ $DARWIN == 0 ]] && sudo ln -sf $HOMEBREW_PATH/bin/gcc $HOMEBREW_PATH/bin/cc
 [[ $DARWIN == 0 ]] && sudo ln -sf $HOMEBREW_PATH/bin/zsh /bin/zsh
-printf "\nFinished creating symlinks"
+printf "\nFinished creating symlinks\n"
 
 # Enable perl in homebrew
 if [[ $(yq eval -r '.packages.perl.action' <<< "$CONFIG_YAML") == "install" ]]; then
@@ -541,8 +552,8 @@ alias_commands=$(yq eval -r '
   | .value.aliases
   | to_entries[]
   | select(.key != "" and .value != "")
-  | "alias \(.key)=\(.value)"
-' <<< "$CONFIG_YAML" | grep -v "^alias =$")
+  | "\(.key)=\(.value)"
+' <<< "$CONFIG_YAML" | grep -v "^=$")
 
 # Only proceed if alias_commands is not empty
 if [[ -n "$alias_commands" ]]; then
@@ -619,5 +630,9 @@ fi
 fi # end DARWIN
 
 func_cleanup_exit 0
+
+# TODO: Dirty fix for nwe error appearing  "compinit:480: compdump: function definition file not found"
+[[ $DARWIN == 0 ]] && brew reinstall zsh
+
 echo "Script completed successfully. You will now be transported to ZSH!!!"
 exec zsh --login

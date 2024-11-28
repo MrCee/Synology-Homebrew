@@ -242,24 +242,22 @@ fi
             # Run the postinstall step for Node.js
             brew postinstall node
 
-
             # Disable npm funding messages globally
             sudo npm config set fund false --location=global
 
-            #fix the permission
-            sudo chown -R $(whoami) ~/.npm
-            
-            # Install neovim globally using npm
+             # Install neovim globally using npm
+            echo "installing neovim with npm."
+            [[ ! -d ~/.npm ]] && mkdir ~/.npm
+            sudo chown -R $(whoami):$DEFAULT_GROUP ~/.npm
             sudo npm install -g neovim@latest
 
-            echo -e "Checking for gem updates:\n"
-
-            # Check if the neovim gem is installed; install if missing
+            echo "checking neovim gem..."
             if ! gem list -i neovim; then
                 gem install neovim --no-document
             fi
 
             # Check if a compatible version of Bundler is installed
+            echo "checking gem bundler..."
             if ! gem list -i bundler; then
                 gem install bundler -v '< 2.5' --no-document
             fi

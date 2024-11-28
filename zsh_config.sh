@@ -46,7 +46,7 @@ uninstall_zsh_plugins() {
 # Function to install Powerlevel10k theme if required
 install_powerlevel10k_theme() {
     echo "install_powerlevel10k_theme..."
-    cp "$SCRIPT_DIR/.p10k.zsh" ~/.p10k.zsh
+    cp "$SCRIPT_DIR/profile-templates/p10k-profile-template" ~/.p10k.zsh
 
     # Ensure the theme is set to Powerlevel10k
     func_sed 's|^ZSH_THEME=.*$|ZSH_THEME="powerlevel10k/powerlevel10k"|' ~/.zshrc
@@ -85,11 +85,11 @@ uninstall_powerlevel10k_theme() {
     func_sed 's|^ZSH_THEME=.*$|ZSH_THEME="robbyrussell"|' ~/.zshrc
 
     # Remove Powerlevel10k instant prompt block
-    sed -i '/Enable Powerlevel10k instant prompt/,/fi/d' ~/.zshrc
+    func_sed '/Enable Powerlevel10k instant prompt/,/fi/d' ~/.zshrc
 
     # Remove Powerlevel10k source line
-    local p10k_line='[[ ! -f ~/.p10k.zsh ]] || source ~/.p10k.zsh'
-    func_sed "/$p10k_line/d" ~/.zshrc
+    # Use "#" delimiter:
+	func_sed "\#\[\[ ! -f ~/.p10k.zsh \]\] \|\| source ~/.p10k.zsh#d" ~/.zshrc
 }
 
 # Function to install bat theme if required

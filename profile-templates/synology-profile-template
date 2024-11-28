@@ -7,7 +7,6 @@ fi
 PATH=/sbin:/bin:/usr/sbin:/usr/bin:/usr/syno/sbin:/usr/syno/bin:/usr/local/sbin:/usr/local/bin
 # Directories to add to PATH
 directories=(
-  "$HOMEBREW_PATH/lib/ruby/gems/*/bin"
   "$HOMEBREW_PATH/opt/glibc/sbin"
   "$HOMEBREW_PATH/opt/glibc/bin"
   "$HOMEBREW_PATH/opt/binutils/bin"

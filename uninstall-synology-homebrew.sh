@@ -1,7 +1,16 @@
 #!/bin/bash
 
-source ./functions.sh 
+source ./functions.sh
 func_initialize_env_vars
+
+# Set Trap for EXIT to Handle Normal Cleanup
+trap 'code=$?; func_cleanup_exit $code' EXIT
+
+# Set Trap for Interruption Signals to Handle Cleanup
+trap 'func_cleanup_exit 130' INT TERM HUP QUIT ABRT ALRM PIPE
+
+# Setup sudoers file
+func_sudoers
 
 # Ensure sudo credentials are cached
 sudo -v || { echo "Failed to cache sudo credentials"; exit 1; }
@@ -65,7 +74,7 @@ rm -rf ~/.p10k.zsh
 rm -rf ~/.zshrc
 sudo rm -rf ~/perl5 ~/.cpan ~/.npm
 
-
+func_cleanup_exit
 
 echo "Uninstall complete. Returning to the default shell.."
 
@@ -74,10 +83,8 @@ if [[ $DARWIN == 0 ]] ; then
     source "$HOME/.profile"
     exec /bin/ash --login
 fi
-if [[ $DARWIN == 1 ]] ; then 
+if [[ $DARWIN == 1 ]] ; then
 	sudo rm  ~/.zshrc ~/.zprofile > /dev/null 2>&1
 	source /etc/profile
 	/bin/zsh --login
 fi
-
-
