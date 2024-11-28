@@ -233,7 +233,7 @@ brew upgrade --quiet 2> /dev/null
 
 
 # Create a new .profile with homebrew paths
-profile_filled=$(<./profiles/synology-profile-template)
+profile_filled=$(<.profile-templates/synology-profile-template)
 profile_filled="${profile_filled//\$HOMEBREW_PATH/$HOMEBREW_PATH}"
 echo "$profile_filled" > ~/.profile
 source ~/.profile
@@ -257,7 +257,7 @@ brew install --quiet grep 2> /dev/null
 brew install --quiet gawk 2> /dev/null
 
 # Create a new .zprofile with homebrew paths
-profile_filled=$(<./profiles/macos-profile-template)
+profile_filled=$(<.profile-templates/macos-profile-template)
 profile_filled="${profile_filled//\$HOMEBREW_PATH/$HOMEBREW_PATH}"
 echo "$profile_filled" > ~/.zprofile
 source ~/.zprofile

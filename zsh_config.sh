@@ -46,7 +46,7 @@ uninstall_zsh_plugins() {
 # Function to install Powerlevel10k theme if required
 install_powerlevel10k_theme() {
     echo "install_powerlevel10k_theme..."
-    cp "$SCRIPT_DIR/.p10k.zsh" ~/.p10k.zsh
+    cp "$SCRIPT_DIR/profile-templates/p10k-profile-template" ~/.p10k.zsh
 
     # Ensure the theme is set to Powerlevel10k
     func_sed 's|^ZSH_THEME=.*$|ZSH_THEME="powerlevel10k/powerlevel10k"|' ~/.zshrc
