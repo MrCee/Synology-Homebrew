@@ -106,3 +106,9 @@ plugins:
     aliases:
       nvim: "NVIM_APPNAME=\"nvim-kickstart\" nvim"
     eval: []
+  oh-my-posh:
+    action: install
+    url: "https://github.com/JanDeDobbeleer/oh-my-posh.git"
+    directory: ~/.config/oh-my-posh
+    aliases: []
+    eval: oh-my-posh init zsh

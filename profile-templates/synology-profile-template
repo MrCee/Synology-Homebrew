@@ -48,7 +48,7 @@ for ((i = 11; i < max_version; i++)); do
     ln -sf "$HOMEBREW_PATH/bin/gcc-$max_version" "$HOMEBREW_PATH/bin/gcc-$i"
 done
 
-eval "$($HOMEBREW_PATH/bin/brew shellenv)"
+eval "$($HOMEBREW_PATH/brew shellenv)"
 
 # fzf-git.sh source git key bindings for fzf-git
 [[ -f $HOME/.scripts/fzf-git.sh ]] && source "$HOME/.scripts/fzf-git.sh"

@@ -1,248 +1,137 @@
 #!/bin/bash
 
-# Check if the script is being sourced
+# Ensure the script is sourced, not executed directly
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     echo "🚫 This file should not be run directly; it should be sourced from the main script."
     exit 1
 fi
 
-# -----------------------------------------------
-# Function: func_sed
-# Description: Performs a sed operation in a portable way.
-# Arguments:
-#   $1 - Sed expression
-#   $2 - Input file
-# -----------------------------------------------
-func_sed() {
-    local sed_expr="$1"
-    local input_file="$2"
-    local tmp_file
-
-    tmp_file=$(mktemp) || { echo "❌ Error: Failed to create temporary file." >&2; return 1; }
-
-    # Run sed and capture output
-    if sed -E "$sed_expr" "$input_file" > "$tmp_file"; then
-        # Check if the file actually needs changes
-        if cmp -s "$input_file" "$tmp_file"; then
-            echo "✅ Sed operation: No changes needed in '$input_file'."
-        else
-            mv "$tmp_file" "$input_file" || {
-                echo "❌ Error: Failed to move temporary file to '$input_file'." >&2
-                rm -f "$tmp_file"
-                return 1
-            }
-            echo "🛠️ Sed operation: Fix applied in '$input_file' :: '$sed_expr'"
-        fi
-    else
-        # Handle sed errors
-        echo "❌ Error: Sed operation failed for '$input_file' with expression '$sed_expr'" >&2
-        rm -f "$tmp_file"
-        return 1
-    fi
-    # Cleanup temporary file
-    rm -f "$tmp_file"
-
-    return 0  # Ensure the function returns success
-}
-
-
-# -----------------------------------------------
-# Function: func_sudoers
-# Description: Sets up the sudoers file with necessary permissions.
-# Handles both macOS and Synology NAS environments.
-# -----------------------------------------------
-func_sudoers() {
-    # Determine the sudoers directory and file path based on OS
-    local sudoers_dir=""
-    local current_user=""
-    local is_synology=0
-
-    if [[ $DARWIN -eq 0 ]]; then
-        sudoers_dir="/etc/sudoers.d"
-    elif [[ $DARWIN -eq 1 ]]; then
-        sudoers_dir="/private/etc/sudoers.d"
-    else
-        # Detect Synology DSM
-        if [[ -f /usr/syno/bin/synopkg ]]; then
-            sudoers_dir="/etc/sudoers.d"
-            is_synology=1
-        else
-            echo "❌ Unsupported OS."
-            return 1
-        fi
-    fi
-
-    sudoers_file="$sudoers_dir/custom_homebrew_sudoers"
-    current_user=$(whoami)
-
-    # Register the sudoers file for cleanup early
-    export SUDOERS_FILE="$sudoers_file"
-
-    # Check if sudoers setup is already done and the file exists
-    if [[ "${SUDOERS_SETUP_DONE:-0}" -eq 1 && -f "$sudoers_file" ]]; then
-        echo "✅ Sudoers setup already completed and sudoers file exists. Skipping."
-        return 0
-    fi
-
-    # Proceed with sudoers setup
-    echo "🛠️ Setting up sudoers file..."
-
-    # Cache sudo credentials upfront
-    sudo -k  # Reset cached credentials
-    if ! sudo -v; then
-        echo "❌ Failed to cache sudo credentials." >&2
-        return 1
-    fi
-
-    # Ensure the sudoers directory exists
-    if [[ ! -e "$sudoers_dir" ]]; then
-        echo "🔧 Creating sudoers directory at '$sudoers_dir'..."
-        sudo mkdir -p "$sudoers_dir" || { echo "❌ Failed to create '$sudoers_dir'."; return 1; }
-    fi
-
-    # Set the correct permissions for the sudoers directory
-    sudo chmod 0755 "$sudoers_dir" || { echo "❌ Failed to set permissions for '$sudoers_dir'."; return 1; }
-
-    # Install the sudoers file using tee
-    echo "📝 Installing sudoers file at '$sudoers_file'..."
-    sudo tee "$sudoers_file" > /dev/null <<EOF
-Defaults syslog=authpriv
-root ALL=(ALL) ALL
-$current_user ALL=NOPASSWD: ALL
-EOF
-
-    # Set permissions for the sudoers file
-    sudo chmod 0440 "$sudoers_file" || { echo "❌ Failed to set permissions for '$sudoers_file'."; return 1; }
-
-    # Validate the sudoers file syntax only if visudo is available
-    if command -v visudo > /dev/null 2>&1; then
-        if ! sudo visudo -cf "$sudoers_file"; then
-            echo "❌ Sudoers file syntax is invalid. Removing the faulty file." >&2
-            sudo rm -f "$sudoers_file"
-            return 1
-        fi
-        echo "✅ Sudoers file validated successfully."
-    else
-        if [[ $is_synology -eq 1 ]]; then
-            echo "⚠️ Warning: 'visudo' not available on Synology NAS. Please ensure the sudoers file syntax is correct." >&2
-        else
-            echo "⚠️ Warning: 'visudo' not found. Skipping sudoers file validation." >&2
-        fi
-    fi
-
-    echo "✅ Sudoers file installed successfully at '$sudoers_file'."
-
-    # Mark sudoers setup as done
-    export SUDOERS_SETUP_DONE=1
-}
-
-# -----------------------------------------------
-# Function: func_cleanup_exit
-# Description: Cleans up the sudoers file upon script exit or interruption.
-# Arguments:
-#   $1 - Exit code (default: 0)
-# -----------------------------------------------
-func_cleanup_exit() {
-    local exit_code=${1:-0}  # Use $1 if provided, otherwise default to 0
-
-    [[ $DEBUG == 1 ]] && echo "🔄 Debug: func_cleanup_exit called with exit code $exit_code."
-
-    # Restore original stty settings
-    if [[ -n "${orig_stty:-}" ]]; then
-        stty "$orig_stty"
-    fi
-
-    if [[ $exit_code -eq 0 ]]; then
-        echo "🎉 Script completed successfully."
-    else
-        echo "⚠️ Script exited with code $exit_code."
-    fi
-
-    # Perform cleanup if the sudoers file exists or if the flag is set
-    if [[ -n "${SUDOERS_FILE:-}" ]]; then
-        if [[ -f "$SUDOERS_FILE" ]]; then
-            echo "🗑️ Removing sudoers file at '$SUDOERS_FILE'..."
-            sudo rm -f "$SUDOERS_FILE" 2>/dev/null && echo "🗑️ Sudoers file removed."
-        else
-            echo "ℹ️ Sudoers file '$SUDOERS_FILE' does not exist. No removal needed."
-        fi
-
-        echo "🔒 Revoking sudo access..."
-        sudo -k && echo "🔒 Sudo access revoked."
-
-        # Reset the SUDOERS_SETUP_DONE flag
-        export SUDOERS_SETUP_DONE=0
-    else
-        echo "🔍 Debug: SUDOERS_FILE is not set."
-    fi
-
-    # Unset the EXIT trap to prevent recursion
-    trap - EXIT
-
-    # Exit with the original exit code if it is non-zero
-    if [[ $exit_code -ne 0 ]]; then
-        exit "$exit_code"
-    fi
-}
-
-# -----------------------------------------------
-# Function: func_check_sudoers
-# Description: Checks if the sudoers file exists without modifying it.
-# -----------------------------------------------
-func_check_sudoers() {
-    if [[ $DARWIN -eq 0 ]]; then
-        sudoers_dir="/etc/sudoers.d"
-    elif [[ $DARWIN -eq 1 ]]; then
-        sudoers_dir="/private/etc/sudoers.d"
-    else
-        # Detect Synology DSM
-        if [[ -f /usr/syno/bin/synoservice ]]; then
-            sudoers_dir="/etc/sudoers.d"
-        else
-            echo "❌ Unsupported OS." >&2
-            return 1
-        fi
-    fi
-
-    sudoers_file="$sudoers_dir/custom_homebrew_sudoers"
-
-    if [[ -f "$sudoers_file" ]]; then
-        echo "✅ Sudoers file exists at '$sudoers_file'."
-    else
-        echo "❌ Sudoers file does not exist at '$sudoers_file'."
-    fi
-}
-
-# -----------------------------------------------
-# Function: func_initialize_env_vars
-# Description: Initializes environment variables based on the operating system.
-# -----------------------------------------------
+# Function to initialize environment variables
 func_initialize_env_vars() {
-    local arch os
-    arch=$(uname -m)
-    os=$(uname -s)
-
-    if [[ "$os" == "Darwin" ]]; then
+    # Determine if the OS is Darwin (macOS) or not (Synology)
+    if [[ "$(uname)" == "Darwin" ]]; then
         DARWIN=1
-        DEFAULT_GROUP="staff"
-        if [[ "$arch" == "arm64" ]]; then
-            # Expected path for Apple Silicon (M1, M2) macOS
-            HOMEBREW_PATH="/opt/homebrew"
-        else
-            # Expected path for Intel macOS
-            HOMEBREW_PATH="/usr/local"
-        fi
-    elif [[ "$os" == "Linux" ]]; then
-		DARWIN=0
-        # Expected path for Linuxbrew
-        HOMEBREW_PATH="/home/linuxbrew/.linuxbrew"
-        DEFAULT_GROUP="root"
-	else
-        printf "❌ Unsupported OS: %s\n" "$os" >&2
-        return 1
+    else
+        DARWIN=0
     fi
 
-    # Export DARWIN and HOMEBREW_PATH after setting their values
-    export DARWIN HOMEBREW_PATH
+    # Set Homebrew path based on installation
+    if [[ $DARWIN -eq 1 ]]; then
+        HOMEBREW_PATH="/usr/local/bin"
+    else
+        HOMEBREW_PATH="/usr/local/bin"  # Adjust if different for Synology
+    fi
+
+    # Set default group (adjust as necessary)
+    DEFAULT_GROUP="staff"
 }
 
+# Function to set up sudoers file
+func_sudoers() {
+    # Example: Grant the current user passwordless sudo for specific commands
+    # Modify as per your security policies
+    SUDOERS_FILE="/etc/sudoers.d/$(whoami)"
+    if [[ ! -f "$SUDOERS_FILE" ]]; then
+        echo "$(whoami) ALL=(ALL) NOPASSWD:ALL" | sudo tee "$SUDOERS_FILE" > /dev/null
+        sudo chmod 440 "$SUDOERS_FILE"
+        SUDOERS_SETUP_DONE=1
+    else
+        SUDOERS_SETUP_DONE=1
+    fi
+}
+
+# Function to perform cleanup on exit
+func_cleanup_exit() {
+    local exit_code="$1"
+    stty "$orig_stty"
+    # Additional cleanup tasks if necessary
+    exit "$exit_code"
+}
+
+# Function to install Homebrew if it's not installed
+install_homebrew() {
+    if ! command -v brew &> /dev/null; then
+        echo "🍺 Homebrew is not installed. Installing..."
+        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+        if [[ $? -eq 0 ]]; then
+            echo "✅ Homebrew installed successfully."
+        else
+            echo "❌ Homebrew installation failed." >&2
+            exit 1
+        fi
+    else
+        echo "🍺 Homebrew is already installed."
+    fi
+}
+
+# Function to initialize Homebrew
+initialize_homebrew() {
+    eval "$("$HOMEBREW_PATH"/brew shellenv)"
+}
+
+# Function to define package lists based on DARWIN
+define_package_lists() {
+    packages=()
+    if [[ $DARWIN -eq 0 ]]; then
+        # Synology-specific packages
+        packages=("git" "yq" "ruby")
+    elif [[ $DARWIN -eq 1 ]]; then
+        # macOS-specific packages
+        packages=("git" "yq" "ruby" "python3")
+    fi
+}
+
+# Function to install a package if it's missing
+install_if_missing() {
+    local package="$1"
+    if ! "$HOMEBREW_PATH"/brew list --formula -1 | grep -Fxq "$package"; then
+        echo "🛠️ Installing $package..."
+        if "$HOMEBREW_PATH"/brew install --quiet "$package"; then
+            echo "✅ Successfully installed $package."
+            installed_packages+=("$package")
+        else
+            echo "❌ Failed to install $package." >&2
+            failed_packages+=("$package")
+        fi
+    else
+        echo "✅ $package is already installed."
+    fi
+}
+
+# Function to uninstall a package
+uninstall_package() {
+    local package="$1"
+    if "$HOMEBREW_PATH"/brew list --formula -1 | grep -Fxq "$package"; then
+        echo "🚫 Uninstalling $package..."
+        if "$HOMEBREW_PATH"/brew uninstall --quiet "$package"; then
+            echo "✅ Successfully uninstalled $package."
+            uninstalled_packages+=("$package")
+        else
+            echo "❌ Failed to uninstall $package." >&2
+            failed_packages+=("$package (uninstall)")
+        fi
+    else
+        echo "⏭️ $package is not installed. Skipping uninstallation."
+        skipped_packages+=("$package")
+    fi
+}
+
+# Function to upgrade all installed Homebrew packages
+upgrade_packages() {
+    echo "🔄 Upgrading all Homebrew packages..."
+    "$HOMEBREW_PATH"/brew upgrade --quiet
+    if [[ $? -eq 0 ]]; then
+        echo "✅ Upgrade completed."
+    else
+        echo "❌ Upgrade encountered issues." >&2
+        failed_packages+=("brew upgrade")
+    fi
+}
+
+# Function to perform in-place sed operations
+func_sed() {
+    local sed_expression="$1"
+    local file="$2"
+    # Use temporary file for compatibility with Bash 3.x
+    sed "$sed_expression" "$file" > "${file}.tmp" && mv "${file}.tmp" "$file"
+}
