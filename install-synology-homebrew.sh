@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DEBUG=0
+DEBUG=1
 [[ $DEBUG -eq 1 ]] && echo "DEBUG mode on with strict -euo pipefail error handling" && set -euo pipefail
 
 SCRIPT_PATH=$(realpath "$0")
@@ -91,7 +91,7 @@ if [[ $DARWIN -eq 0 ]]; then
         echo "Exiting due to errors."
         exit 1
     fi
-fi # end DARWIN == 0
+fi
 
 # Define the location of YAML
 CONFIG_YAML_PATH="./config.yaml"
@@ -320,6 +320,146 @@ process_package() {
     esac
 }
 
+# Function to install Zsh plugins
+install_zsh_plugins() {
+    echo "Installing Zsh plugins..."
+    local plugins=()
+    while IFS= read -r plugin; do
+        plugins+=("$plugin")
+    done < <(yq eval -r '.plugins | to_entries[] | select(.value.action == "install") | .key' <<< "$CONFIG_YAML")
+
+    for plugin in "${plugins[@]}"; do
+        local plugin_url
+        local plugin_dir
+        plugin_url=$(yq eval -r ".plugins[\"$plugin\"].url" <<< "$CONFIG_YAML")
+        plugin_dir=$(yq eval -r ".plugins[\"$plugin\"].directory" <<< "$CONFIG_YAML")
+        plugin_dir=${plugin_dir/#\~/$HOME}
+
+        if [[ ! -d "$plugin_dir" ]]; then
+            echo "📥 Installing plugin: $plugin"
+            echo "Cloning from $plugin_url to $plugin_dir"
+            mkdir -p "$(dirname "$plugin_dir")" || { echo "❌ Failed to create directory: $(dirname "$plugin_dir")"; failed_packages+=("$plugin"); continue; }
+            if git clone "$plugin_url" "$plugin_dir"; then
+                echo "✅ Successfully cloned $plugin to $plugin_dir"
+                installed_packages+=("$plugin")
+            else
+                echo "❌ Failed to clone $plugin from $plugin_url"
+                failed_packages+=("$plugin")
+            fi
+        else
+            echo "ℹ️ Plugin $plugin already exists at $plugin_dir. Skipping clone."
+            skipped_packages+=("$plugin")
+        fi
+    done
+
+    # Update ~/.zshrc with the selected plugins
+    local plugins_list
+    plugins_list=$(printf " %s" "${plugins[@]}")
+    plugins_list=${plugins_list:1} # Remove leading space
+    func_sed "s|^plugins=.*$|plugins=($plugins_list)|" ~/.zshrc
+}
+
+# Function to uninstall Zsh plugins
+uninstall_zsh_plugins() {
+    echo "Uninstalling Zsh plugins..."
+    local plugins=()
+    while IFS= read -r plugin; do
+        plugins+=("$plugin")
+    done < <(yq eval -r '.plugins | to_entries[] | select(.value.action == "uninstall") | .key' <<< "$CONFIG_YAML")
+
+    for plugin in "${plugins[@]}"; do
+        local plugin_dir
+        plugin_dir=$(yq eval -r ".plugins[\"$plugin\"].directory" <<< "$CONFIG_YAML")
+        plugin_dir=${plugin_dir/#\~/$HOME}
+
+        if [[ -d "$plugin_dir" ]]; then
+            echo "🗑️ Uninstalling plugin: $plugin"
+            rm -rf "$plugin_dir" && echo "✅ Successfully removed $plugin" || { echo "❌ Failed to remove $plugin"; failed_packages+=("$plugin"); }
+        else
+            echo "ℹ️ Plugin directory $plugin_dir does not exist. Skipping removal."
+            skipped_packages+=("$plugin")
+        fi
+    done
+
+    # Update ~/.zshrc to remove uninstalled plugins
+    local default_plugins=("git" "web-search")
+    local updated_plugins=("${default_plugins[@]}")
+    while IFS= read -r plugin; do
+        updated_plugins+=("$plugin")
+    done < <(yq eval -r '.plugins | to_entries[] | select(.value.action == "install") | .key' <<< "$CONFIG_YAML")
+
+    local plugins_list
+    plugins_list=$(printf " %s" "${updated_plugins[@]}")
+    plugins_list=${plugins_list:1} # Remove leading space
+    func_sed "s|^plugins=.*$|plugins=($plugins_list)|" ~/.zshrc
+}
+
+# Function to install Zsh themes
+install_zsh_themes() {
+    echo "Installing Zsh themes..."
+    local themes=()
+    while IFS= read -r theme; do
+        themes+=("$theme")
+    done < <(yq eval -r '.themes | to_entries[] | select(.value.action == "install") | .key' <<< "$CONFIG_YAML")
+
+    for theme in "${themes[@]}"; do
+        local theme_url
+        local theme_dir
+        theme_url=$(yq eval -r ".themes[\"$theme\"].url" <<< "$CONFIG_YAML")
+        theme_dir=$(yq eval -r ".themes[\"$theme\"].directory" <<< "$CONFIG_YAML")
+        theme_dir=${theme_dir/#\~/$HOME}
+
+        if [[ ! -d "$theme_dir" ]]; then
+            echo "📥 Installing theme: $theme"
+            echo "Cloning from $theme_url to $theme_dir"
+            mkdir -p "$(dirname "$theme_dir")" || { echo "❌ Failed to create directory: $(dirname "$theme_dir")"; failed_packages+=("$theme"); continue; }
+            if git clone "$theme_url" "$theme_dir"; then
+                echo "✅ Successfully cloned $theme to $theme_dir"
+                installed_packages+=("$theme")
+            else
+                echo "❌ Failed to clone $theme from $theme_url"
+                failed_packages+=("$theme")
+            fi
+        else
+            echo "ℹ️ Theme $theme already exists at $theme_dir. Skipping clone."
+            skipped_packages+=("$theme")
+        fi
+    done
+
+    # Update ~/.zshrc with the selected themes
+    local themes_list
+    themes_list=$(printf " %s" "${themes[@]}")
+    themes_list=${themes_list:1} # Remove leading space
+    func_sed "s|^ZSH_THEME=.*$|ZSH_THEME=\"${themes_list}\"|" ~/.zshrc
+}
+
+# Function to uninstall Zsh themes
+uninstall_zsh_themes() {
+    echo "Uninstalling Zsh themes..."
+    local themes=()
+    while IFS= read -r theme; do
+        themes+=("$theme")
+    done < <(yq eval -r '.themes | to_entries[] | select(.value.action == "uninstall") | .key' <<< "$CONFIG_YAML")
+
+    for theme in "${themes[@]}"; do
+        local theme_dir
+        theme_dir=$(yq eval -r ".themes[\"$theme\"].directory" <<< "$CONFIG_YAML")
+        theme_dir=${theme_dir/#\~/$HOME}
+
+        if [[ -d "$theme_dir" ]]; then
+            echo "🗑️ Uninstalling theme: $theme"
+            rm -rf "$theme_dir" && echo "✅ Successfully removed $theme" || { echo "❌ Failed to remove $theme"; failed_packages+=("$theme"); }
+        else
+            echo "ℹ️ Theme directory $theme_dir does not exist. Skipping removal."
+            skipped_packages+=("$theme")
+        fi
+    done
+
+    # Reset ZSH_THEME to default or another specified theme
+    local default_theme="robbyrussell"
+    func_sed "s|^ZSH_THEME=.*$|ZSH_THEME=\"${default_theme}\"|" ~/.zshrc
+}
+
 # Main execution block
 main() {
     # Ensure yq is installed
@@ -353,8 +493,27 @@ main() {
         process_package "$package" "$action"
     done
 
+    # Install or uninstall Zsh plugins
+    local plugins_action
+    plugins_action=$(yq eval -r '.plugins | to_entries[] | .value.action' <<< "$CONFIG_YAML" | sort | uniq)
+
+    if [[ "$plugins_action" == "install" ]]; then
+        install_zsh_plugins
+    elif [[ "$plugins_action" == "uninstall" ]]; then
+        uninstall_zsh_plugins
+    fi
+
+    # Install or uninstall Zsh themes
+    local themes_action
+    themes_action=$(yq eval -r '.themes | to_entries[] | .value.action' <<< "$CONFIG_YAML" | sort | uniq)
+
+    if [[ "$themes_action" == "install" ]]; then
+        install_zsh_themes
+    elif [[ "$themes_action" == "uninstall" ]]; then
+        uninstall_zsh_themes
+    fi
+
     # Read YAML and install/uninstall plugins
-    # Assuming plugins are managed separately
     yq eval -r '.plugins | to_entries[] | "\(.key) \(.value.action) \(.value.directory) \(.value.url)"' <<< "$CONFIG_YAML" | while read -r plugin action directory url; do
         # Expand the tilde (~) manually if it's present
         directory=${directory/#\~/$HOME}
@@ -469,7 +628,7 @@ fi
 
 # Extract and filter alias commands directly from CONFIG_YAML
 alias_commands=$(yq eval -r '
-  (.packages + .plugins)
+  (.packages + .plugins + .themes)
   | to_entries[]
   | select(.value.aliases != [] and .value.action != "uninstall")
   | .value.aliases
@@ -500,11 +659,11 @@ fi
 
 # Extract and filter eval commands directly from CONFIG_YAML
 eval_commands=$(yq eval -r '
-  (.packages + .plugins)
+  (.packages + .plugins + .themes)
   | to_entries[]
-  | select(.value.eval != [] and .value.action != "uninstall")
+  | select(.value.eval != [] and .value.action == "install")
   | .value.eval[]
-' <<< "$CONFIG_YAML" | grep -v "^$")
+' <<< "$CONFIG_YAML")
 
 # Only proceed with the while loop if eval_commands is not empty
 if [[ -n "$eval_commands" ]]; then
@@ -555,4 +714,4 @@ fi # end DARWIN == 0
 echo "Script completed successfully. You will now be transported to ZSH!!!"
 exec zsh --login
 
-func_cleanup_exit 0
+

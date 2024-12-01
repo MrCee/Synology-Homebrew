@@ -80,13 +80,21 @@ packages:
     aliases:
       lg: "lazygit"
     eval: []
-plugins:
+themes:
   powerlevel10k:
     action: install
     url: "https://github.com/romkatv/powerlevel10k"
     directory: "~/.oh-my-zsh/custom/themes/powerlevel10k"
     aliases: []
     eval: []
+  oh-my-posh:
+    action: skip
+    url: "https://github.com/JanDeDobbeleer/oh-my-posh.git"
+    directory: ~/.config/oh-my-posh
+    aliases: []
+    eval:
+      - "oh-my-posh init zsh"
+plugins:
   zsh-syntax-highlighting:
     action: install
     url: "https://github.com/zsh-users/zsh-syntax-highlighting"
@@ -106,9 +114,3 @@ plugins:
     aliases:
       nvim: "NVIM_APPNAME=\"nvim-kickstart\" nvim"
     eval: []
-  oh-my-posh:
-    action: skip
-    url: "https://github.com/JanDeDobbeleer/oh-my-posh.git"
-    directory: ~/.config/oh-my-posh
-    aliases: []
-    eval: oh-my-posh init zsh

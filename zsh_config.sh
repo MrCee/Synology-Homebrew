@@ -1,8 +1,11 @@
 #!/bin/bash
 
+# Change to the script directory
+cd "$SCRIPT_DIR" || { echo "Failed to change directory to $SCRIPT_DIR" >&2; exit 1; }
+echo "Working directory: $(pwd)"
+
 source ./functions.sh
 
-# Function to install zsh plugins
 install_zsh_plugins() {
     echo "install_zsh_plugins..."
 
@@ -13,14 +16,44 @@ install_zsh_plugins() {
     local add_plugins
     add_plugins=$(yq eval -r '
       .plugins | to_entries[] |
-      select(.value.action == "install" and (.value.directory | contains("custom/plugins"))) |
+      select(.value.action == "install") |
       .key' <<< "$CONFIG_YAML")
 
-    # Iterate over the add_plugins, appending them to plugins_array
+    # Iterate over the add_plugins, appending them to plugins_array and cloning them
     while IFS= read -r plugin; do
         # Append only non-empty plugins
         if [[ -n "$plugin" ]]; then
             plugins_array+=("$plugin")
+
+            # Retrieve the plugin's URL and directory from config.yaml
+            local plugin_url
+            local plugin_dir
+            plugin_url=$(yq eval -r ".plugins[\"$plugin\"].url" <<< "$CONFIG_YAML")
+            plugin_dir=$(yq eval -r ".plugins[\"$plugin\"].directory" <<< "$CONFIG_YAML")
+
+            # Expand the tilde (~) to the home directory
+            plugin_dir=${plugin_dir/#\~/$HOME}
+
+            # Check if the plugin directory already exists
+            if [[ ! -d "$plugin_dir" ]]; then
+                echo "📥 Installing plugin: $plugin"
+                echo "Cloning from $plugin_url to $plugin_dir"
+
+                # Create the parent directory if it doesn't exist
+                mkdir -p "$(dirname "$plugin_dir")" || { echo "❌ Failed to create directory: $(dirname "$plugin_dir")"; failed_packages+=("$plugin"); continue; }
+
+                # Clone the plugin repository
+                if git clone "$plugin_url" "$plugin_dir"; then
+                    echo "✅ Successfully cloned $plugin to $plugin_dir"
+                    installed_packages+=("$plugin")
+                else
+                    echo "❌ Failed to clone $plugin from $plugin_url"
+                    failed_packages+=("$plugin")
+                fi
+            else
+                echo "ℹ️ Plugin $plugin already exists at $plugin_dir. Skipping clone."
+                skipped_packages+=("$plugin")
+            fi
         fi
     done <<< "$add_plugins"
 
@@ -31,7 +64,6 @@ install_zsh_plugins() {
     func_sed "s|^plugins=.*$|plugins=($plugins)|" ~/.zshrc
 }
 
-# Function to uninstall zsh plugins
 uninstall_zsh_plugins() {
     echo "uninstall_zsh_plugins..."
 
@@ -43,9 +75,98 @@ uninstall_zsh_plugins() {
     func_sed "s|^plugins=.*$|plugins=($plugins)|" ~/.zshrc
 }
 
+# Function to install zsh themes
+install_zsh_themes() {
+    echo "Installing zsh themes..."
+
+    # Extract themes to install
+    local themes_to_install
+    themes_to_install=$(printf '%s\n' "$CONFIG_YAML" | yq eval -r '
+      .themes | to_entries[] |
+      select(.value.action == "install") |
+      .key' | uniq)
+
+    while IFS= read -r theme; do
+        # Proceed if theme is non-empty
+        if [[ -n "$theme" ]]; then
+            # Retrieve theme details from config.yaml
+            local theme_url theme_dir
+            theme_url=$(yq eval -r ".themes[\"$theme\"].url" <<< "$CONFIG_YAML")
+            theme_dir=$(yq eval -r ".themes[\"$theme\"].directory" <<< "$CONFIG_YAML")
+            theme_dir=${theme_dir/#\~/$HOME}  # Expand ~
+
+            # Check if theme directory exists
+            if [[ ! -d "$theme_dir" ]]; then
+                echo "📥 Installing theme: $theme"
+                echo "Cloning from $theme_url to $theme_dir"
+
+                mkdir -p "$(dirname "$theme_dir")" || { echo "❌ Failed to create directory: $(dirname "$theme_dir")"; failed_packages+=("$theme"); continue; }
+
+                if git clone "$theme_url" "$theme_dir"; then
+                    echo "✅ Successfully cloned $theme to $theme_dir"
+                    installed_packages+=("$theme")
+                else
+                    echo "❌ Failed to clone $theme from $theme_url"
+                    failed_packages+=("$theme")
+                fi
+            else
+                echo "ℹ️ Theme $theme already exists at $theme_dir. Skipping clone."
+                skipped_packages+=("$theme")
+            fi
+        fi
+    done <<< "$themes_to_install"
+}
+
+# Function to uninstall zsh themes
+uninstall_zsh_themes() {
+    echo "Uninstalling zsh themes..."
+
+    # Extract themes to uninstall
+    local themes_to_uninstall
+    themes_to_uninstall=$(printf '%s\n' "$CONFIG_YAML" | yq eval -r '
+      .themes | to_entries[] |
+      select(.value.action == "uninstall") |
+      .key' | uniq)
+
+    while IFS= read -r theme; do
+        if [[ -n "$theme" ]]; then
+            echo "🗑️ Uninstalling theme: $theme"
+
+            # Retrieve theme directory from config.yaml
+            local theme_dir
+            theme_dir=$(yq eval -r ".themes[\"$theme\"].directory" <<< "$CONFIG_YAML")
+            theme_dir=${theme_dir/#\~/$HOME}  # Expand ~
+
+            # Remove theme directory if it exists
+            if [[ -d "$theme_dir" ]]; then
+                echo "🗑️ Removing theme: $theme"
+                rm -rf "$theme_dir" && echo "✅ Successfully removed $theme" || { echo "❌ Failed to remove $theme"; failed_packages+=("$theme"); }
+            else
+                echo "ℹ️ Theme directory $theme_dir does not exist. Skipping removal."
+                skipped_packages+=("$theme")
+            fi
+        fi
+    done <<< "$themes_to_uninstall"
+}
+
 # Function to install Powerlevel10k theme if required
 install_powerlevel10k_theme() {
     echo "install_powerlevel10k_theme..."
+    
+    local theme_dir="$HOME/.oh-my-zsh/custom/themes/powerlevel10k"
+    local theme_repo="https://github.com/romkatv/powerlevel10k.git"
+
+    # Clone the Powerlevel10k repository if it doesn't exist
+    if [[ ! -d "$theme_dir" ]]; then
+        echo "📥 Cloning Powerlevel10k into $theme_dir"
+        mkdir -p "$(dirname "$theme_dir")" || { echo "❌ Failed to create directory: $(dirname "$theme_dir")"; exit 1; }
+        git clone "$theme_repo" "$theme_dir" || { echo "❌ Failed to clone Powerlevel10k"; exit 1; }
+        echo "✅ Successfully cloned Powerlevel10k"
+    else
+        echo "ℹ️ Powerlevel10k already exists at $theme_dir. Skipping clone."
+    fi
+
+    # Copy the profile template
     cp "$SCRIPT_DIR/profile-templates/p10k-profile-template" ~/.p10k.zsh
 
     # Ensure the theme is set to Powerlevel10k
@@ -118,9 +239,14 @@ uninstall_bat_theme() {
 }
 
 # Main
-echo "Successfully called $(basename "$0")"
 SCRIPT_DIR=$(realpath "$(dirname "$0")")
 CONFIG_YAML="$1"
+
+# Change to the script directory
+cd "$SCRIPT_DIR" || { echo "Failed to change directory to $SCRIPT_DIR" >&2; exit 1; }
+echo "Working directory: $(pwd)"
+
+source ./functions.sh
 
 # Load configuration from config.yaml if not provided as an argument
 [[ -z "$CONFIG_YAML" ]] && CONFIG_YAML=$(cat "./config.yaml")
@@ -130,13 +256,37 @@ if [[ -z "$CONFIG_YAML" ]]; then
     exit 1
 fi
 
+
 # Handle zsh plugins
-zsh_plugins_action=$(printf '%s\n' "$CONFIG_YAML" | yq eval -r '.plugins | to_entries[] | select(.value.directory | contains("custom/plugins")) | .value.action' | uniq)
+zsh_plugins_action=$(printf '%s\n' "$CONFIG_YAML" | yq eval -r '
+  .plugins | to_entries[] |
+  select(.value.directory | contains("custom/plugins")) |
+  .value.action' | uniq)
 
 if [[ "$zsh_plugins_action" == "install" ]]; then
     install_zsh_plugins
 elif [[ "$zsh_plugins_action" == "uninstall" ]]; then
     uninstall_zsh_plugins
+fi
+
+# Handle themes installation
+themes_install_actions=$(printf '%s\n' "$CONFIG_YAML" | yq eval -r '
+  .themes | to_entries[] |
+  select(.value.action == "install") |
+  .key' | uniq)
+
+if [[ -n "$themes_install_actions" ]]; then
+    install_zsh_themes
+fi
+
+# Handle themes uninstallation
+themes_uninstall_actions=$(printf '%s\n' "$CONFIG_YAML" | yq eval -r '
+  .themes | to_entries[] |
+  select(.value.action == "uninstall") |
+  .key' | uniq)
+
+if [[ -n "$themes_uninstall_actions" ]]; then
+    uninstall_zsh_themes
 fi
 
 # Handle bat package action
@@ -164,4 +314,3 @@ if [[ "$p10k_action" == "install" ]]; then
 elif [[ "$p10k_action" == "uninstall" ]]; then
     uninstall_powerlevel10k_theme
 fi
-

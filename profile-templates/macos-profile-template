@@ -31,7 +31,7 @@ for dir in "${directories[@]}"; do
     fi
 done
 
-eval "$($HOMEBREW_PATH/brew shellenv)"
+eval "$($HOMEBREW_PATH/bin/brew shellenv)"
 
 export LDFLAGS="-L$HOMEBREW_PATH/opt/ruby/lib"
 export CPPFLAGS="-I$HOMEBREW_PATH/opt/ruby/include"
