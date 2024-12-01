@@ -64,13 +64,13 @@ if [[ $DARWIN -eq 0 ]]; then
     echo "Starting Homebrew setup for Synology (DARWIN=0)..."
 
     # Install Homebrew if necessary
-    install_homebrew
+    func_install_homebrew
 
     # Initialize Homebrew
-    initialize_homebrew
+    func_initialize_homebrew
 
     # Define package lists based on DARWIN
-    define_package_lists
+    func_define_package_lists
 
     # Initialize arrays for summary
     installed_packages=()
@@ -80,11 +80,11 @@ if [[ $DARWIN -eq 0 ]]; then
 
     # Iterate over the package list and install each if missing
     for pkg in "${packages[@]}"; do
-        install_if_missing "$pkg"
+        func_install_if_missing "$pkg"
     done
 
     # Upgrade all installed Homebrew packages
-    upgrade_packages
+    func_upgrade_packages
 
     # If any error occurred, exit with status 1 (triggers func_cleanup_exit)
     if $error ; then
@@ -205,13 +205,13 @@ elif [[ $DARWIN -eq 1 ]]; then
     echo "Starting Homebrew setup for macOS (DARWIN=1)..."
 
     # Install Homebrew if necessary
-    install_homebrew
+    func_install_homebrew
 
     # Initialize Homebrew
-    initialize_homebrew
+    func_initialize_homebrew
 
     # Define package lists based on DARWIN
-    define_package_lists
+    func_define_package_lists
 
     # Initialize arrays for summary
     installed_packages=()
@@ -221,11 +221,11 @@ elif [[ $DARWIN -eq 1 ]]; then
 
     # Iterate over the package list and install each if missing
     for pkg in "${packages[@]}"; do
-        install_if_missing "$pkg"
+        func_install_if_missing "$pkg"
     done
 
     # Upgrade all installed Homebrew packages
-    upgrade_packages
+    func_upgrade_packages
 
     # Create a new .zprofile with Homebrew paths
     profile_template_path="./profile-templates/macos-profile-template"
@@ -304,10 +304,10 @@ process_package() {
 
     case "$action" in
         install)
-            install_if_missing "$base_package"
+            func_install_if_missing "$base_package"
             ;;
         uninstall)
-            uninstall_package "$base_package"
+            func_uninstall_package "$base_package"
             ;;
         skip)
             echo "⏭️ ${base_package}: Skipping as per configuration."
@@ -475,8 +475,8 @@ alias_commands=$(yq eval -r '
   | .value.aliases
   | to_entries[]
   | select(.key != "" and .value != "")
-  | "alias \(.key)=\(.value)"
-' <<< "$CONFIG_YAML" | grep -v "^alias =$")
+  | "\(.key)=\(.value)"
+' <<< "$CONFIG_YAML")
 
 # Only proceed if alias_commands is not empty
 if [[ -n "$alias_commands" ]]; then
@@ -552,7 +552,7 @@ if [[ $DARWIN -eq 0 ]] ; then
     fi
 fi # end DARWIN == 0
 
-func_cleanup_exit 0
 echo "Script completed successfully. You will now be transported to ZSH!!!"
 exec zsh --login
 
+func_cleanup_exit 0

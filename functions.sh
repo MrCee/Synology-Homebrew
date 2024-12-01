@@ -49,7 +49,7 @@ func_cleanup_exit() {
 }
 
 # Function to install Homebrew if it's not installed
-install_homebrew() {
+func_install_homebrew() {
     if ! command -v brew &> /dev/null; then
         echo "🍺 Homebrew is not installed. Installing..."
         /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
@@ -65,12 +65,12 @@ install_homebrew() {
 }
 
 # Function to initialize Homebrew
-initialize_homebrew() {
+func_initialize_homebrew() {
     eval "$("$HOMEBREW_PATH"/brew shellenv)"
 }
 
 # Function to define package lists based on DARWIN
-define_package_lists() {
+func_define_package_lists() {
     packages=()
     if [[ $DARWIN -eq 0 ]]; then
         # Synology-specific packages
@@ -82,7 +82,7 @@ define_package_lists() {
 }
 
 # Function to install a package if it's missing
-install_if_missing() {
+func_install_if_missing() {
     local package="$1"
     if ! "$HOMEBREW_PATH"/brew list --formula -1 | grep -Fxq "$package"; then
         echo "🛠️ Installing $package..."
@@ -99,7 +99,7 @@ install_if_missing() {
 }
 
 # Function to uninstall a package
-uninstall_package() {
+func_uninstall_package() {
     local package="$1"
     if "$HOMEBREW_PATH"/brew list --formula -1 | grep -Fxq "$package"; then
         echo "🚫 Uninstalling $package..."
@@ -117,7 +117,7 @@ uninstall_package() {
 }
 
 # Function to upgrade all installed Homebrew packages
-upgrade_packages() {
+func_upgrade_packages() {
     echo "🔄 Upgrading all Homebrew packages..."
     "$HOMEBREW_PATH"/brew upgrade --quiet
     if [[ $? -eq 0 ]]; then
@@ -128,10 +128,10 @@ upgrade_packages() {
     fi
 }
 
-# Function to perform in-place sed operations
 func_sed() {
     local sed_expression="$1"
     local file="$2"
     # Use temporary file for compatibility with Bash 3.x
     sed "$sed_expression" "$file" > "${file}.tmp" && mv "${file}.tmp" "$file"
 }
+
