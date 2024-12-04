@@ -1,19 +1,19 @@
 packages:
   make:
     action: install
-    aliases: []
+    aliases: {}
     eval: []
   jq:
     action: install
-    aliases: []
+    aliases: {}
     eval: []
   node:
     action: install
-    aliases: []
+    aliases: {}
     eval: []
   perl:
     action: install
-    aliases: []
+    aliases: {}
     eval:
       - "perl -I$HOME/perl5/lib/perl5 -Mlocal::lib=$HOME/perl5"
   neovim:
@@ -23,19 +23,19 @@ packages:
     eval: []
   stow:
     action: skip
-    aliases: []
+    aliases: {}
     eval: []
   ripgrep:
     action: install
-    aliases: []
+    aliases: {}
     eval: []
   fd:
     action: install
-    aliases: []
+    aliases: {}
     eval: []
   fzf:
     action: install
-    aliases: []
+    aliases: {}
     eval:
       - "fzf --zsh"
   bat:
@@ -45,7 +45,7 @@ packages:
     eval: []
   git-delta:
     action: install
-    aliases: []
+    aliases: {}
     eval: []
   eza:
     action: install
@@ -62,11 +62,11 @@ packages:
     eval: []
   tlrc:
     action: install
-    aliases: []
+    aliases: {}
     eval: []
   thefuck:
     action: install
-    aliases: []
+    aliases: {}
     eval:
       - "thefuck --alias"
   zoxide:
@@ -85,13 +85,13 @@ themes:
     action: install
     url: "https://github.com/romkatv/powerlevel10k"
     directory: "~/.oh-my-zsh/custom/themes/powerlevel10k"
-    aliases: []
+    aliases: {}
     eval: []
   oh-my-posh:
     action: skip
     url: "https://github.com/JanDeDobbeleer/oh-my-posh.git"
     directory: ~/.config/oh-my-posh
-    aliases: []
+    aliases: {}
     eval:
       - "oh-my-posh init zsh"
 plugins:
@@ -99,13 +99,13 @@ plugins:
     action: install
     url: "https://github.com/zsh-users/zsh-syntax-highlighting"
     directory: "~/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting"
-    aliases: []
+    aliases: {}
     eval: []
   zsh-autosuggestions:
     action: install
     url: "https://github.com/zsh-users/zsh-autosuggestions"
     directory: "~/.oh-my-zsh/custom/plugins/zsh-autosuggestions"
-    aliases: []
+    aliases: {}
     eval: []
   kickstart.nvim:
     action: install
