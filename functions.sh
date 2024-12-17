@@ -114,22 +114,6 @@ EOF
     # Set permissions for the sudoers file
     sudo chmod 0440 "$sudoers_file" || { echo "❌ Failed to set permissions for '$sudoers_file'."; return 1; }
 
-    # Validate the sudoers file syntax only if visudo is available
-    if command -v visudo > /dev/null 2>&1; then
-        if ! sudo visudo -cf "$sudoers_file"; then
-            echo "❌ Sudoers file syntax is invalid. Removing the faulty file." >&2
-            sudo rm -f "$sudoers_file"
-            return 1
-        fi
-        echo "✅ Sudoers file validated successfully."
-    else
-        if [[ $is_synology -eq 1 ]]; then
-            echo "⚠️ Warning: 'visudo' not available on Synology NAS. Please ensure the sudoers file syntax is correct." >&2
-        else
-            echo "⚠️ Warning: 'visudo' not found. Skipping sudoers file validation." >&2
-        fi
-    fi
-
     echo "✅ Sudoers file installed successfully at '$sudoers_file'."
 
     # Mark sudoers setup as done
@@ -221,10 +205,12 @@ func_initialize_env_vars() {
     local arch os
     arch=$(uname -m)
     os=$(uname -s)
+    USERNAME=$(id -un)
+    USERGROUP=$(id -gn)
+    ROOTGROUP=$(id root -gn)
 
     if [[ "$os" == "Darwin" ]]; then
         DARWIN=1
-        DEFAULT_GROUP="staff"
         if [[ "$arch" == "arm64" ]]; then
             # Expected path for Apple Silicon (M1, M2) macOS
             HOMEBREW_PATH="/opt/homebrew"
@@ -236,7 +222,6 @@ func_initialize_env_vars() {
 		DARWIN=0
         # Expected path for Linuxbrew
         HOMEBREW_PATH="/home/linuxbrew/.linuxbrew"
-        DEFAULT_GROUP="root"
 	else
         printf "❌ Unsupported OS: %s\n" "$os" >&2
         return 1

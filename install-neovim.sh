@@ -30,7 +30,9 @@ source "./functions.sh"
 func_initialize_env_vars
 echo "${INFO} DARWIN: $DARWIN"
 echo "${INFO} HOMEBREW_PATH: $HOMEBREW_PATH"
-echo "${INFO} DEFAULT_GROUP: $DEFAULT_GROUP"
+echo "${INFO} USERNAME: $USERNAME"
+echo "${INFO} USERGROUP: $USERGROUP"
+echo "${INFO} ROOTGROUP: $ROOTGROUP"
 
 # Assign the first argument to temp_file, default to empty if not provided
 temp_file=${1:-}
@@ -248,7 +250,7 @@ fi
              # Install neovim globally using npm
             echo "installing neovim with npm."
             [[ ! -d ~/.npm ]] && mkdir ~/.npm
-            sudo chown -R $(whoami):$DEFAULT_GROUP ~/.npm
+            sudo chown -R $USERNAME:$USERGROUP ~/.npm
             sudo npm install -g neovim@latest
 
             echo "checking neovim gem..."

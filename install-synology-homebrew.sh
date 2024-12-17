@@ -16,15 +16,12 @@ source "./functions.sh"
 # Initialize environment variables
 func_initialize_env_vars
 
-# Save original stty settings and disable echoctl
-orig_stty=$(stty -g)
-export orig_stty
-stty -echoctl
-
-# Check if DARWIN was set correctly
+# Show env variables
 echo "DARWIN: $DARWIN"
 echo "HOMEBREW_PATH: $HOMEBREW_PATH"
-echo "DEFAULT_GROUP: $DEFAULT_GROUP"
+echo "USERNAME: $USERNAME"
+echo "USERGROUP: $USERGROUP"
+echo "ROOTGROUP: $ROOTGROUP"
 
 # Unified Cleanup Function for Handling Exits and Interruptions
 # (Defined in functions.sh as func_cleanup_exit)
@@ -109,7 +106,7 @@ if [[ $DARWIN == 0 ]]; then
         echo "Exiting due to errors."
         exit 1
     fi
-fi # end $DARWIN
+fi # end $DARWIN=0
 
 # Define the location of YAML
 CONFIG_YAML_PATH="./config.yaml"
@@ -205,16 +202,23 @@ sudo install -m 755 /dev/stdin /etc/os-release <<EOF
 echo "PRETTY_NAME=\"\$(source /etc.defaults/VERSION && printf '%s %s-%s Update %s' \"\$os_name\" \"\$productversion\" \"\$buildnumber\" \"\$smallfixnumber\")\""
 EOF
 
-# Set a home for homebrew
-if [[ ! -d /home ]]; then
-    sudo mkdir -p /home
-    sudo mount -o bind "/volume1/homes" /home
-    sudo chown -R "$(whoami)":root /home
-	sudo chmod 775 /home -R 
+# Set a home for homebrew. Always ensure permissions are correct after.
+# Ensure /home exists
+[[ ! -d /home ]] && sudo mkdir /home
+
+# Only mount if it's not already a mountpoint
+if ! grep -qs ' /home ' /proc/mounts; then
+  sudo mount -o bind "$(readlink -f /var/services/homes)" /home
 fi
 
-# Permission fix for re-install
-sudo chmod 775 /home -R 
+# Permission fixes
+sudo chown root:root /home
+sudo chmod 775 /home
+
+if [[ -d /home/linuxbrew ]]; then
+  sudo chown root:root /home/linuxbrew
+  sudo chmod 775 /home/linuxbrew
+fi
 
 # Begin Homebrew install. Remove brew git env if it does not exist
 [[ ! -x $HOMEBREW_PATH/bin/git ]] && unset HOMEBREW_GIT_PATH
@@ -231,6 +235,7 @@ brew install --quiet ruby 2> /dev/null
 brew install --quiet clang-build-analyzer 2> /dev/null
 brew install --quiet zsh 2> /dev/null
 brew install --quiet yq 2> /dev/null
+brew install --quiet zsh 2> /dev/null
 brew upgrade --quiet 2> /dev/null
 
 
@@ -239,7 +244,7 @@ profile_filled=$(<./profile-templates/synology-profile-template)
 profile_filled="${profile_filled//\$HOMEBREW_PATH/$HOMEBREW_PATH}"
 echo "$profile_filled" > ~/.profile
 source ~/.profile
-fi # end DARWIN
+fi # end DARWIN=0
 
 if [[ $DARWIN == 1 ]] ; then
 if ! command -v brew >/dev/null 2>&1; then
@@ -263,7 +268,7 @@ profile_filled=$(<./profile-templates/macos-profile-template)
 profile_filled="${profile_filled//\$HOMEBREW_PATH/$HOMEBREW_PATH}"
 echo "$profile_filled" > ~/.zprofile
 source ~/.zprofile
-fi # end DARWIN
+fi # end DARWIN=1
 
 echo "--------------------------PATH SET-------------------------------"
 echo "$PATH"
@@ -312,7 +317,7 @@ if [[ "$ruby_path" != *"linuxbrew"* ]]; then
 else
     echo "ruby is linked via Homebrew."
 fi
-fi # end DARWIN
+fi # end DARWIN=0
 
 # Arrays to store summary messages
 installed_packages=()
@@ -481,7 +486,7 @@ if [[ $DARWIN == 0 ]] ; then
     printf "\nSetting up permissions for perl environment..."
     # Ensure permissions on perl5 and .cpan directories before any creation
     sudo mkdir -p $HOME/perl5 $HOME/.cpan
-    sudo chown -R "$(whoami)":$DEFAULT_GROUP $HOME/perl5 $HOME/.cpan
+    sudo chown -R "$USERNAME:$ROOTGROUP" $HOME/perl5 $HOME/.cpan
     sudo chmod -R 775 $HOME/perl5 $HOME/.cpan
 
 
@@ -500,7 +505,11 @@ fi
 [[ -e ~/.oh-my-zsh ]] && rm -rf ~/.oh-my-zsh
 if [[ -x $(command -v zsh) ]]; then
     sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
-    chmod -R 755 ~/.oh-my-zsh
+fi
+# Allow users to run commands: 750. By default the group is users for Synology or staff for macOS
+if [[ -e ~/.oh-my-zsh ]]; then
+    sudo chmod -R 750 ~/.oh-my-zsh  # Synology compaudit command does not allow write access to groups. 750 is maximum
+    sudo chown -R "${USERNAME}:${USERGROUP}" ~/.oh-my-zsh # default to the users group to avoid issues
 fi
 
 # Check if additional Neovim packages should be installed
@@ -630,9 +639,5 @@ fi
 fi # end DARWIN
 
 func_cleanup_exit 0
-
-# TODO: Dirty fix for nwe error appearing  "compinit:480: compdump: function definition file not found"
-[[ $DARWIN == 0 ]] && brew reinstall zsh
-
 echo "Script completed successfully. You will now be transported to ZSH!!!"
 exec zsh --login
