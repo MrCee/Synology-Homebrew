@@ -17,6 +17,8 @@ sudo -v || { echo "Failed to cache sudo credentials"; exit 1; }
 
 read -rp "This will uninstall homebrew and remove all its folders. Do you want to continue? (yes/no): " response
 
+[[ $DARWIN == 0 ]] && sudo chmod 775 /home /home/linuxbrew
+
 # Convert the response to lowercase and trim leading/trailing whitespace
 response=$(echo "$response" | tr '[:upper:]' '[:lower:]' | xargs)
 # Check the response
@@ -62,7 +64,8 @@ if [[ $DARWIN == 0 ]] ; then
     [ -L /usr/bin/perl ] && [[ $(readlink /usr/bin/perl) =~ .linuxbrew ]] && sudo rm -rf /usr/bin/perl
     [ -L /bin/zsh ] && [[ $(readlink /bin/zsh) =~ .linuxbrew ]] && sudo rm -rf /bin/zsh
     sudo rm -rf /home/linuxbrew
-
+	sudo umount -l /home
+	sudo rmdir /home # !!! THE rmdir COMMAND ONLY REMOVES IF EMPTY SO USE IT !!!
 fi
 
 [[ $DARWIN == 1 ]] && sudo rm ~/.zprofile > /dev/null 2>&1
@@ -80,7 +83,7 @@ echo "Uninstall complete. Returning to the default shell.."
 
 
 if [[ $DARWIN == 0 ]] ; then
-    source "$HOME/.profile"
+	source "$HOME/.profile"
     exec /bin/ash --login
 fi
 if [[ $DARWIN == 1 ]] ; then
