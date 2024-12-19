@@ -219,56 +219,11 @@ if [[ -d /home/linuxbrew ]]; then
 	sudo chown root:root /home/linuxbrew
 	sudo chmod 775 /home/linuxbrew
 fi
-
-# Begin Homebrew install. Remove brew git env if it does not exist
-[[ ! -x $HOMEBREW_PATH/bin/git ]] && unset HOMEBREW_GIT_PATH
-if ! command -v brew >/dev/null 2>&1; then
-NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" 2> /dev/null 2>&1 | sed '/==> Next steps:/,/^$/d'
-else
-    printf "brew command found. Please wait...\n"
-fi
-eval "$($HOMEBREW_PATH/bin/brew shellenv)"
-ulimit -n 2048
-brew install --quiet glibc gcc 2> /dev/null
-brew install --quiet git 2> /dev/null
-brew install --quiet ruby 2> /dev/null
-brew install --quiet clang-build-analyzer 2> /dev/null
-brew install --quiet zsh 2> /dev/null
-brew install --quiet yq 2> /dev/null
-brew install --quiet zsh 2> /dev/null
-brew upgrade --quiet 2> /dev/null
-
-
-# Create a new .profile with homebrew paths
-profile_filled=$(<./profile-templates/synology-profile-template)
-profile_filled="${profile_filled//\$HOMEBREW_PATH/$HOMEBREW_PATH}"
-echo "$profile_filled" > ~/.profile
-source ~/.profile
 fi # end DARWIN=0
 
-if [[ $DARWIN == 1 ]] ; then
-if ! command -v brew >/dev/null 2>&1; then
-NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" 2> /dev/null 2>&1 | sed '/==> Next steps:/,/^$/d'
-else
-    printf "brew command found. Please wait...\n"
-fi
-eval "$($HOMEBREW_PATH/bin/brew shellenv)"
-brew install --quiet git 2> /dev/null
-brew install --quiet yq 2> /dev/null
-brew install --quiet ruby 2> /dev/null
-brew install --quiet python3 2> /dev/null
-brew install --quiet coreutils 2> /dev/null
-brew install --quiet findutils 2> /dev/null
-brew install --quiet gnu-sed 2> /dev/null
-brew install --quiet grep 2> /dev/null
-brew install --quiet gawk 2> /dev/null
+install_brew_and_packages
 
-# Create a new .zprofile with homebrew paths
-profile_filled=$(<./profile-templates/macos-profile-template)
-profile_filled="${profile_filled//\$HOMEBREW_PATH/$HOMEBREW_PATH}"
-echo "$profile_filled" > ~/.zprofile
-source ~/.zprofile
-fi # end DARWIN=1
+
 
 echo "--------------------------PATH SET-------------------------------"
 echo "$PATH"
