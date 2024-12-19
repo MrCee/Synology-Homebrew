@@ -207,7 +207,7 @@ func_initialize_env_vars() {
     os=$(uname -s)
     USERNAME=$(id -un)
     USERGROUP=$(id -gn)
-    ROOTGROUP=$(id root -gn)
+    ROOTGROUP=$(id -gn root | awk '{print $1}')  # Primary group only
 
     if [[ "$os" == "Darwin" ]]; then
         DARWIN=1
@@ -229,5 +229,142 @@ func_initialize_env_vars() {
 
     # Export DARWIN and HOMEBREW_PATH after setting their values
     export DARWIN HOMEBREW_PATH
+}
+
+
+# -----------------------------------------------
+# Function: install_brew_and_packages
+# Description: Installs Homebrew and necessary packages based on the operating system.
+# -----------------------------------------------
+install_brew_and_packages() {
+    echo "Initializing environment variables..."
+    func_initialize_env_vars
+    if [[ $? -ne 0 ]]; then
+        echo "Failed to initialize environment variables."
+        return 1
+    fi
+
+    if [[ $DARWIN == 0 ]]; then 
+        echo "System detected as LINUX"
+    fi
+    if [[ $DARWIN == 1 ]]; then 
+        echo "System detected as DARWIN (macOS)"
+    fi
+    
+    echo "Using HOMEBREW_PATH=$HOMEBREW_PATH"
+
+    # Remove Homebrew git environment variable if git is not executable
+    if [[ ! -x "$HOMEBREW_PATH/bin/git" ]]; then
+        unset HOMEBREW_GIT_PATH
+        echo "Unset HOMEBREW_GIT_PATH because git is not executable in HOMEBREW_PATH."
+    fi
+
+    # Install Homebrew if it's not already installed
+    if ! command -v brew >/dev/null 2>&1; then
+        echo "Homebrew not found. Installing Homebrew..."
+        NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" 2> /dev/null | sed '/==> Next steps:/,/^$/d'
+        if [[ $? -ne 0 ]]; then
+            echo "Homebrew installation failed."
+            return 1
+        fi
+    else
+        echo "Homebrew is already installed. Proceeding..."
+    fi
+
+    # Initialize Homebrew environment
+    if [[ -x "$HOMEBREW_PATH/bin/brew" ]]; then
+        eval "$("$HOMEBREW_PATH/bin/brew" shellenv)"
+        echo "Homebrew environment initialized."
+    else
+        echo "Homebrew executable not found at $HOMEBREW_PATH/bin/brew."
+        return 1
+    fi
+
+    # Increase the maximum number of open file descriptors
+    ulimit -n 2048
+    echo "Set ulimit -n to 2048."
+
+    # Define package lists based on the value of DARWIN
+    if [[ $DARWIN -eq 0 ]]; then
+        echo "Preparing to install packages for a LINUX system..."
+
+        # Define an array of packages for non-Darwin systems
+        PACKAGES=(
+            glibc
+            gcc
+            git
+            ruby
+            clang-build-analyzer
+            zsh
+            yq
+        )
+
+        # Define the profile template path for non-Darwin systems
+        PROFILE_TEMPLATE="./profile-templates/synology-profile-template"
+    elif [[ $DARWIN -eq 1 ]]; then
+        echo "Preparing to install packages for Darwin (macOS) system..."
+
+        # Define an array of packages for Darwin systems
+        PACKAGES=(
+            git
+            yq
+            ruby
+            python3
+            coreutils
+            findutils
+            gnu-sed
+            grep
+            gawk
+        )
+
+        # Define the profile template path for Darwin systems
+        PROFILE_TEMPLATE="./profile-templates/macos-profile-template"
+    else
+        echo "Invalid DARWIN value: $DARWIN"
+        return 1
+    fi
+
+    # Install each package individually from the PACKAGES array
+    echo "Starting package installations..."
+    for pkg in "${PACKAGES[@]}"; do
+        brew install --quiet "$pkg" 2> /dev/null
+        if [[ $? -ne 0 ]]; then
+            echo "Failed to install $pkg."
+            return 1
+        else
+            echo "Installed $pkg."
+        fi
+    done
+
+    # Upgrade existing packages
+    echo "Upgrading Homebrew packages..."
+    brew upgrade --quiet 2> /dev/null
+    if [[ $? -ne 0 ]]; then
+        echo "Failed to upgrade Homebrew packages."
+        return 1
+    else
+        echo "Upgraded Homebrew packages."
+    fi
+
+    # Create or update the appropriate profile file with Homebrew paths
+    if [[ -f "$PROFILE_TEMPLATE" ]]; then
+        echo "Creating profile file from template..."
+        profile_filled=$(<"$PROFILE_TEMPLATE")
+        profile_filled="${profile_filled//\$HOMEBREW_PATH/$HOMEBREW_PATH}"
+        if [[ $DARWIN -eq 0 ]]; then
+            echo "$profile_filled" > ~/.profile
+            echo "Updated ~/.profile with Homebrew paths."
+            source ~/.profile
+        elif [[ $DARWIN -eq 1 ]]; then
+            echo "$profile_filled" > ~/.zprofile
+            echo "Updated ~/.zprofile with Homebrew paths."
+            source ~/.zprofile
+        fi
+    else
+        echo "Profile template '$PROFILE_TEMPLATE' not found."
+        return 1
+    fi
+
+    echo "Homebrew and packages installation completed successfully."
 }
 

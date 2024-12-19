@@ -39,7 +39,7 @@ temp_file=${1:-}
 
 # Determine if the script is called by the main script or run directly
 if [[ -n "$temp_file" && -f "$temp_file" ]]; then
-    echo "${INFO} Script is being called by the main script with temp file: $temp_file"
+    echo "${INFO} install-neovim.sh has been called by the main script with temp file: $temp_file"
     CALLED_BY_MAIN=1
 else
     echo "${INFO} Script is being run directly by the user."

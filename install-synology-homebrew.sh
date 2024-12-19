@@ -3,6 +3,15 @@
 DEBUG=0
 [[ $DEBUG == 1 ]] && echo "DEBUG mode on with strict -euo pipefail error handling" && set -euo pipefail
 
+# Define icons for better readability
+INFO="ℹ️"
+SUCCESS="✅"
+WARNING="⚠️"
+ERROR="❌"
+TOOLS="🛠️"
+REMOVE="🗑️"
+REVOCATION="🔒"
+
 SCRIPT_PATH=$(realpath "$0")
 SCRIPT_DIR=$(dirname "$SCRIPT_PATH")
 
@@ -88,25 +97,45 @@ if [[ $DARWIN == 0 ]]; then
 
             # Confirm if Git was installed successfully
             if git --version > /dev/null 2>&1; then
-                echo "Git has been installed"
+                echo "✅ Git has been installed"
             else
-                echo "Git could not be installed. Please install it manually from SynoCommunity in Package Centre (https://packages.synocommunity.com)." >&2
+                echo "❌ Git could not be installed. Please install it manually from SynoCommunity in Package Centre (https://packages.synocommunity.com)." >&2
                 error=true
             fi
         else
-            echo "Git is already installed."
+            echo "✅ Git is already installed."
         fi  # Closes 'if ! git --version'
 
     else
-        echo "Homebrew is already installed."
+        echo "✅ Homebrew is already installed."
     fi  # Closes 'if [[ ! -x $HOMEBREW_PATH/bin/brew ]]'
 
     # If any error occurred, exit with status 1 (triggers func_cleanup_exit)
     if $error ; then
-        echo "Exiting due to errors."
+        echo "❌ Exiting due to errors."
         exit 1
     fi
 fi # end $DARWIN=0
+
+echo "${INFO} Git Commit: $(git rev-parse --short HEAD)"
+# Fetch latest updates from remote (but don't merge)
+git fetch origin
+
+# Get the branch name
+branch=$(git branch --show-current)
+
+# Compare local branch with remote
+if git rev-list --count $branch..origin/$branch > /dev/null 2>&1; then
+    BEHIND=$(git rev-list --count $branch..origin/$branch)
+    
+    if [ "$BEHIND" -gt 0 ]; then
+        echo "⚠️  Your branch is $BEHIND commit(s) behind origin/$branch."
+    else
+        echo "✅ Your branch is up to date with origin/$branch."
+    fi
+else
+    echo "❌ Error: Unable to compare with remote. Check if the branch exists on remote."
+fi
 
 # Define the location of YAML
 CONFIG_YAML_PATH="./config.yaml"
@@ -219,56 +248,9 @@ if [[ -d /home/linuxbrew ]]; then
   sudo chown root:root /home/linuxbrew
   sudo chmod 775 /home/linuxbrew
 fi
-
-# Begin Homebrew install. Remove brew git env if it does not exist
-[[ ! -x $HOMEBREW_PATH/bin/git ]] && unset HOMEBREW_GIT_PATH
-if ! command -v brew >/dev/null 2>&1; then
-NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" 2> /dev/null 2>&1 | sed '/==> Next steps:/,/^$/d'
-else
-    printf "brew command found. Please wait...\n"
-fi
-eval "$($HOMEBREW_PATH/bin/brew shellenv)"
-ulimit -n 2048
-brew install --quiet glibc gcc 2> /dev/null
-brew install --quiet git 2> /dev/null
-brew install --quiet ruby 2> /dev/null
-brew install --quiet clang-build-analyzer 2> /dev/null
-brew install --quiet zsh 2> /dev/null
-brew install --quiet yq 2> /dev/null
-brew install --quiet zsh 2> /dev/null
-brew upgrade --quiet 2> /dev/null
-
-
-# Create a new .profile with homebrew paths
-profile_filled=$(<./profile-templates/synology-profile-template)
-profile_filled="${profile_filled//\$HOMEBREW_PATH/$HOMEBREW_PATH}"
-echo "$profile_filled" > ~/.profile
-source ~/.profile
 fi # end DARWIN=0
 
-if [[ $DARWIN == 1 ]] ; then
-if ! command -v brew >/dev/null 2>&1; then
-NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" 2> /dev/null 2>&1 | sed '/==> Next steps:/,/^$/d'
-else
-    printf "brew command found. Please wait...\n"
-fi
-eval "$($HOMEBREW_PATH/bin/brew shellenv)"
-brew install --quiet git 2> /dev/null
-brew install --quiet yq 2> /dev/null
-brew install --quiet ruby 2> /dev/null
-brew install --quiet python3 2> /dev/null
-brew install --quiet coreutils 2> /dev/null
-brew install --quiet findutils 2> /dev/null
-brew install --quiet gnu-sed 2> /dev/null
-brew install --quiet grep 2> /dev/null
-brew install --quiet gawk 2> /dev/null
-
-# Create a new .zprofile with homebrew paths
-profile_filled=$(<./profile-templates/macos-profile-template)
-profile_filled="${profile_filled//\$HOMEBREW_PATH/$HOMEBREW_PATH}"
-echo "$profile_filled" > ~/.zprofile
-source ~/.zprofile
-fi # end DARWIN=1
+install_brew_and_packages
 
 echo "--------------------------PATH SET-------------------------------"
 echo "$PATH"
@@ -502,7 +484,7 @@ if [[ $DARWIN == 0 ]] ; then
 fi
 
 # oh-my-zsh will always be installed with the latest version
-[[ -e ~/.oh-my-zsh ]] && rm -rf ~/.oh-my-zsh
+[[ -e ~/.oh-my-zsh ]] && sudo rm -rf ~/.oh-my-zsh
 if [[ -x $(command -v zsh) ]]; then
     sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
 fi
@@ -520,7 +502,7 @@ if [[ $(yq eval -r '.packages.neovim.action' <<< "$CONFIG_YAML") == "install" ]]
     temp_file=$(mktemp)
     printf '%s\n' "$CONFIG_YAML" > "$temp_file"
 
-    bash "./install-neovim.sh" "$temp_file"
+    ./install-neovim.sh "$temp_file"
     CONFIG_YAML=$(<"$temp_file")
     rm "$temp_file"
 else
@@ -551,7 +533,7 @@ done
 # Check if any zsh packages should be configured
 echo "-----------------------------------------------------------------"
 echo "Calling ./zsh_config.sh for additional zsh configuration"
-bash "./zsh_config.sh" "$CONFIG_YAML"
+./zsh_config.sh "$CONFIG_YAML"
 
 # Extract and filter alias commands directly from CONFIG_YAML
 alias_commands=$(yq eval -r '
@@ -590,7 +572,7 @@ eval_commands=$(yq eval -r '
   | to_entries[]
   | select(.value.eval != [] and .value.action != "uninstall")
   | .value.eval[]
-' <<< "$CONFIG_YAML" | grep -v "^$")
+' <<< "$CONFIG_YAML" | grep -v "^=$")
 
 # Only proceed with the while loop if eval_commands is not empty
 if [[ -n "$eval_commands" ]]; then
