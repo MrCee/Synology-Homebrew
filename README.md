@@ -239,7 +239,7 @@ This includes:
 
 ### Kickstart Neovim with Lazy (optional)
 
-In the plugins section of `config.yaml`, set `kickstart.nvim` to true to install and configure Neovim with kickstart.nvim. This provides a lazy configuration with everything working out of the box. It will be installed to the specified directory in config.yaml with a backup of any existing config to your home folder.
+In the plugins section of `config.yaml`, set `kickstart.nvim` action: install to gp ahead and configure Neovim with kickstart.nvim. This provides a lazy configuration with everything working out of the box. It will be installed to the specified directory in config.yaml with a backup of any existing config to your home folder.
 
 To switch between Neovim configurations easily, use aliases in `~/.zshrc` and swap to your config:
 
