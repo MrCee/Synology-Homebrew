@@ -239,7 +239,7 @@ This includes:
 
 ### Kickstart Neovim with Lazy (optional)
 
-In the plugins section of `config.yaml`, set `kickstart.nvim` to true to install and configure Neovim with kickstart.nvim. This provides a lazy configuration with everything working out of the box. It will be installed to the specified directory in config.yaml with a backup of any existing config to your home folder.
+In the plugins section of `config.yaml`, set `kickstart.nvim` action: install to gp ahead and configure Neovim with kickstart.nvim. This provides a lazy configuration with everything working out of the box. It will be installed to the specified directory in config.yaml with a backup of any existing config to your home folder.
 
 To switch between Neovim configurations easily, use aliases in `~/.zshrc` and swap to your config:
 
@@ -283,8 +283,23 @@ Go to Control Panel > Task Scheduler, click Create, and select Triggered Task >>
 
 ```bash
 #!/bin/bash
-[[ ! -d /home ]] && mkdir /home
-mount -o bind "/volume1/homes" /home
+
+# Ensure /home exists
+[[ ! -d /home ]] && sudo mkdir /home
+
+# Only mount if it's not already a mountpoint
+if ! grep -qs ' /home ' /proc/mounts; then
+  sudo mount -o bind "$(readlink -f /var/services/homes)" /home
+fi
+
+# Permission fixes
+sudo chown root:root /home
+sudo chmod 775 /home
+
+if [[ -d /home/linuxbrew ]]; then
+  sudo chown root:root /home/linuxbrew
+  sudo chmod 775 /home/linuxbrew
+fi
 ```
 
 ## Usage and Contributions
