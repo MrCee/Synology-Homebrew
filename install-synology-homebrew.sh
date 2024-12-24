@@ -69,10 +69,6 @@ if [[ $DARWIN == 0 ]]; then
         error=true
     fi
 
-    # Check if Homebrew is installed
-    if [[ ! -x $HOMEBREW_PATH/bin/brew ]]; then
-        echo "Homebrew is not installed. Checking environment for requirements..."
-
         # Check if Git is installed
         if ! git --version > /dev/null 2>&1; then
             echo "Git not installed. Adding the SynoCommunity repository..."
@@ -106,36 +102,12 @@ if [[ $DARWIN == 0 ]]; then
             echo "✅ Git is already installed."
         fi  # Closes 'if ! git --version'
 
-    else
-        echo "✅ Homebrew is already installed."
-    fi  # Closes 'if [[ ! -x $HOMEBREW_PATH/bin/brew ]]'
-
     # If any error occurred, exit with status 1 (triggers func_cleanup_exit)
     if $error ; then
         echo "❌ Exiting due to errors."
         exit 1
     fi
 fi # end $DARWIN=0
-
-echo "${INFO} Git Commit: $(git rev-parse --short HEAD)"
-# Fetch latest updates from remote (but don't merge)
-git fetch origin
-
-# Get the branch name
-branch=$(git branch --show-current)
-
-# Compare local branch with remote
-if git rev-list --count $branch..origin/$branch > /dev/null 2>&1; then
-    BEHIND=$(git rev-list --count $branch..origin/$branch)
-    
-    if [ "$BEHIND" -gt 0 ]; then
-        echo "⚠️  Your branch is $BEHIND commit(s) behind origin/$branch."
-    else
-        echo "✅ Your branch is up to date with origin/$branch."
-    fi
-else
-    echo "❌ Error: Unable to compare with remote. Check if the branch exists on remote."
-fi
 
 # Define the location of YAML
 CONFIG_YAML_PATH="./config.yaml"
@@ -216,6 +188,8 @@ fi
 
 echo "Starting $( [[ "$selection" -eq 1 ]] && echo 'Minimal Install' || echo 'Full Setup' )..."
 
+func_git_commit_check
+
 export HOMEBREW_NO_ENV_HINTS=1
 export HOMEBREW_NO_AUTO_UPDATE=1
 
@@ -249,6 +223,8 @@ if [[ -d /home/linuxbrew ]]; then
   sudo chmod 775 /home/linuxbrew
 fi
 fi # end DARWIN=0
+
+[[ $DARWIN == 1 ]] && func_git_commit_check
 
 install_brew_and_packages
 

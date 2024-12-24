@@ -368,3 +368,30 @@ install_brew_and_packages() {
     echo "Homebrew and packages installation completed successfully."
 }
 
+func_git_commit_check() {
+
+echo "${INFO} Git Commit: $(git rev-parse --short HEAD)"
+
+branch=$(git branch --show-current)
+
+# Fetch latest changes
+git fetch origin
+
+# Check if the branch is behind
+BEHIND=$(git rev-list --count $branch..origin/$branch)
+
+if [ "$BEHIND" -gt 0 ]; then
+    echo "Your branch is $BEHIND commit(s) behind origin/$branch. Overwriting local changes..."
+    git reset --hard origin/$branch
+
+    if [ $? -eq 0 ]; then
+        echo "Local branch successfully overwritten with origin/$branch."
+    else
+        echo "❌ Error during reset. Please check for issues."
+        exit 1
+    fi
+else
+    echo "✅ Your branch is up to date with origin/$branch."
+fi
+}
+
