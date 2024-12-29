@@ -120,9 +120,32 @@ EOF
     export SUDOERS_SETUP_DONE=1
 }
 
+
+
+# -----------------------------------------------
+# Function: func_setup_logging
+# Description: Sets up logging by redirecting stdout and stderr to a log file
+# Arguments:
+#   $1 - Path to the log file
+# -----------------------------------------------
+func_setup_logging() {
+    local log_file="$1"
+
+    # Save original stdout and stderr
+    exec 3>&1 4>&2
+
+    # Redirect all output to both terminal and log file (overwrite each run)
+    exec > >(tee "$log_file") 2>&1
+
+    # Log the start time
+    echo "=== Script Started at $(date) ==="
+}
+
 # -----------------------------------------------
 # Function: func_cleanup_exit
-# Description: Cleans up the sudoers file upon script exit or interruption.
+# Description: Cleans up the environment upon script exit or interruption.
+#              Restores stdout and stderr, closes duplicated file descriptors,
+#              and performs other necessary cleanup tasks.
 # Arguments:
 #   $1 - Exit code (default: 0)
 # -----------------------------------------------
@@ -131,33 +154,39 @@ func_cleanup_exit() {
 
     [[ $DEBUG == 1 ]] && echo "🔄 Debug: func_cleanup_exit called with exit code $exit_code."
 
-    # Restore original stty settings
+    # Restore original stdout and stderr
+    exec 1>&3 2>&4
+
+    # Close the duplicated file descriptors
+    exec 3>&- 4>&-
+
+    # Restore stty settings if they were saved
     if [[ -n "${orig_stty:-}" ]]; then
         stty "$orig_stty"
     fi
 
     if [[ $exit_code -eq 0 ]]; then
-        echo "🎉 Script completed successfully."
+        printf "🎉 Script completed successfully."
     else
-        echo "⚠️ Script exited with code $exit_code."
+        printf "\n⚠️ Script exited with code $exit_code."
     fi
 
-    # Perform cleanup if the sudoers file exists or if the flag is set
+    # Perform existing sudoers cleanup
     if [[ -n "${SUDOERS_FILE:-}" ]]; then
         if [[ -f "$SUDOERS_FILE" ]]; then
-            echo "🗑️ Removing sudoers file at '$SUDOERS_FILE'..."
-            sudo rm -f "$SUDOERS_FILE" 2>/dev/null && echo "🗑️ Sudoers file removed."
+            printf "\n🗑️ Removing sudoers file at '$SUDOERS_FILE'..."
+            sudo rm -f "$sudoers_FILE" 2>/dev/null && printf "\n🗑️ Sudoers file removed."
         else
-            echo "ℹ️ Sudoers file '$SUDOERS_FILE' does not exist. No removal needed."
+            printf "\nℹ️ Sudoers file '$SUDOERS_FILE' does not exist. No removal needed."
         fi
 
-        echo "🔒 Revoking sudo access..."
-        sudo -k && echo "🔒 Sudo access revoked."
+        printf "\n🔒 Revoking sudo access..."
+        sudo -k && printf "\n🔒 Sudo access revoked."
 
         # Reset the SUDOERS_SETUP_DONE flag
         export SUDOERS_SETUP_DONE=0
     else
-        echo "🔍 Debug: SUDOERS_FILE is not set."
+        printf "\n🔍 Debug: SUDOERS_FILE is not set."
     fi
 
     # Unset the EXIT trap to prevent recursion
