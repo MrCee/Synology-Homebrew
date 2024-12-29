@@ -22,6 +22,12 @@ echo "Working directory: $(pwd)"
 # Source the functions file
 source "./functions.sh"
 
+# Set the path to your log file
+LOG_FILE="./logfile.log"
+
+# Initialize logging
+func_setup_logging "$LOG_FILE"
+
 # Initialize environment variables
 func_initialize_env_vars
 
