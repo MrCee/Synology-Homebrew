@@ -1,6 +1,6 @@
 # Synology-Homebrew
 
-- Neovim installed perfectly. 
+- Neovim installed perfectly.
 - Installer also supports macOS to sync same config on Intel & Apple silicon.
 
 ---
@@ -45,28 +45,29 @@ Before you begin, ensure the following setup:
 
 1. **Synology NAS Requirements:**
 
-    - A Synology NAS running DSM 7.2 or later.
-    - SSH access enabled on your NAS.
-    - User homes enabled on your NAS.
-    - A scheduled task to ensure Homebrew is mounted after each restart (detailed instructions below).
+   - A Synology NAS running DSM 7.2 or later.
+   - SSH access enabled on your NAS.
+   - User homes enabled on your NAS.
+   - A scheduled task to ensure Homebrew is mounted after each restart (detailed instructions below).
 
 2. **Synology Git Installation via CLI:**
 
-    If Git is not already installed in your Synology environment, you can quickly install it via CLI. This will later be upgraded to Homebrew's Git version:
+   If Git is not already installed in your Synology environment, you can quickly install it via CLI. This will later be upgraded to Homebrew's Git version:
 
-    ```bash
-    curl -sSL https://raw.githubusercontent.com/MrCee/Synology-Git/refs/heads/main/install-synology-git.sh | bash
-    ```
+   ```bash
+   curl -sSL https://raw.githubusercontent.com/MrCee/Synology-Git/refs/heads/main/install-synology-git.sh | bash
+   ```
 
 3. **iTerm2 Configuration:**
 
-    Use **iTerm2** (or an alternative terminal emulator other than macOS Terminal.app) on your local machine for an improved experience.  
+   Use **iTerm2** (or an alternative terminal emulator other than macOS Terminal.app) on your local machine for an improved experience.
 
-    Ensure the following:
-    - Compatible Nerd Fonts installed.
-    - A configured color profile.
+   Ensure the following:
 
-    Refer to the [iTerm2 Configuration Guide](https://github.com/MrCee/Synology-Homebrew/wiki/iTerm2-Configuration) for detailed setup instructions.
+   - Compatible Nerd Fonts installed.
+   - A configured color profile.
+
+   Refer to the [iTerm2 Configuration Guide](https://github.com/MrCee/Synology-Homebrew/wiki/iTerm2-Configuration) for detailed setup instructions.
 
 ---
 
@@ -84,17 +85,20 @@ git clone https://github.com/MrCee/Synology-Homebrew.git ~/Synology-Homebrew && 
 ### Select your install type:
 
 #### 1) Minimal Install:
+
 This will provide the Homebrew basics, ignore packages in `config.yaml`, leaving the rest to you.
 
 _You can also use this option to uninstall packages in `config.yaml` installed by option 2 by running the script again._
 
 #### 2) Advanced Install:
+
 Full setup includes packages in `config.yaml`.
 
 _Recommended if you want to get started with Neovim or install some of the great packages listed._
 
 #### Both install types include the following essential packages to ensure Homebrew runs smoothly on Synology:
-- git, ruby, glibc, gcc, clang-build-analyzer (which includes latest python & pip), yq, zsh, oh-my-zsh.
+
+- git, ruby, glibc, gcc, python3, yq, zsh, oh-my-zsh.
 
 ## Configuration for Advanced install (`config.yaml`)
 
@@ -185,7 +189,7 @@ plugins:
     url: "https://github.com/nvim-lua/kickstart.nvim"
     directory: "~/.config/nvim-kickstart"
     aliases:
-      nvim: "NVIM_APPNAME=\"nvim-kickstart\" nvim"
+      nvim: 'NVIM_APPNAME="nvim-kickstart" nvim'
     eval: []
 ```
 
@@ -199,10 +203,9 @@ Modify packages to be installed by editing config.yaml and setting the action fl
 | [git](https://git-scm.com)                                                      | Latest version replaces Synology Package Centre version.                                                    | Essential for: Synology-Homebrew        |
 | [ruby](https://www.ruby-lang.org)                                               | Latest version replaces Synology Package Centre version.                                                    | Essential for: Synology-Homebrew        |
 | [zsh](https://www.zsh.org)                                                      | UNIX shell (command interpreter).                                                                           | Essential for: Synology-Homebrew        |
-| [python3 / pip3](https://www.python.org)                                        | Installed with clang-build-analyzer. Latest version 3.12.3                                                  | Essential for: Synology-Homebrew        |
+| [python3 / pip3](https://www.python.org)                                        | Latest version installed.                                                                                   | Essential for: Synology-Homebrew        |
 | [glibc](https://www.gnu.org/software/libc)                                      | The GNU C Library - The project provides the core libraries for the GNU system.                             | Essential for: Synology-Homebrew        |
 | [gcc](https://gcc.gnu.org)                                                      | GNU compiler collection.                                                                                    | Essential for: Synology-Homebrew        |
-| [clang](https://github.com/aras-p/ClangBuildAnalyzer)                           | installed with clang-build-analyzer containing many essential tools.                                        | Essential for: Synology-Homebrew        |
 | [oh-my-zsh](https://ohmyz.sh)                                                   | Oh My Zsh is a delightful, open source, community-driven framework for managing your Zsh configuration.     | Essential for: Synology-Homebrew, zsh   |
 | [jq](https://jqlang.github.io/jq)                                               | Latest version of Lightweight and flexible command-line JSON processor                                      | Essential for: Synology-Homebrew        |
 | [make](https://www.gnu.org/software/make)                                       | Utility for directing compilation.                                                                          | Essential for: neovim plugins           |
@@ -272,14 +275,14 @@ Go to Control Panel > Task Scheduler, click Create, and select Triggered Task >>
 
 1st tab:
 
-   - Task name: "Homebrew Boot"
-   - User: root
-   - Event: Boot-up
-   - Enabled: True
+- Task name: "Homebrew Boot"
+- User: root
+- Event: Boot-up
+- Enabled: True
 
 2nd tab:
 
-   - Paste the following User-defined script...
+- Paste the following User-defined script...
 
 ```bash
 #!/bin/bash
