@@ -323,7 +323,7 @@ install_brew_and_packages() {
             gcc
             git
             ruby
-            clang-build-analyzer
+            python3
             zsh
             yq
         )
