@@ -579,29 +579,16 @@ fi
 
 # Finalize with zsh execution in Synology ash ~/.profile
 if [[ $DARWIN == 0 ]] ; then
-command_to_add='[[ -x $HOMEBREW_PATH/bin/zsh ]] && exec $HOMEBREW_PATH/bin/zsh'
-if ! grep -xF "$command_to_add" ~/.profile; then
-    echo "$command_to_add" >> ~/.profile
-fi
+    command_to_add='[[ -x $HOMEBREW_PATH/bin/zsh ]] && exec $HOMEBREW_PATH/bin/zsh'
+    if ! grep -xF "$command_to_add" ~/.profile; then
+        echo "$command_to_add" >> ~/.profile
+    fi
 
-if [[ "$git_install_flag" ]] ; then
-    sudo synopkg uninstall Git > /dev/null 2>&1
-fi
-
-# Check if Perl is installed via Synology Package Center
-if synopkg list | grep -q "Perl"; then
-    echo ""
-    echo "#############################################################"
-    echo "#                                                           #"
-    echo "#   Perl is installed via the Synology Package Center.      #"
-    echo "#   It is recommended that you uninstall this version.      #"
-    echo "#   The Homebrew version will be used instead.              #"
-    echo "#                                                           #"
-    echo "#############################################################"
-    echo ""
-fi
+    if [[ "$git_install_flag" ]] ; then
+        sudo synopkg uninstall Git > /dev/null 2>&1
+    fi
 fi # end DARWIN
 
 func_cleanup_exit 0
-echo "Script completed successfully. You will now be transported to ZSH!!!"
+echo -e "\nScript completed successfully. You will now be transported to ZSH!!!"
 exec zsh --login
