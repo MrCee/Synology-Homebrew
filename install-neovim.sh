@@ -248,10 +248,19 @@ fi
             sudo npm config set fund false --location=global
 
              # Install neovim globally using npm
-            echo "installing neovim with npm."
+	     echo -e "\ninstalling neovim with npm."
+
             [[ ! -d ~/.npm ]] && mkdir ~/.npm
-            sudo chown -R $USERNAME:$USERGROUP ~/.npm
             sudo npm install -g neovim@latest
+
+HOMEBREW_PREFIX=$(brew --prefix)
+
+[[ -d ~/.npm ]] && sudo chown -R "$USERNAME:$USERGROUP" ~/.npm
+[[ -d "$HOMEBREW_PREFIX/lib/node_modules" ]] && sudo chown -R "$USERNAME:$USERGROUP" "$HOMEBREW_PREFIX/lib/node_modules"
+[[ -e "$HOMEBREW_PREFIX/bin/npm" ]] && sudo chown "$USERNAME:$USERGROUP" "$HOMEBREW_PREFIX/bin/npm"
+[[ -e "$HOMEBREW_PREFIX/bin/npx" ]] && sudo chown "$USERNAME:$USERGROUP" "$HOMEBREW_PREFIX/bin/npx"
+[[ -e "$HOMEBREW_PREFIX/etc/npmrc" ]] && sudo chown "$USERNAME:$USERGROUP" "$HOMEBREW_PREFIX/etc/npmrc"
+
 
             echo "checking neovim gem..."
             if ! gem list -i neovim; then
