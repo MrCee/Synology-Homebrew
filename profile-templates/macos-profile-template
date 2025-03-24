@@ -1,46 +1,64 @@
 # macOS Profile Template
+
+# ❗ Ensure HOMEBREW_PATH is set
 if [ -z "$HOMEBREW_PATH" ]; then
     echo "Error: HOMEBREW_PATH is not set."
-    exit 1
+    return 1
 fi
 
-# Directories to add to PATH
+# 1️⃣ Load Homebrew environment
+eval "$($HOMEBREW_PATH/bin/brew shellenv)"
+
+# 2️⃣ Add Ruby and other Homebrew tools to PATH
 directories=(
+  "$HOMEBREW_PATH/opt/ruby/bin"
   "$HOMEBREW_PATH/sbin"
   "$HOMEBREW_PATH/bin"
 )
 
-# Expand wildcard paths
+# 3️⃣ Add Ruby gem bin paths
 for gem_bin in $HOMEBREW_PATH/lib/ruby/gems/*/bin; do
-  if [[ -d "$gem_bin" ]]; then
-    directories+=("$gem_bin")
-  fi
+  [[ -d "$gem_bin" ]] && directories+=("$gem_bin")
 done
 
-# Add expanded gnubin directories
+# 4️⃣ Add GNU tools (like coreutils) if available
 for gnubin in $HOMEBREW_PATH/opt/*/libexec/gnubin; do
-  if [[ -d "$gnubin" ]]; then
-    directories+=("$gnubin")
-  fi
+  [[ -d "$gnubin" ]] && directories+=("$gnubin")
 done
 
-# Iterate over each directory in the 'directories' array
-for dir in "${directories[@]}"; do
-    if [[ ":$PATH:" != *":$dir:"* ]]; then
-        export PATH="$dir:$PATH"
-    fi
-done
+# 5️⃣ Replace PATH cleanly without duplicating
+replace_in_path() {
+  local cleaned_path=""
+  local new_path="$PATH"
+  local new_dir
 
-eval "$($HOMEBREW_PATH/bin/brew shellenv)"
+  for new_dir in "${directories[@]}"; do
+    [[ -d "$new_dir" ]] || continue
+    # Remove all existing instances
+    new_path=$(echo "$new_path" | awk -v RS=: -v ORS=: '$0 != "'"$new_dir"'"' | sed 's/:$//')
+    # Prepend
+    cleaned_path="$new_dir:$cleaned_path"
+  done
 
+  export PATH="${cleaned_path}${new_path}"
+}
+
+replace_in_path
+
+# 6️⃣ Ruby flags
 export LDFLAGS="-L$HOMEBREW_PATH/opt/ruby/lib"
 export CPPFLAGS="-I$HOMEBREW_PATH/opt/ruby/include"
+
+# 7️⃣ XDG standard
 export XDG_CONFIG_HOME="$HOME/.config"
+
+# 8️⃣ Point Homebrew tools to correct git if needed
 export HOMEBREW_GIT_PATH="$HOMEBREW_PATH/bin/git"
 
-# fzf-git.sh source git key bindings for fzf-git
-[[ -f $HOME/.scripts/fzf-git.sh ]] && source "$HOME/.scripts/fzf-git.sh"
+# 9️⃣ fzf-git integration
+[[ -f "$HOME/.scripts/fzf-git.sh" ]] && source "$HOME/.scripts/fzf-git.sh"
 
+# 🔟 Perl local::lib support (optional)
 if [[ -x $(command -v perl) && $(perl -Mlocal::lib -e '1' 2>/dev/null) ]]; then
     eval "$(perl -I$HOME/perl5/lib/perl5 -Mlocal::lib=$HOME/perl5 2>/dev/null)"
 fi

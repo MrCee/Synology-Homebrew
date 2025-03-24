@@ -23,14 +23,24 @@ if [ -d "$HOMEBREW_PATH/lib/ruby/gems" ]; then
     done
 fi
 
-# Iterate over each directory in the 'directories' array
-for dir in "${directories[@]}"; do
-    # Check if the directory is already in PATH
-    if [[ ":$PATH:" != *":$dir:"* ]]; then
-        # If not found, append it to PATH
-        export PATH="$dir:$PATH"
-    fi
-done
+# 5️⃣ Replace PATH cleanly without duplicating
+replace_in_path() {
+  local cleaned_path=""
+  local new_path="$PATH"
+  local new_dir
+
+  for new_dir in "${directories[@]}"; do
+    [[ -d "$new_dir" ]] || continue
+    # Remove all existing instances
+    new_path=$(echo "$new_path" | awk -v RS=: -v ORS=: '$0 != "'"$new_dir"'"' | sed 's/:$//')
+    # Prepend
+    cleaned_path="$new_dir:$cleaned_path"
+  done
+
+  export PATH="${cleaned_path}${new_path}"
+}
+
+replace_in_path
 
 # Additional environment variables
 export LDFLAGS="-L$HOMEBREW_PATH/opt/glibc/lib"
