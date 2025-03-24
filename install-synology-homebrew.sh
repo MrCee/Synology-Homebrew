@@ -461,8 +461,6 @@ if [[ $DARWIN == 0 ]] ; then
     # Re-run local::lib setup to ensure environment is correctly configured
     eval $(perl -I$HOME/perl5/lib/perl5 -Mlocal::lib=$HOME/perl5)
 
-    # Now make sure local::lib is set up properly in CPAN
-    cpan local::lib
 fi
 
 # oh-my-zsh will always be installed with the latest version
