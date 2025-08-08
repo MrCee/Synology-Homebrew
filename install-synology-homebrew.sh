@@ -232,6 +232,14 @@ fi # end DARWIN=0
 
 [[ $DARWIN == 1 ]] && func_git_commit_check
 
+# Synology-only: keep bottle extraction off md0 for this run (no persistent env)
+if [[ $DARWIN == 0 ]]; then
+  export HOMEBREW_TEMP="${HOMEBREW_TEMP:-$HOME/tmp}"
+  export TMPDIR="${TMPDIR:-$HOMEBREW_TEMP}"
+  mkdir -p "$HOMEBREW_TEMP" || true
+fi
+
+
 install_brew_and_packages
 
 echo "--------------------------PATH SET-------------------------------"
