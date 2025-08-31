@@ -175,7 +175,7 @@ func_cleanup_exit() {
     if [[ -n "${SUDOERS_FILE:-}" ]]; then
         if [[ -f "$SUDOERS_FILE" ]]; then
             printf "\n🗑️ Removing sudoers file at '$SUDOERS_FILE'..."
-            sudo rm -f "$sudoers_FILE" 2>/dev/null && printf "\n🗑️ Sudoers file removed."
+            sudo rm -f "$SUDOERS_FILE" 2>/dev/null && printf "\n🗑️ Sudoers file removed."
         else
             printf "\nℹ️ Sudoers file '$SUDOERS_FILE' does not exist. No removal needed."
         fi
@@ -260,6 +260,21 @@ func_initialize_env_vars() {
     export DARWIN HOMEBREW_PATH
 }
 
+# -----------------------------------------------
+# Function: get_minimal_baseline
+# Description: Returns the minimal baseline packages for the current OS
+# -----------------------------------------------
+get_minimal_baseline() {
+  if [[ $DARWIN -eq 0 ]]; then
+    # Synology/Linux baseline
+    echo "binutils glibc gcc git ruby python3 zsh yq"
+  else
+    # macOS baseline - without zsh (already included in macOS)
+    echo "git yq ruby python3 coreutils findutils gnu-sed grep gawk"
+  fi
+}
+
+
 
 # -----------------------------------------------
 # Function: install_brew_and_packages
@@ -281,6 +296,16 @@ install_brew_and_packages() {
     fi
     
     echo "Using HOMEBREW_PATH=$HOMEBREW_PATH"
+
+    # DSM/Synology: ensure large-temp on /home before any brew calls
+    if [[ $DARWIN -eq 0 ]]; then
+        export HOMEBREW_TEMP="${HOMEBREW_TEMP:-$HOME/tmp}"
+        export TMPDIR="${TMPDIR:-$HOMEBREW_TEMP}"
+        mkdir -p "$HOMEBREW_TEMP" || {
+            echo "❌ Failed to create $HOMEBREW_TEMP for brew temporary files." >&2
+            return 1
+        }
+    fi
 
     # Remove Homebrew git environment variable if git is not executable
     if [[ ! -x "$HOMEBREW_PATH/bin/git" ]]; then
@@ -313,40 +338,14 @@ install_brew_and_packages() {
     ulimit -n 2048
     echo "Set ulimit -n to 2048."
 
-    # Define package lists based on the value of DARWIN
+    # Use get_minimal_baseline to get the package list
+    echo "Preparing to install minimal baseline packages for the system..."
+    IFS=' ' read -ra PACKAGES <<< "$(get_minimal_baseline)"
+
+    # Define the profile template path based on OS
     if [[ $DARWIN -eq 0 ]]; then
-        echo "Preparing to install packages for a LINUX system..."
-
-        # Define an array of packages for non-Darwin systems
-        PACKAGES=(
-            glibc
-            gcc
-            git
-            ruby
-            python3
-            zsh
-            yq
-        )
-
-        # Define the profile template path for non-Darwin systems
         PROFILE_TEMPLATE="./profile-templates/synology-profile-template"
     elif [[ $DARWIN -eq 1 ]]; then
-        echo "Preparing to install packages for Darwin (macOS) system..."
-
-        # Define an array of packages for Darwin systems
-        PACKAGES=(
-            git
-            yq
-            ruby
-            python3
-            coreutils
-            findutils
-            gnu-sed
-            grep
-            gawk
-        )
-
-        # Define the profile template path for Darwin systems
         PROFILE_TEMPLATE="./profile-templates/macos-profile-template"
     else
         echo "Invalid DARWIN value: $DARWIN"
@@ -383,7 +382,7 @@ install_brew_and_packages() {
         if [[ $DARWIN -eq 0 ]]; then
             echo "$profile_filled" > ~/.profile
             echo "Updated ~/.profile with Homebrew paths."
-            source ~/.profile
+            source ~/.profile 2>/dev/null || true
         elif [[ $DARWIN -eq 1 ]]; then
             echo "$profile_filled" > ~/.zprofile
             echo "Updated ~/.zprofile with Homebrew paths."
@@ -398,29 +397,58 @@ install_brew_and_packages() {
 }
 
 func_git_commit_check() {
-
-echo "${INFO} Git Commit: $(git rev-parse --short HEAD)"
-
-branch=$(git branch --show-current)
-
-# Fetch latest changes
-git fetch origin
-
-# Check if the branch is behind
-BEHIND=$(git rev-list --count $branch..origin/$branch)
-
-if [ "$BEHIND" -gt 0 ]; then
-    echo "Your branch is $BEHIND commit(s) behind origin/$branch. Overwriting local changes..."
-    git reset --hard origin/$branch
-
-    if [ $? -eq 0 ]; then
-        echo "Local branch successfully overwritten with origin/$branch."
+  # Show commit if we are in a git repo; otherwise skip quietly
+  if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    if rev_short=$(git rev-parse --short HEAD 2>/dev/null); then
+      echo "${INFO} Git Commit: ${rev_short}"
     else
-        echo "❌ Error during reset. Please check for issues."
-        exit 1
+      echo "${INFO} Git Commit: (unknown)"
     fi
-else
-    echo "✅ Your branch is up to date with origin/$branch."
-fi
+  else
+    echo "${INFO} Not a git repository; skipping commit/behind check."
+    return 0
+  fi
+
+  # Current branch (avoid empty value / detached HEAD)
+  branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)
+  if [[ -z "$branch" || "$branch" == "HEAD" ]]; then
+    echo "ℹ️ Detached HEAD or unknown branch; skipping behind check."
+    return 0
+  fi
+
+  # Require 'origin' to exist
+  if ! git remote get-url origin >/dev/null 2>&1; then
+    echo "ℹ️ No 'origin' remote; skipping behind check."
+    return 0
+  fi
+
+  # Fetch origin (quiet); if it fails, skip
+  if ! git fetch -q origin; then
+    echo "ℹ️ Could not fetch 'origin'; skipping behind check."
+    return 0
+  fi
+
+  # Ensure remote branch exists
+  if ! git rev-parse --verify --quiet "origin/${branch}" >/dev/null; then
+    echo "ℹ️ Remote branch origin/${branch} not found; push it first, then re-run."
+    return 0
+  fi
+
+  # Count how far behind; default to 0 on error
+  BEHIND=$(git rev-list --count "${branch}..origin/${branch}" 2>/dev/null || echo 0)
+  [[ -z "$BEHIND" ]] && BEHIND=0
+
+  # Only act if BEHIND is numeric and > 0
+  if [[ "$BEHIND" =~ ^[0-9]+$ ]] && (( BEHIND > 0 )); then
+    echo "Your branch is ${BEHIND} commit(s) behind origin/${branch}. Overwriting local changes..."
+    if git reset --hard "origin/${branch}"; then
+      echo "Local branch successfully reset to origin/${branch}."
+    else
+      echo "❌ Error during reset. Please check your repo state." >&2
+      return 1
+    fi
+  else
+    echo "✅ Your branch is up to date with origin/${branch}."
+  fi
 }
 
