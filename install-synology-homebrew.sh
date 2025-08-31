@@ -121,16 +121,6 @@ CONFIG_YAML_PATH="./config.yaml"
 # Only touch YAML in Advanced mode
 YAML_READY=0
 
-# Ensure config.yaml exists
-if [[ ! -f "$CONFIG_YAML_PATH" ]]; then
-    echo "config.yaml not found in ."
-    exit 1  # Triggers func_cleanup_exit via EXIT trap
-fi
-
-# ------- Begin YAML Cleanup ------
-func_sed 's/([^\\])\\([^\\"])/\1\\\\\2/g' "$CONFIG_YAML_PATH"
-func_sed 's/(^.*:[[:space:]]"[^\"]*)("[^"]*)(".*"$)/\1\\\2\\\3/g' "$CONFIG_YAML_PATH"
-
 # Function to display the menu
 display_menu() {
     cat <<EOF
@@ -249,38 +239,41 @@ echo "--------------------------PATH SET-------------------------------"
 echo "$PATH"
 echo "-----------------------------------------------------------------"
 
-# -------------------- MINIMAL prune prompt (no YAML) --------------------
+# -------------------- MINIMAL prune prompt (leaf-only, safe) --------------------
 if [[ "$selection" -eq 1 ]]; then
   echo "Minimal mode: baseline installed. Checking for extras beyond minimal…"
 
   # Build minimal baselines matching functions.sh PACKAGES per OS
   if [[ $DARWIN -eq 0 ]]; then
-    # Synology/Linux baseline – keep binutils/glibc/gcc toolchain
+    # Synology/Linux baseline
     MIN_BASELINE=(binutils glibc gcc git ruby python3 zsh yq)
   else
-    # macOS baseline – what you install in functions.sh for Darwin
+    # macOS baseline - what you install in functions.sh for Darwin
     MIN_BASELINE=(git yq ruby python3 coreutils findutils gnu-sed grep gawk zsh)
   fi
 
-  # What’s installed now?
-  mapfile -t INSTALLED < <(brew list --formula -1 2>/dev/null || true)
-
-  # Compute extras = installed – baseline
+  # Get explicitly installed formulas (not dependencies) - compatible with all shells
+  EXPLICITLY_INSTALLED=()
+  while IFS= read -r line; do
+    EXPLICITLY_INSTALLED+=("$line")
+  done < <(brew leaves 2>/dev/null || true)
+  
+  # Compute extras = explicitly installed - baseline
   EXTRAS=()
-  for p in "${INSTALLED[@]}"; do
+  for p in "${EXPLICITLY_INSTALLED[@]}"; do
     if ! printf '%s\n' "${MIN_BASELINE[@]}" | grep -Fxq "$p"; then
       EXTRAS+=("$p")
     fi
   done
 
   if (( ${#EXTRAS[@]} > 0 )); then
-    echo "Found ${#EXTRAS[@]} additional formulas beyond minimal:"
+    echo "Found ${#EXTRAS[@]} additional formulas beyond minimal baseline:"
     printf '  - %s\n' "${EXTRAS[@]}"
+
     read -r -p "Prune these back to minimal now? [y/N]: " REPLY
     case "$REPLY" in
       [Yy]*)
         for pkg in "${EXTRAS[@]}"; do
-          [[ "$pkg" == "brew" ]] && continue
           echo "🔄 Uninstalling: $pkg"
           brew uninstall --quiet "$pkg" || echo "⚠️ Could not uninstall $pkg"
         done
@@ -488,29 +481,24 @@ sudo ln -sf $HOMEBREW_PATH/bin/pip3 $HOMEBREW_PATH/bin/pip
 [[ $DARWIN == 0 ]] && sudo ln -sf $HOMEBREW_PATH/bin/zsh /bin/zsh
 printf "\nFinished creating symlinks\n"
 
-# Enable perl in homebrew
-if [[ $(yq eval -r '.packages.perl.action' <<< "$CONFIG_YAML") == "install" ]]; then
-if [[ $DARWIN == 0 ]] ; then
-            printf "\nFixing perl symlink..."
-            # Create symlink to Homebrew's Perl in /usr/bin
-            sudo ln -sf $HOMEBREW_PATH/bin/perl /usr/bin/perl
-            # TODO: CHECK IF MACOS NEOVIM IS USING HOMEBREW PERL. ONE OF THE NVIM PLUGINS IS HARD CODED TO /usr/bin/perl
+if [[ "$selection" -eq 2 && "$YAML_READY" -eq 1 ]]; then
+  # Enable perl in homebrew
+  if [[ $(yq eval -r '.packages.perl.action' <<< "$CONFIG_YAML") == "install" ]]; then
+    if [[ $DARWIN == 0 ]] ; then
+      printf "\nFixing perl symlink..."
+      sudo ln -sf "$HOMEBREW_PATH/bin/perl" /usr/bin/perl
     fi
 
     printf "\nSetting up permissions for perl environment..."
-    # Ensure permissions on perl5 and .cpan directories before any creation
-    sudo mkdir -p $HOME/perl5 $HOME/.cpan
-    sudo chown -R "$USERNAME:$ROOTGROUP" $HOME/perl5 $HOME/.cpan
-    sudo chmod -R 775 $HOME/perl5 $HOME/.cpan
-
+    sudo mkdir -p "$HOME/perl5" "$HOME/.cpan"
+    sudo chown -R "$USERNAME:$ROOTGROUP" "$HOME/perl5" "$HOME/.cpan"
+    sudo chmod -R 775 "$HOME/perl5" "$HOME/.cpan"
 
     printf "\nEnabling perl cpan with defaults and permission fix"
-    # Configure CPAN to install local::lib in $HOME/perl5 with default settings
-    PERL_MM_USE_DEFAULT=1 PERL_MM_OPT=INSTALL_BASE=$HOME/perl5 cpan local::lib
+    PERL_MM_USE_DEFAULT=1 PERL_MM_OPT=INSTALL_BASE="$HOME/perl5" cpan local::lib
 
-    # Re-run local::lib setup to ensure environment is correctly configured
-    eval $(perl -I$HOME/perl5/lib/perl5 -Mlocal::lib=$HOME/perl5)
-
+    eval "$(perl -I"$HOME/perl5/lib/perl5" -Mlocal::lib="$HOME/perl5")"
+  fi
 fi
 
 # oh-my-zsh will always be installed with the latest version
@@ -526,22 +514,23 @@ fi
 
 # Check if additional Neovim packages should be installed
 echo "-----------------------------------------------------------------"
-if [[ $(yq eval -r '.packages.neovim.action' <<< "$CONFIG_YAML") == "install" ]]; then
-    echo "Calling ./install-neovim.sh for additional setup packages"
-    # Create a temporary file to store YAML data
-    temp_file=$(mktemp)
-    printf '%s\n' "$CONFIG_YAML" > "$temp_file"
-
-    ./install-neovim.sh "$temp_file"
-    CONFIG_YAML=$(<"$temp_file")
-    rm "$temp_file"
-else
-    echo "SKIPPING: Neovim components as config.yaml install flag is set to false."
+if [[ "$selection" -eq 2 && "$YAML_READY" -eq 1 ]]; then
+  echo "-----------------------------------------------------------------"
+  if [[ $(yq eval -r '.packages.neovim.action' <<< "$CONFIG_YAML") == "install" ]]; then
+      echo "Calling ./install-neovim.sh for additional setup packages"
+      temp_file=$(mktemp)
+      printf '%s\n' "$CONFIG_YAML" > "$temp_file"
+      ./install-neovim.sh "$temp_file"
+      CONFIG_YAML=$(<"$temp_file")
+      rm "$temp_file"
+  else
+      echo "SKIPPING: Neovim components as config.yaml install flag is set to false."
+  fi
 fi
 
 # Read YAML and install/uninstall plugins
-yq eval -r '.plugins | to_entries[] | "\(.key) \(.value.action) \(.value.directory) \(.value.url)"' <<< "$CONFIG_YAML" | while read -r plugin action directory url; do
-    # Expand the tilde (~) manually if it's present
+if [[ "$selection" -eq 2 && "$YAML_READY" -eq 1 ]]; then
+  yq eval -r '.plugins | to_entries[] | "\(.key) \(.value.action) \(.value.directory) \(.value.url)"' <<< "$CONFIG_YAML" | while read -r plugin action directory url; do
     directory=${directory/#\~/$HOME}
     if [[ "$action" == "install" && ! -d "$directory" ]]; then
         echo "$plugin is not installed, cloning..."
@@ -558,71 +547,68 @@ yq eval -r '.plugins | to_entries[] | "\(.key) \(.value.action) \(.value.directo
     else
         echo "Invalid action for $plugin in config.yaml. No action will be taken."
     fi
-done
+  done
+fi
 
 # Check if any zsh packages should be configured
 echo "-----------------------------------------------------------------"
-echo "Calling ./zsh_config.sh for additional zsh configuration"
-./zsh_config.sh "$CONFIG_YAML"
+if [[ "$selection" -eq 2 && "$YAML_READY" -eq 1 ]]; then
+  echo "-----------------------------------------------------------------"
+  echo "Calling ./zsh_config.sh for additional zsh configuration"
+  ./zsh_config.sh "$CONFIG_YAML"
+fi
 
 # Extract and filter alias commands directly from CONFIG_YAML
-alias_commands=$(yq eval -r '
-  (.packages + .plugins)
-  | to_entries[]
-  | select(.value.aliases != [] and .value.action != "uninstall")
-  | .value.aliases
-  | to_entries[]
-  | select(.key != "" and .value != "")
-  | "\(.key)=\(.value)"
-' <<< "$CONFIG_YAML" | grep -v "^=$")
+if [[ "$selection" -eq 2 && "$YAML_READY" -eq 1 ]]; then
+  alias_commands=$(yq eval -r '
+    (.packages + .plugins)
+    | to_entries[]
+    | select(.value.aliases != [] and .value.action != "uninstall")
+    | .value.aliases
+    | to_entries[]
+    | select(.key != "" and .value != "")
+    | "\(.key)=\(.value)"
+  ' <<< "$CONFIG_YAML" | grep -v "^=$")
 
-# Only proceed if alias_commands is not empty
-if [[ -n "$alias_commands" ]]; then
-    while IFS='=' read -r key value; do
-        # Escape double quotes in the value
-        value=$(printf '%s' "$value" | sed 's/"/\\"/g')
-
-        # Format the alias command with the properly escaped value
-        formatted_alias="alias ${key}=\"${value}\""
-
-        if ! grep -qF "$formatted_alias" ~/.zshrc; then
-            echo "Adding alias command: $formatted_alias"
-            echo "$formatted_alias" >> ~/.zshrc
-        else
-            echo "Alias already exists: $formatted_alias"
-        fi
-    done <<< "$alias_commands"
-else
-    echo "No aliases to add."
+  if [[ -n "$alias_commands" ]]; then
+      while IFS='=' read -r key value; do
+          value=$(printf '%s' "$value" | sed 's/"/\\"/g')
+          formatted_alias="alias ${key}=\"${value}\""
+          if ! grep -qF "$formatted_alias" ~/.zshrc; then
+              echo "Adding alias command: $formatted_alias"
+              echo "$formatted_alias" >> ~/.zshrc
+          else
+              echo "Alias already exists: $formatted_alias"
+          fi
+      done <<< "$alias_commands"
+  else
+      echo "No aliases to add."
+  fi
 fi
 
 # Extract and filter eval commands directly from CONFIG_YAML
-eval_commands=$(yq eval -r '
-  (.packages + .plugins)
-  | to_entries[]
-  | select(.value.eval != [] and .value.action != "uninstall")
-  | .value.eval[]
-' <<< "$CONFIG_YAML" | grep -v "^=$")
+if [[ "$selection" -eq 2 && "$YAML_READY" -eq 1 ]]; then
+  eval_commands=$(yq eval -r '
+    (.packages + .plugins)
+    | to_entries[]
+    | select(.value.eval != [] and .value.action != "uninstall")
+    | .value.eval[]
+  ' <<< "$CONFIG_YAML" | grep -v "^=$")
 
-# Only proceed with the while loop if eval_commands is not empty
-if [[ -n "$eval_commands" ]]; then
-    while IFS= read -r eval_command; do
-        # Escape double quotes in the eval command
-        eval_command=$(printf '%s' "$eval_command" | sed 's/"/\\"/g')
-
-        # Format the eval command for execution
-        formatted_eval="eval \"\$($eval_command)\""
-
-        # Check if the eval command already exists in ~/.zshrc
-        if ! grep -qF "$formatted_eval" ~/.zshrc; then
-            echo "Adding eval command: $formatted_eval"
-            echo "$formatted_eval" >> ~/.zshrc
-        else
-            echo "Eval command already exists: $formatted_eval"
-        fi
-    done <<< "$eval_commands"
-else
-    echo "No eval commands to add."
+  if [[ -n "$eval_commands" ]]; then
+      while IFS= read -r eval_command; do
+          eval_command=$(printf '%s' "$eval_command" | sed 's/"/\\"/g')
+          formatted_eval="eval \"\$($eval_command)\""
+          if ! grep -qF "$formatted_eval" ~/.zshrc; then
+              echo "Adding eval command: $formatted_eval"
+              echo "$formatted_eval" >> ~/.zshrc
+          else
+              echo "Eval command already exists: $formatted_eval"
+          fi
+      done <<< "$eval_commands"
+  else
+      echo "No eval commands to add."
+  fi
 fi
 
 # Finalize with zsh execution in Synology ash ~/.profile
