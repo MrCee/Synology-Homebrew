@@ -118,6 +118,9 @@ fi # end $DARWIN=0
 # Define the location of YAML
 CONFIG_YAML_PATH="./config.yaml"
 
+# Only touch YAML in Advanced mode
+YAML_READY=0
+
 # Ensure config.yaml exists
 if [[ ! -f "$CONFIG_YAML_PATH" ]]; then
     echo "config.yaml not found in ."
@@ -246,32 +249,68 @@ echo "--------------------------PATH SET-------------------------------"
 echo "$PATH"
 echo "-----------------------------------------------------------------"
 
-# Validate the YAML content directly from the file
-if ! yq eval '.' "$CONFIG_YAML_PATH" > /dev/null 2>&1; then
-    printf "Error: The YAML file '%s' is invalid.\n" "$CONFIG_YAML_PATH" >&2
-    exit 1
-else
-    printf "The YAML file '%s' is valid.\n" "$CONFIG_YAML_PATH"
-fi
-
-# Read the content of YAML into the CONFIG_YAML variable
-CONFIG_YAML=$(<"$CONFIG_YAML_PATH")
-
+# -------------------- MINIMAL prune prompt (no YAML) --------------------
 if [[ "$selection" -eq 1 ]]; then
-# 1) Set everything to uninstall
-CONFIG_YAML_ORIG="$CONFIG_YAML"  # Save original first
-CONFIG_YAML=$(printf '%s\n' "$CONFIG_YAML_ORIG" | yq e '
-  .packages[].action = "uninstall" |
-  .plugins[].action = "uninstall"
-')
+  echo "Minimal mode: baseline installed. Checking for extras beyond minimal…"
 
-# 2) For each special plugin, if it was "install" in the original, put it back
-for plugin in powerlevel10k zsh-syntax-highlighting zsh-autosuggestions; do
-  was_install=$(printf '%s\n' "$CONFIG_YAML_ORIG" | yq e ".plugins.${plugin}.action")
-  if [[ "$was_install" == "install" ]]; then
-    CONFIG_YAML=$(printf '%s\n' "$CONFIG_YAML" | yq e ".plugins.${plugin}.action = \"install\"")
+  # Build minimal baselines matching functions.sh PACKAGES per OS
+  if [[ $DARWIN -eq 0 ]]; then
+    # Synology/Linux baseline – keep binutils/glibc/gcc toolchain
+    MIN_BASELINE=(binutils glibc gcc git ruby python3 zsh yq)
+  else
+    # macOS baseline – what you install in functions.sh for Darwin
+    MIN_BASELINE=(git yq ruby python3 coreutils findutils gnu-sed grep gawk zsh)
   fi
-done
+
+  # What’s installed now?
+  mapfile -t INSTALLED < <(brew list --formula -1 2>/dev/null || true)
+
+  # Compute extras = installed – baseline
+  EXTRAS=()
+  for p in "${INSTALLED[@]}"; do
+    if ! printf '%s\n' "${MIN_BASELINE[@]}" | grep -Fxq "$p"; then
+      EXTRAS+=("$p")
+    fi
+  done
+
+  if (( ${#EXTRAS[@]} > 0 )); then
+    echo "Found ${#EXTRAS[@]} additional formulas beyond minimal:"
+    printf '  - %s\n' "${EXTRAS[@]}"
+    read -r -p "Prune these back to minimal now? [y/N]: " REPLY
+    case "$REPLY" in
+      [Yy]*)
+        for pkg in "${EXTRAS[@]}"; do
+          [[ "$pkg" == "brew" ]] && continue
+          echo "🔄 Uninstalling: $pkg"
+          brew uninstall --quiet "$pkg" || echo "⚠️ Could not uninstall $pkg"
+        done
+        ;;
+      *) echo "Keeping existing formulas (no prune).";;
+    esac
+  else
+    echo "Already at minimal baseline. ✅"
+  fi
+fi
+# -------------------- end MINIMAL prune prompt --------------------
+
+# Advanced only: validate & load YAML
+if [[ "$selection" -eq 2 ]]; then
+  if [[ ! -f "$CONFIG_YAML_PATH" ]]; then
+      echo "config.yaml not found in this directory" >&2
+      exit 1
+  fi
+  # Clean/escape edge cases in YAML (your two func_sed lines)
+  func_sed 's/([^\\])\\([^\\"])/\1\\\\\2/g' "$CONFIG_YAML_PATH"
+  func_sed 's/(^.*:[[:space:]]"[^\"]*)("[^"]*)(".*"$)/\1\\\2\\\3/g' "$CONFIG_YAML_PATH"
+
+  if ! yq eval '.' "$CONFIG_YAML_PATH" > /dev/null 2>&1; then
+      printf "Error: The YAML file '%s' is invalid.\n" "$CONFIG_YAML_PATH" >&2
+      exit 1
+  else
+      printf "The YAML file '%s' is valid.\n" "$CONFIG_YAML_PATH"
+  fi
+  CONFIG_YAML=$(<"$CONFIG_YAML_PATH")
+  YAML_READY=1
 fi
 
 if [[ $DARWIN == 0 ]] ; then
@@ -435,8 +474,11 @@ done
 
     echo -e "\n✅ Script execution completed."
 }
-# Execute main function
-main
+
+# Execute YAML-driven main only in Advanced
+if [[ "$selection" -eq 2 && "$YAML_READY" -eq 1 ]]; then
+  main
+fi
 
 # Create the symlinks
 # printf "\nCreating symlinks"
