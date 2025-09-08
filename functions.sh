@@ -452,3 +452,23 @@ func_git_commit_check() {
   fi
 }
 
+remove_legacy_zsh_symlink() {
+    # Only run on non-macOS systems (Synology DSM)
+    if [[ "$DARWIN" -ne 0 ]]; then
+        return
+    fi
+
+    local legacy_zsh="/bin/zsh"
+    
+    # Remove symlink if present
+    if [[ -L "$legacy_zsh" ]]; then
+        printf "🧹 Removing legacy symlink: %s\n" "$legacy_zsh"
+        sudo rm -f "$legacy_zsh"
+    fi
+
+    # Remove stale entry from /etc/shells
+    if grep -Fxq "$legacy_zsh" /etc/shells 2>/dev/null; then
+        printf "🧽 Removing stale /bin/zsh from /etc/shells\n"
+        sudo sed -i '\|^/bin/zsh$|d' /etc/shells
+    fi
+}

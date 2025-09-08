@@ -31,6 +31,9 @@ func_setup_logging "$LOG_FILE"
 # Initialize environment variables
 func_initialize_env_vars
 
+# Ensure clean shell setup: remove old /bin/zsh symlink if previously created (DSM only)
+remove_legacy_zsh_symlink
+
 # Show env variables
 echo "DARWIN: $DARWIN"
 echo "HOMEBREW_PATH: $HOMEBREW_PATH"
@@ -234,6 +237,21 @@ fi
 
 
 install_brew_and_packages
+
+# Safely register Homebrew Zsh in /etc/shells (Synology DSM)
+if [[ $DARWIN == 0 ]]; then
+    HOMEBREW_ZSH="$HOMEBREW_PATH/bin/zsh"
+    
+    if [[ -x "$HOMEBREW_ZSH" ]]; then
+        # Validate that the shell is in /etc/shells
+        if ! grep -Fxq "$HOMEBREW_ZSH" /etc/shells; then
+            echo "Registering $HOMEBREW_ZSH in /etc/shells..."
+            echo "$HOMEBREW_ZSH" | sudo tee -a /etc/shells > /dev/null
+        fi
+    else
+        echo "❌ Homebrew zsh not found at $HOMEBREW_ZSH" >&2
+    fi
+fi
 
 echo "--------------------------PATH SET-------------------------------"
 echo "$PATH"
@@ -478,7 +496,6 @@ fi
 sudo ln -sf $HOMEBREW_PATH/bin/python3 $HOMEBREW_PATH/bin/python
 sudo ln -sf $HOMEBREW_PATH/bin/pip3 $HOMEBREW_PATH/bin/pip
 [[ $DARWIN == 0 ]] && sudo ln -sf $HOMEBREW_PATH/bin/gcc $HOMEBREW_PATH/bin/cc
-[[ $DARWIN == 0 ]] && sudo ln -sf $HOMEBREW_PATH/bin/zsh /bin/zsh
 printf "\nFinished creating symlinks\n"
 
 if [[ "$selection" -eq 2 && "$YAML_READY" -eq 1 ]]; then

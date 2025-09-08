@@ -3,6 +3,9 @@
 source ./functions.sh
 func_initialize_env_vars
 
+# Ensure clean shell setup: remove old /bin/zsh symlink if previously created (DSM only)
+remove_legacy_zsh_symlink
+
 # Set Trap for EXIT to Handle Normal Cleanup
 trap 'code=$?; func_cleanup_exit $code' EXIT
 
