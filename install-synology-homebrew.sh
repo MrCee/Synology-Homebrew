@@ -235,6 +235,30 @@ fi
 
 install_brew_and_packages
 
+# Safely register Homebrew Zsh without overwriting /bin/zsh
+if [[ $DARWIN == 0 ]]; then
+    HOMEBREW_ZSH="$HOMEBREW_PATH/bin/zsh"
+
+    if [[ -x "$HOMEBREW_ZSH" ]]; then
+        # Validate that the shell is in /etc/shells
+        if ! grep -Fxq "$HOMEBREW_ZSH" /etc/shells; then
+            echo "Registering $HOMEBREW_ZSH in /etc/shells..."
+            echo "$HOMEBREW_ZSH" | sudo tee -a /etc/shells > /dev/null
+        fi
+
+        # Check current login shell and only chsh if needed
+        current_shell=$(getent passwd "$USERNAME" | cut -d: -f7)
+        if [[ "$current_shell" != "$HOMEBREW_ZSH" ]]; then
+            echo "Changing login shell to $HOMEBREW_ZSH for user $USERNAME..."
+            sudo chsh -s "$HOMEBREW_ZSH" "$USERNAME"
+        else
+            echo "Login shell for $USERNAME already set to $HOMEBREW_ZSH"
+        fi
+    else
+        echo "❌ Homebrew zsh not found at $HOMEBREW_ZSH" >&2
+    fi
+fi
+
 echo "--------------------------PATH SET-------------------------------"
 echo "$PATH"
 echo "-----------------------------------------------------------------"
@@ -478,7 +502,6 @@ fi
 sudo ln -sf $HOMEBREW_PATH/bin/python3 $HOMEBREW_PATH/bin/python
 sudo ln -sf $HOMEBREW_PATH/bin/pip3 $HOMEBREW_PATH/bin/pip
 [[ $DARWIN == 0 ]] && sudo ln -sf $HOMEBREW_PATH/bin/gcc $HOMEBREW_PATH/bin/cc
-[[ $DARWIN == 0 ]] && sudo ln -sf $HOMEBREW_PATH/bin/zsh /bin/zsh
 printf "\nFinished creating symlinks\n"
 
 if [[ "$selection" -eq 2 && "$YAML_READY" -eq 1 ]]; then
