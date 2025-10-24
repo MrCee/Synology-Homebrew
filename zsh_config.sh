@@ -117,6 +117,38 @@ uninstall_bat_theme() {
     func_sed "/--theme=\"$theme_name\"/d" "$(bat --config-dir)/config"
 }
 
+# Function to configure ZSH completion system
+configure_zsh_completion() {
+    echo "Configuring ZSH completion system..."
+    
+    # Add completion configuration to ~/.zshrc
+    if ! grep -q "ZSH completion configuration" ~/.zshrc; then
+        cat >> ~/.zshrc << 'EOF'
+
+# ZSH completion configuration
+autoload -Uz compinit
+# Only run compinit if cache is older than 24 hours or doesn't exist
+if [[ -n ~/.zcompdump(#qN.mh+24) ]]; then
+    compinit
+else
+    compinit -C
+fi
+EOF
+        echo "✅ ZSH completion system configured"
+    else
+        echo "ℹ️ ZSH completion already configured"
+    fi
+}
+
+# Function to remove ZSH completion configuration
+remove_zsh_completion() {
+    echo "Removing ZSH completion configuration..."
+    
+    # Remove completion configuration from ~/.zshrc
+    func_sed '/ZSH completion configuration/,/compinit -C/d' ~/.zshrc
+    echo "✅ ZSH completion configuration removed"
+}
+
 # Main
 echo "Successfully called $(basename "$0")"
 SCRIPT_DIR=$(realpath "$(dirname "$0")")
@@ -164,4 +196,8 @@ if [[ "$p10k_action" == "install" ]]; then
 elif [[ "$p10k_action" == "uninstall" ]]; then
     uninstall_powerlevel10k_theme
 fi
+
+# Always configure ZSH completion system (for both minimal and advanced installs)
+# This prevents the "compinit:480: compdump: function definition file not found" error
+configure_zsh_completion
 

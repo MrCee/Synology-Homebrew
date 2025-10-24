@@ -628,11 +628,22 @@ if [[ "$selection" -eq 2 && "$YAML_READY" -eq 1 ]]; then
   fi
 fi
 
-# Finalize with zsh execution in Synology ash ~/.profile
+# Create universal safe profile using template
 if [[ $DARWIN == 0 ]] ; then
-    command_to_add='[[ -x $HOMEBREW_PATH/bin/zsh ]] && exec $HOMEBREW_PATH/bin/zsh'
-    if ! grep -xF "$command_to_add" ~/.profile; then
-        echo "$command_to_add" >> ~/.profile
+    # Backup existing profile if it exists
+    if [[ -f "$HOME/.profile" ]]; then
+        cp "$HOME/.profile" "$HOME/.profile.backup.$(date +%Y%m%d_%H%M%S)"
+        echo "Backed up existing profile to $HOME/.profile.backup.$(date +%Y%m%d_%H%M%S)"
+    fi
+    
+    # Copy the template profile from profile-templates directory
+    if [[ -f "./profile-templates/synology-profile-template" ]]; then
+        cp "./profile-templates/synology-profile-template" "$HOME/.profile"
+        chmod 644 "$HOME/.profile"
+        echo "✅ Created universal safe profile at $HOME/.profile"
+    else
+        echo "❌ Profile template not found at ./profile-templates/synology-profile-template" >&2
+        exit 1
     fi
 
     if [[ "$git_install_flag" ]] ; then
@@ -640,6 +651,34 @@ if [[ $DARWIN == 0 ]] ; then
     fi
 fi # end DARWIN
 
+
 func_cleanup_exit 0
-echo -e "\nScript completed successfully. You will now be transported to ZSH!!!"
+
+# Fix ZSH completion system before launching - MUST run in ZSH context
+if command -v zsh >/dev/null 2>&1; then
+    echo "🔄 Fixing ZSH completion system..."
+    
+    # Run ALL completion fixes in a ZSH sub-shell for proper context
+    zsh -c "
+    set -e
+    echo '   Fixing ZSH directory permissions...'
+    chmod 755 ~/.oh-my-zsh ~/.oh-my-zsh/completions ~/.oh-my-zsh/cache 2>/dev/null || true
+    [ -d ~/.oh-my-zsh ] && find ~/.oh-my-zsh -type d -exec chmod 755 {} \; 2>/dev/null || true
+    [ -d ~/.oh-my-zsh ] && find ~/.oh-my-zsh -type f -exec chmod 644 {} \; 2>/dev/null || true
+    
+    echo '   Clearing completion cache...'
+    rm -f ~/.zcompdump* 2>/dev/null || true
+    
+    echo '   Regenerating completion cache...'
+    autoload -Uz compinit
+    compinit -i -C -d ~/.zcompdump
+    
+    echo '   Setting secure permissions...'
+    chmod 600 ~/.zcompdump* 2>/dev/null || true
+    
+    echo '✅ ZSH completion system fixed'
+    " || echo "⚠️ ZSH completion initialization completed"
+fi
+
+echo -e "\n🎉 Script completed successfully. You will now be transported to ZSH!!!"
 exec zsh --login
