@@ -65,3 +65,7 @@ eval "$($HOMEBREW_PATH/bin/brew shellenv)"
 if [[ -x $(command -v perl) && $(perl -Mlocal::lib -e '1' 2>/dev/null) ]]; then
     eval "$(perl -I$HOME/perl5/lib/perl5 -Mlocal::lib=$HOME/perl5 2>/dev/null)"
 fi
+
+if [[ $- == *i* ]] && [[ -x $HOMEBREW_PATH/bin/zsh ]]; then
+    exec $HOMEBREW_PATH/bin/zsh
+fi

@@ -399,56 +399,22 @@ install_brew_and_packages() {
 func_git_commit_check() {
   # Show commit if we are in a git repo; otherwise skip quietly
   if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+    # Get short commit hash (fallback to unknown)
     if rev_short=$(git rev-parse --short HEAD 2>/dev/null); then
       echo "${INFO} Git Commit: ${rev_short}"
     else
       echo "${INFO} Git Commit: (unknown)"
     fi
-  else
-    echo "${INFO} Not a git repository; skipping commit/behind check."
-    return 0
-  fi
 
-  # Current branch (avoid empty value / detached HEAD)
-  branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)
-  if [[ -z "$branch" || "$branch" == "HEAD" ]]; then
-    echo "ℹ️ Detached HEAD or unknown branch; skipping behind check."
-    return 0
-  fi
-
-  # Require 'origin' to exist
-  if ! git remote get-url origin >/dev/null 2>&1; then
-    echo "ℹ️ No 'origin' remote; skipping behind check."
-    return 0
-  fi
-
-  # Fetch origin (quiet); if it fails, skip
-  if ! git fetch -q origin; then
-    echo "ℹ️ Could not fetch 'origin'; skipping behind check."
-    return 0
-  fi
-
-  # Ensure remote branch exists
-  if ! git rev-parse --verify --quiet "origin/${branch}" >/dev/null; then
-    echo "ℹ️ Remote branch origin/${branch} not found; push it first, then re-run."
-    return 0
-  fi
-
-  # Count how far behind; default to 0 on error
-  BEHIND=$(git rev-list --count "${branch}..origin/${branch}" 2>/dev/null || echo 0)
-  [[ -z "$BEHIND" ]] && BEHIND=0
-
-  # Only act if BEHIND is numeric and > 0
-  if [[ "$BEHIND" =~ ^[0-9]+$ ]] && (( BEHIND > 0 )); then
-    echo "Your branch is ${BEHIND} commit(s) behind origin/${branch}. Overwriting local changes..."
-    if git reset --hard "origin/${branch}"; then
-      echo "Local branch successfully reset to origin/${branch}."
+    # Show current branch if possible
+    branch=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || true)
+    if [[ -n "$branch" && "$branch" != "HEAD" ]]; then
+      echo "${INFO} Branch: ${branch}"
     else
-      echo "❌ Error during reset. Please check your repo state." >&2
-      return 1
+      echo "${INFO} Branch: (detached or unknown)"
     fi
   else
-    echo "✅ Your branch is up to date with origin/${branch}."
+    echo "${INFO} Not a git repository; skipping commit info."
   fi
 }
 

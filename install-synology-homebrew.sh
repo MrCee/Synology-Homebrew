@@ -611,18 +611,73 @@ if [[ "$selection" -eq 2 && "$YAML_READY" -eq 1 ]]; then
   fi
 fi
 
-# Finalize with zsh execution in Synology ash ~/.profile
-if [[ $DARWIN == 0 ]] ; then
-    command_to_add='[[ -x $HOMEBREW_PATH/bin/zsh ]] && exec $HOMEBREW_PATH/bin/zsh'
-    if ! grep -xF "$command_to_add" ~/.profile; then
-        echo "$command_to_add" >> ~/.profile
-    fi
 
-    if [[ "$git_install_flag" ]] ; then
-        sudo synopkg uninstall Git > /dev/null 2>&1
-    fi
-fi # end DARWIN
 
 func_cleanup_exit 0
-echo -e "\nScript completed successfully. You will now be transported to ZSH!!!"
-exec zsh --login
+
+echo ""
+echo "✨====================================================================✨"
+echo "  🎉 Script completed successfully."
+echo "  🚀 You are about to be transported into your shiny new Zsh shell!"
+echo "✨====================================================================✨"
+echo ""
+
+if command -v zsh >/dev/null 2>&1; then
+    echo "🔧 Finalizing Zsh environment..."
+
+    ######################################################################
+    # 1️⃣ Create a guaranteed-safe completion environment BEFORE startup
+    ######################################################################
+    mkdir -p "$HOME/.zfunc" 2>/dev/null
+    mkdir -p "$HOME/.cache" 2>/dev/null
+
+    # Remove stale caches (Synology often generates invalid dumps)
+    rm -f "$HOME/.zcompdump"* 2>/dev/null
+
+    ######################################################################
+    # 2️⃣ Inject Zsh-safe initialization block at TOP of ~/.zshrc (once)
+    ######################################################################
+    if ! grep -q "### Synology-Homebrew Zsh initialization" "$HOME/.zshrc" 2>/dev/null; then
+        TEMPFILE=$(mktemp)
+
+        {
+            echo "### Synology-Homebrew Zsh initialization (must be FIRST)"
+            echo "export ZSH_DISABLE_COMPFIX=true"
+            echo ""
+            echo "# Build a clean fpath from zsh’s default environment"
+            echo "DEFAULT_ZSH_FPATH=\$(zsh -dfc 'print -rl -- \$fpath' 2>/dev/null | tr '\n' ':' | sed 's/:$//')"
+            echo "export FPATH=\"\$DEFAULT_ZSH_FPATH:\$FPATH:$HOME/.zfunc\""
+            echo ""
+            echo "# Load completions without security checks (Synology ACLs trigger false positives)"
+            echo "autoload -Uz compinit"
+            echo "compinit -u"
+            echo "### End Synology-Homebrew block"
+            echo ""
+            # Append original zshrc
+            cat "$HOME/.zshrc"
+        } > "$TEMPFILE"
+
+        mv "$TEMPFILE" "$HOME/.zshrc"
+        echo "✅ Injected Synology Zsh initialization block at top of ~/.zshrc"
+    else
+        echo "ℹ️ Zsh initialization block already present — skipping."
+    fi
+
+    ######################################################################
+    # 3️⃣ Pre-warm compinit non-interactively (avoids startup warnings)
+    ######################################################################
+    echo "🔄 Generating safe compdump cache..."
+    zsh -dfc "autoload -Uz compinit; compinit -u" >/dev/null 2>&1
+
+    echo ""
+    echo "--------------------------------------------------------"
+    echo "  Setup complete! Launching your new Zsh environment..."
+    echo "--------------------------------------------------------"
+    echo ""
+
+    exec zsh --login
+else
+    echo "⚠️ Zsh not found. Staying in current shell."
+fi
+
+
