@@ -218,11 +218,20 @@ if [[ $DARWIN == 0 ]]; then
 
   # Convert versions into comparable integers
   current_version=$((majorversion * 100 + minorversion))
-  required_version=$((7 * 100 + 2))
+  min_supported_version=$((7 * 100 + 1))   # DSM 7.1
+  recommended_version=$((7 * 100 + 2))     # DSM 7.2+
 
-  if [[ "$current_version" -lt "$required_version" ]]; then
-    echo "Your DSM version does not meet minimum requirements. DSM 7.2 is required."
+  if [[ "$current_version" -lt "$min_supported_version" ]]; then
+    echo "❌ Your DSM version is too old."
+    echo "   Minimum supported version is DSM 7.1."
     exit 1
+  fi
+
+  if [[ "$current_version" -lt "$recommended_version" ]]; then
+    echo "⚠️  DSM $productversion detected."
+    echo "   DSM 7.2+ is recommended and fully validated."
+    echo "   DSM 7.1 is allowed but may have minor limitations."
+    echo ""
   fi
 
   MODE_LABEL="Advanced Install"
