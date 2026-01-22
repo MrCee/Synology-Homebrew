@@ -1,5 +1,27 @@
 #!/bin/bash
 
+# -----------------------------------------------------------------------------
+# Synology-Homebrew Installer (DROP-IN, FIXED ENDING + OMZ/P10K GUARANTEE)
+#
+# GUARANTEES (authoritative):
+# - NEVER allow Oh My Zsh to self-update or prompt during install
+# - NEVER let OMZ auto-run zsh during install (we control final exec)
+# - ALLOWED: change shell at the END by exec into zsh (transport experience)
+# - Cleanup (sudoers revoke) happens ONCE and BEFORE we exec into zsh
+# - Final user-visible line is:
+#     "🚀 You will now be transported to zsh..."
+#   then zsh launches and Powerlevel10k loads from ~/.zshrc
+# -----------------------------------------------------------------------------
+
+# -----------------------------------------------------------------------------
+# Installer safety: make OMZ non-interactive ALWAYS during installer runtime
+# -----------------------------------------------------------------------------
+export ZSH_DISABLE_AUTO_UPDATE=true
+export DISABLE_AUTO_UPDATE=true
+export DISABLE_UPDATE_PROMPT=true
+export RUNZSH=no
+export CHSH=no
+
 DEBUG=0
 [[ $DEBUG == 1 ]] && echo "DEBUG mode on with strict -euo pipefail error handling" && set -euo pipefail
 
@@ -38,30 +60,43 @@ echo "USERNAME: $USERNAME"
 echo "USERGROUP: $USERGROUP"
 echo "ROOTGROUP: $ROOTGROUP"
 
-# Unified Cleanup Function for Handling Exits and Interruptions
-# (Defined in functions.sh as func_cleanup_exit)
+# -----------------------------------------------------------------------------
+# Cleanup guard: ensure cleanup runs ONCE even if triggered multiple ways.
+# IMPORTANT:
+# - We want sudoers removed BEFORE we launch interactive zsh.
+# - But we must not run cleanup twice (duplication + confusing output).
+# -----------------------------------------------------------------------------
+_CLEANUP_RAN=0
+cleanup_once() {
+  local code="${1:-0}"
+  if [[ "$_CLEANUP_RAN" -eq 1 ]]; then
+    return 0
+  fi
+  _CLEANUP_RAN=1
+  func_cleanup_exit "$code"
+}
 
-# Set Trap for EXIT to Handle Normal Cleanup
-trap 'code=$?; func_cleanup_exit $code' EXIT
+# Set Trap for EXIT to Handle Normal Cleanup (guarded)
+trap 'code=$?; cleanup_once "$code"' EXIT
 
-# Set Trap for Interruption Signals to Handle Cleanup
-trap 'func_cleanup_exit 130' INT TERM HUP QUIT ABRT ALRM PIPE
+# Set Trap for Interruption Signals to Handle Cleanup (guarded)
+trap 'cleanup_once 130' INT TERM HUP QUIT ABRT ALRM PIPE
 
 # Setup sudoers file
 func_sudoers
 
 # Check if sudoers setup was successful before proceeding
 if [[ "${SUDOERS_SETUP_DONE:-0}" -ne 1 ]]; then
-    echo "Sudoers setup was not completed successfully. Exiting." >&2
-    exit 1
+  echo "Sudoers setup was not completed successfully. Exiting." >&2
+  exit 1
 fi
 
 [[ $DEBUG == 1 ]] && echo "Debug: SUDOERS_FILE is set to '$SUDOERS_FILE'"
 
 # Check if the script is being run as root
 if [[ "$EUID" -eq 0 ]]; then
-    echo "This script should not be run as root. Run it as a regular user, although we will need root password in a second..." >&2
-    exit 1  # Triggers func_cleanup_exit via EXIT trap
+  echo "This script should not be run as root. Run it as a regular user, although we will need root password in a second..." >&2
+  exit 1  # Triggers cleanup via EXIT trap
 fi
 
 # Check prerequisites of this script
@@ -69,51 +104,51 @@ error=false
 git_install_flag=false
 
 if [[ $DARWIN == 0 ]]; then
-    # Check if Synology Homes is enabled
-    if [[ ! -d /var/services/homes/$(whoami) ]]; then
-        echo "Synology Homes has NOT been enabled. Please enable in DSM Control Panel >> Users & Groups >> Advanced >> User Home." >&2
-        error=true
+  # Check if Synology Homes is enabled
+  if [[ ! -d /var/services/homes/$(whoami) ]]; then
+    echo "Synology Homes has NOT been enabled. Please enable in DSM Control Panel >> Users & Groups >> Advanced >> User Home." >&2
+    error=true
+  fi
+
+  # Check if Git is installed
+  if ! git --version > /dev/null 2>&1; then
+    echo "Git not installed. Adding the SynoCommunity repository..."
+
+    # Add SynoCommunity feed if not present
+    if [[ ! -f /usr/syno/etc/packages/feeds ]]; then
+      echo "Adding SynoCommunity feed..."
+      echo '[{"feed":"https://packages.synocommunity.com/","name":"SynoCommunity"}]' | sudo tee /usr/syno/etc/packages/feeds > /dev/null
+      sudo chmod 755 /usr/syno/etc/packages/feeds
     fi
 
-        # Check if Git is installed
-        if ! git --version > /dev/null 2>&1; then
-            echo "Git not installed. Adding the SynoCommunity repository..."
-
-            # Add SynoCommunity feed if not present
-            if [[ ! -f /usr/syno/etc/packages/feeds ]]; then
-                echo "Adding SynoCommunity feed..."
-                echo '[{"feed":"https://packages.synocommunity.com/","name":"SynoCommunity"}]' | sudo tee /usr/syno/etc/packages/feeds > /dev/null
-                sudo chmod 755 /usr/syno/etc/packages/feeds
-            fi
-
-            # Append to feeds if SynoCommunity is missing
-            if ! sudo grep -q "https://packages.synocommunity.com/" /usr/syno/etc/packages/feeds; then
-                echo "Appending SynoCommunity feed..."
-                echo '[{"feed":"https://packages.synocommunity.com/","name":"SynoCommunity"}]' | sudo tee -a /usr/syno/etc/packages/feeds > /dev/null
-            fi
-
-            # Attempt to install Git
-            echo "Attempting to install Git..."
-            sudo synopkg install_from_server Git
-            git_install_flag=true
-
-            # Confirm if Git was installed successfully
-            if git --version > /dev/null 2>&1; then
-                echo "✅ Git has been installed"
-            else
-                echo "❌ Git could not be installed. Please install it manually from SynoCommunity in Package Centre (https://packages.synocommunity.com)." >&2
-                error=true
-            fi
-        else
-            echo "✅ Git is already installed."
-        fi  # Closes 'if ! git --version'
-
-    # If any error occurred, exit with status 1 (triggers func_cleanup_exit)
-    if $error ; then
-        echo "❌ Exiting due to errors."
-        exit 1
+    # Append to feeds if SynoCommunity is missing
+    if ! sudo grep -q "https://packages.synocommunity.com/" /usr/syno/etc/packages/feeds; then
+      echo "Appending SynoCommunity feed..."
+      echo '[{"feed":"https://packages.synocommunity.com/","name":"SynoCommunity"}]' | sudo tee -a /usr/syno/etc/packages/feeds > /dev/null
     fi
-fi # end $DARWIN=0
+
+    # Attempt to install Git
+    echo "Attempting to install Git..."
+    sudo synopkg install_from_server Git
+    git_install_flag=true
+
+    # Confirm if Git was installed successfully
+    if git --version > /dev/null 2>&1; then
+      echo "✅ Git has been installed"
+    else
+      echo "❌ Git could not be installed. Please install it manually from SynoCommunity in Package Centre (https://packages.synocommunity.com)." >&2
+      error=true
+    fi
+  else
+    echo "✅ Git is already installed."
+  fi
+
+  # If any error occurred, exit with status 1 (triggers cleanup)
+  if $error; then
+    echo "❌ Exiting due to errors."
+    exit 1
+  fi
+fi # end DARWIN=0
 
 # Define the location of YAML
 CONFIG_YAML_PATH="./config.yaml"
@@ -123,7 +158,7 @@ YAML_READY=0
 
 # Function to display the menu
 display_menu() {
-    cat <<EOF
+  cat <<EOF
 Select your install type:
 
 1) Minimal Install: This will provide the homebrew basics, ignore packages in config.yaml, leaving the rest to you.
@@ -138,89 +173,95 @@ EOF
 
 [[ $DEBUG == 0 ]] && clear
 while true; do
-    display_menu
-    read -r selection
+  display_menu
+  read -r selection
 
-    case "$selection" in
-        1|2) break ;;
-        *) echo "Invalid selection. Please enter 1 or 2."
-           read -r -p "Press Enter to continue..." ;;
-    esac
+  case "$selection" in
+    1|2) break ;;
+    *) echo "Invalid selection. Please enter 1 or 2."
+       read -r -p "Press Enter to continue..." ;;
+  esac
 done
+
+# Derive install mode (authoritative)
+if [[ "$selection" -eq 1 ]]; then
+  INSTALL_MODE="minimal"
+else
+  INSTALL_MODE="advanced"
+fi
+export INSTALL_MODE
+echo "INSTALL_MODE=$INSTALL_MODE"
 
 [[ $DEBUG == 0 ]] && clear
 
-if [[ "$selection" -eq 2 && ! -f "$CONFIG_YAML_PATH" ]]; then
-    echo "config.yaml not found in this directory" >&2
-    exit 1  # Triggers func_cleanup_exit via EXIT trap
+# Advanced-only: require YAML file exists (pre-check)
+if [[ "$INSTALL_MODE" == "advanced" && ! -f "$CONFIG_YAML_PATH" ]]; then
+  echo "config.yaml not found in this directory" >&2
+  exit 1  # Triggers cleanup
 fi
 
-if [[ $DARWIN == 0 ]] ; then
+if [[ $DARWIN == 0 ]]; then
 
-# Retrieve DSM OS Version without Percentage Sign
-source /etc.defaults/VERSION
-clean_smallfix="${smallfixnumber%\%}"
-printf 'DSM Version: %s-%s Update %s\n' "$productversion" "$buildnumber" "$clean_smallfix"
+  # Retrieve DSM OS Version without Percentage Sign
+  source /etc.defaults/VERSION
+  clean_smallfix="${smallfixnumber%\%}"
+  printf 'DSM Version: %s-%s Update %s\n' "$productversion" "$buildnumber" "$clean_smallfix"
 
-# Retrieve CPU Model Name
-echo -n "CPU: "
-awk -F': ' '/model name/ {print $2; exit}' /proc/cpuinfo
+  # Retrieve CPU Model Name
+  echo -n "CPU: "
+  awk -F': ' '/model name/ {print $2; exit}' /proc/cpuinfo
 
-# Retrieve System Architecture
-echo -n "Architecture: "
-uname -m
-echo
+  # Retrieve System Architecture
+  echo -n "Architecture: "
+  uname -m
+  echo
 
-# Derive the full version number as major.minor
-current_version=$(echo "$majorversion.$minorversion")
-required_version="7.2"
+  # Convert versions into comparable integers
+  current_version=$((majorversion * 100 + minorversion))
+  required_version=$((7 * 100 + 2))
 
-# Convert the major and minor versions into a comparable number (e.g., 7.2 -> 702, 8.1 -> 801)
-current_version=$((majorversion * 100 + minorversion))
-required_version=$((7 * 100 + 2))
-
-# Compare the versions as integers
-if [ "$current_version" -lt "$required_version" ]; then
+  if [[ "$current_version" -lt "$required_version" ]]; then
     echo "Your DSM version does not meet minimum requirements. DSM 7.2 is required."
     exit 1
-fi
+  fi
 
-echo "Starting $( [[ "$selection" -eq 1 ]] && echo 'Minimal Install' || echo 'Full Setup' )..."
+  MODE_LABEL="Advanced Install"
+  [[ "$INSTALL_MODE" == "minimal" ]] && MODE_LABEL="Minimal Install"
+  echo "Starting $MODE_LABEL..."
 
-func_git_commit_check
+  func_git_commit_check
 
-export HOMEBREW_NO_ENV_HINTS=1
-export HOMEBREW_NO_AUTO_UPDATE=1
+  export HOMEBREW_NO_ENV_HINTS=1
+  export HOMEBREW_NO_AUTO_UPDATE=1
 
-# Install ldd file script
-sudo install -m 755 /dev/stdin /usr/bin/ldd <<EOF
+  # Install ldd file script
+  sudo install -m 755 /dev/stdin /usr/bin/ldd <<EOF
 #!/bin/bash
 [[ \$("/usr/lib/libc.so.6") =~ version\ ([0-9]\.[0-9]+) ]] && echo "ldd \${BASH_REMATCH[1]}"
 EOF
 
-# Install os-release file script
-sudo install -m 755 /dev/stdin /etc/os-release <<EOF
+  # Install os-release file script
+  sudo install -m 755 /dev/stdin /etc/os-release <<EOF
 #!/bin/bash
 echo "PRETTY_NAME=\"\$(source /etc.defaults/VERSION && printf '%s %s-%s Update %s' \"\$os_name\" \"\$productversion\" \"\$buildnumber\" \"\$smallfixnumber\")\""
 EOF
 
-# Set a home for homebrew. Always ensure permissions are correct after.
-# Ensure /home exists
-[[ ! -d /home ]] && sudo mkdir /home
+  # Ensure /home exists
+  [[ ! -d /home ]] && sudo mkdir /home
 
-# Only mount if it's not already a mountpoint
-if ! grep -qs ' /home ' /proc/mounts; then
-  sudo mount -o bind "$(readlink -f /var/services/homes)" /home
-fi
+  # Only mount if it's not already a mountpoint
+  if ! grep -qs ' /home ' /proc/mounts; then
+    sudo mount -o bind "$(readlink -f /var/services/homes)" /home
+  fi
 
-# Permission fixes
-sudo chown root:root /home
-sudo chmod 775 /home
+  # Permission fixes
+  sudo chown root:root /home
+  sudo chmod 775 /home
 
-if [[ -d /home/linuxbrew ]]; then
-  sudo chown root:root /home/linuxbrew
-  sudo chmod 775 /home/linuxbrew
-fi
+  if [[ -d /home/linuxbrew ]]; then
+    sudo chown root:root /home/linuxbrew
+    sudo chmod 775 /home/linuxbrew
+  fi
 fi # end DARWIN=0
 
 [[ $DARWIN == 1 ]] && func_git_commit_check
@@ -232,7 +273,6 @@ if [[ $DARWIN == 0 ]]; then
   mkdir -p "$HOMEBREW_TEMP" || true
 fi
 
-
 install_brew_and_packages
 
 echo "--------------------------PATH SET-------------------------------"
@@ -240,25 +280,20 @@ echo "$PATH"
 echo "-----------------------------------------------------------------"
 
 # -------------------- MINIMAL prune prompt (leaf-only, safe) --------------------
-if [[ "$selection" -eq 1 ]]; then
+if [[ "$INSTALL_MODE" == "minimal" ]]; then
   echo "Minimal mode: baseline installed. Checking for extras beyond minimal…"
 
-  # Build minimal baselines matching functions.sh PACKAGES per OS
   if [[ $DARWIN -eq 0 ]]; then
-    # Synology/Linux baseline
     MIN_BASELINE=(binutils glibc gcc git ruby python3 zsh yq)
   else
-    # macOS baseline - what you install in functions.sh for Darwin
     MIN_BASELINE=(git yq ruby python3 coreutils findutils gnu-sed grep gawk zsh)
   fi
 
-  # Get explicitly installed formulas (not dependencies) - compatible with all shells
   EXPLICITLY_INSTALLED=()
   while IFS= read -r line; do
     EXPLICITLY_INSTALLED+=("$line")
   done < <(brew leaves 2>/dev/null || true)
-  
-  # Compute extras = explicitly installed - baseline
+
   EXTRAS=()
   for p in "${EXPLICITLY_INSTALLED[@]}"; do
     if ! printf '%s\n' "${MIN_BASELINE[@]}" | grep -Fxq "$p"; then
@@ -287,40 +322,36 @@ fi
 # -------------------- end MINIMAL prune prompt --------------------
 
 # Advanced only: validate & load YAML
-if [[ "$selection" -eq 2 ]]; then
-  if [[ ! -f "$CONFIG_YAML_PATH" ]]; then
-      echo "config.yaml not found in this directory" >&2
-      exit 1
-  fi
+if [[ "$INSTALL_MODE" == "advanced" ]]; then
   # Clean/escape edge cases in YAML (your two func_sed lines)
   func_sed 's/([^\\])\\([^\\"])/\1\\\\\2/g' "$CONFIG_YAML_PATH"
   func_sed 's/(^.*:[[:space:]]"[^\"]*)("[^"]*)(".*"$)/\1\\\2\\\3/g' "$CONFIG_YAML_PATH"
 
   if ! yq eval '.' "$CONFIG_YAML_PATH" > /dev/null 2>&1; then
-      printf "Error: The YAML file '%s' is invalid.\n" "$CONFIG_YAML_PATH" >&2
-      exit 1
+    printf "Error: The YAML file '%s' is invalid.\n" "$CONFIG_YAML_PATH" >&2
+    exit 1
   else
-      printf "The YAML file '%s' is valid.\n" "$CONFIG_YAML_PATH"
+    printf "The YAML file '%s' is valid.\n" "$CONFIG_YAML_PATH"
   fi
+
   CONFIG_YAML=$(<"$CONFIG_YAML_PATH")
   YAML_READY=1
 fi
 
-if [[ $DARWIN == 0 ]] ; then
-# Check if Ruby is properly linked via Homebrew
-ruby_path=$(command -v ruby)
-if [[ "$ruby_path" != *"linuxbrew"* ]]; then
+if [[ $DARWIN == 0 ]]; then
+  ruby_path=$(command -v ruby)
+  if [[ "$ruby_path" != *"linuxbrew"* ]]; then
     echo "ruby is not linked via Homebrew. Linking ruby..."
     brew link --overwrite ruby
     if [[ $? -eq 0 ]]; then
-        echo "ruby has been successfully linked via Homebrew."
+      echo "ruby has been successfully linked via Homebrew."
     else
-        echo "Failed to link ruby via Homebrew." >&2
-        exit 1
+      echo "Failed to link ruby via Homebrew." >&2
+      exit 1
     fi
-else
+  else
     echo "ruby is linked via Homebrew."
-fi
+  fi
 fi # end DARWIN=0
 
 # Arrays to store summary messages
@@ -335,156 +366,142 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # No Color
 
-# Function to extract the base package name
 get_base_package() {
-    local full_package="$1"
-    # Extract the text after the last slash
-    local base_package="${full_package##*/}"
-    echo "$base_package"
+  local full_package="$1"
+  local base_package="${full_package##*/}"
+  echo "$base_package"
 }
 
-# Function to check install status and take action
 process_package() {
-    local package="$1"
-    local action="$2"
-    local base_package
-    base_package=$(get_base_package "$package")
+  local package="$1"
+  local action="$2"
+  local base_package
+  base_package=$(get_base_package "$package")
 
-    # Check if the package is already installed
-    if brew list --formula -1 | grep -Fxq "$base_package"; then
-        case "$action" in
-            uninstall)
-                echo -e "🔄 ${YELLOW}${base_package}${NC}: Uninstalling..."
-                if brew uninstall --quiet "$base_package"; then
-                    uninstalled_packages+=("$base_package")
-                else
-                    echo -e "${RED}❌ Failed to uninstall ${base_package}.${NC}"
-                    failed_packages+=("$base_package (uninstall)")
-                fi
-                ;;
-            skip)
-                echo -e "⏭️ ${YELLOW}${base_package}${NC}: Skipping (flagged to skip)"
-                skipped_packages+=("$base_package")
-                ;;
-            install)
-                echo -e "${GREEN}✅ ${base_package}${NC}: Already installed"
-                ;;
-            *)
-                echo -e "${RED}⚠️ ${base_package}${NC}: Invalid action ('${action}')"
-                failed_packages+=("$base_package (invalid action)")
-                ;;
-        esac
-    else
-        case "$action" in
-            install)
-                echo -e "🛠️ ${GREEN}${base_package}${NC}: Installing..."
-                if brew install --quiet "$base_package" 2>&1 | sed '/==> Next steps:/,/^$/d; /By default/d'; then
-                    installed_packages+=("$base_package")
-                else
-                    echo -e "${RED}❌ Error installing ${base_package}.${NC}"
-                    failed_packages+=("$base_package (install)")
-                fi
-                ;;
-            uninstall)
-                echo -e "🚫 ${YELLOW}${base_package}${NC}: Not installed but flagged for uninstall"
-                skipped_packages+=("$base_package")
-                ;;
-            skip)
-                echo -e "⏭️ ${YELLOW}${base_package}${NC}: Skipping (flagged to skip)"
-                skipped_packages+=("$base_package")
-                ;;
-            *)
-                echo -e "${RED}⚠️ ${base_package}${NC}: Invalid action ('${action}')"
-                failed_packages+=("$base_package (invalid action)")
-                ;;
-        esac
-    fi
+  if brew list --formula -1 | grep -Fxq "$base_package"; then
+    case "$action" in
+      uninstall)
+        echo -e "🔄 ${YELLOW}${base_package}${NC}: Uninstalling..."
+        if brew uninstall --quiet "$base_package"; then
+          uninstalled_packages+=("$base_package")
+        else
+          echo -e "${RED}❌ Failed to uninstall ${base_package}.${NC}"
+          failed_packages+=("$base_package (uninstall)")
+        fi
+        ;;
+      skip)
+        echo -e "⏭️ ${YELLOW}${base_package}${NC}: Skipping (flagged to skip)"
+        skipped_packages+=("$base_package")
+        ;;
+      install)
+        echo -e "${GREEN}✅ ${base_package}${NC}: Already installed"
+        ;;
+      *)
+        echo -e "${RED}⚠️ ${base_package}${NC}: Invalid action ('${action}')"
+        failed_packages+=("$base_package (invalid action)")
+        ;;
+    esac
+  else
+    case "$action" in
+      install)
+        echo -e "🛠️ ${GREEN}${base_package}${NC}: Installing..."
+        if brew install --quiet "$base_package" 2>&1 | sed '/==> Next steps:/,/^$/d; /By default/d'; then
+          installed_packages+=("$base_package")
+        else
+          echo -e "${RED}❌ Error installing ${base_package}.${NC}"
+          failed_packages+=("$base_package (install)")
+        fi
+        ;;
+      uninstall)
+        echo -e "🚫 ${YELLOW}${base_package}${NC}: Not installed but flagged for uninstall"
+        skipped_packages+=("$base_package")
+        ;;
+      skip)
+        echo -e "⏭️ ${YELLOW}${base_package}${NC}: Skipping (flagged to skip)"
+        skipped_packages+=("$base_package")
+        ;;
+      *)
+        echo -e "${RED}⚠️ ${base_package}${NC}: Invalid action ('${action}')"
+        failed_packages+=("$base_package (invalid action)")
+        ;;
+    esac
+  fi
 }
 
-# Main execution block
 main() {
-    # Ensure yq is installed
-    if ! command -v yq &> /dev/null; then
-        echo -e "${RED}yq is not installed. Please install yq to proceed.${NC}"
-        exit 1
-    fi
+  if ! command -v yq &> /dev/null; then
+    echo -e "${RED}yq is not installed. Please install yq to proceed.${NC}"
+    exit 1
+  fi
 
-# Initialize arrays
-packages_array=()
-actions_array=()
+  packages_array=()
+  actions_array=()
 
-# Populate packages_array and actions_array
-while IFS= read -r package; do
+  while IFS= read -r package; do
     packages_array+=("$package")
-    # Extract the action for each package
     action=$(yq eval -r ".packages[\"$package\"].action" <<< "$CONFIG_YAML")
     actions_array+=("$action")
-done < <(yq eval -r '.packages | keys | .[]' <<< "$CONFIG_YAML")
+  done < <(yq eval -r '.packages | keys | .[]' <<< "$CONFIG_YAML")
 
-    # Check if any packages were found
-    if [ ${#packages_array[@]} -eq 0 ]; then
-        echo -e "${YELLOW}No packages found in config.yaml.${NC}"
-        exit 0
-    fi
+  if [[ ${#packages_array[@]} -eq 0 ]]; then
+    echo -e "${YELLOW}No packages found in config.yaml.${NC}"
+    return 0
+  fi
 
-# Loop over each package in the array
-for idx in "${!packages_array[@]}"; do
+  for idx in "${!packages_array[@]}"; do
     package="${packages_array[$idx]}"
     action="${actions_array[$idx]}"
     process_package "$package" "$action"
-done
+  done
 
-    # Print summary
-    echo -e "\n📋 ${GREEN}Summary:${NC}"
+  echo -e "\n📋 ${GREEN}Summary:${NC}"
 
-    if [ ${#installed_packages[@]} -ne 0 ]; then
-        echo -e "\n✅ Installed Packages:"
-        for pkg in "${installed_packages[@]}"; do
-            echo "  - $pkg"
-        done
-    fi
+  if [[ ${#installed_packages[@]} -ne 0 ]]; then
+    echo -e "\n✅ Installed Packages:"
+    for pkg in "${installed_packages[@]}"; do
+      echo "  - $pkg"
+    done
+  fi
 
-    if [ ${#uninstalled_packages[@]} -ne 0 ]; then
-        echo -e "\n🗑️ Uninstalled Packages:"
-        for pkg in "${uninstalled_packages[@]}"; do
-            echo "  - $pkg"
-        done
-    fi
+  if [[ ${#uninstalled_packages[@]} -ne 0 ]]; then
+    echo -e "\n🗑️ Uninstalled Packages:"
+    for pkg in "${uninstalled_packages[@]}"; do
+      echo "  - $pkg"
+    done
+  fi
 
-    if [ ${#skipped_packages[@]} -ne 0 ]; then
-        echo -e "\n⏭️ Skipped Packages:"
-        for pkg in "${skipped_packages[@]}"; do
-            echo "  - $pkg"
-        done
-    fi
+  if [[ ${#skipped_packages[@]} -ne 0 ]]; then
+    echo -e "\n⏭️ Skipped Packages:"
+    for pkg in "${skipped_packages[@]}"; do
+      echo "  - $pkg"
+    done
+  fi
 
-    if [ ${#failed_packages[@]} -ne 0 ]; then
-        echo -e "\n❌ Failed Actions:"
-        for pkg in "${failed_packages[@]}"; do
-            echo "  - $pkg"
-        done
-    fi
+  if [[ ${#failed_packages[@]} -ne 0 ]]; then
+    echo -e "\n❌ Failed Actions:"
+    for pkg in "${failed_packages[@]}"; do
+      echo "  - $pkg"
+    done
+  fi
 
-    echo -e "\n✅ Script execution completed."
+  echo -e "\n✅ YAML package processing completed."
 }
 
 # Execute YAML-driven main only in Advanced
-if [[ "$selection" -eq 2 && "$YAML_READY" -eq 1 ]]; then
+if [[ "$INSTALL_MODE" == "advanced" && "$YAML_READY" -eq 1 ]]; then
   main
 fi
 
 # Create the symlinks
-# printf "\nCreating symlinks"
-sudo ln -sf $HOMEBREW_PATH/bin/python3 $HOMEBREW_PATH/bin/python
-sudo ln -sf $HOMEBREW_PATH/bin/pip3 $HOMEBREW_PATH/bin/pip
-[[ $DARWIN == 0 ]] && sudo ln -sf $HOMEBREW_PATH/bin/gcc $HOMEBREW_PATH/bin/cc
-[[ $DARWIN == 0 ]] && sudo ln -sf $HOMEBREW_PATH/bin/zsh /bin/zsh
+sudo ln -sf "$HOMEBREW_PATH/bin/python3" "$HOMEBREW_PATH/bin/python"
+sudo ln -sf "$HOMEBREW_PATH/bin/pip3" "$HOMEBREW_PATH/bin/pip"
+[[ $DARWIN == 0 ]] && sudo ln -sf "$HOMEBREW_PATH/bin/gcc" "$HOMEBREW_PATH/bin/cc"
+[[ $DARWIN == 0 ]] && sudo ln -sf "$HOMEBREW_PATH/bin/zsh" /bin/zsh
 printf "\nFinished creating symlinks\n"
 
-if [[ "$selection" -eq 2 && "$YAML_READY" -eq 1 ]]; then
-  # Enable perl in homebrew
+if [[ "$INSTALL_MODE" == "advanced" && "$YAML_READY" -eq 1 ]]; then
   if [[ $(yq eval -r '.packages.perl.action' <<< "$CONFIG_YAML") == "install" ]]; then
-    if [[ $DARWIN == 0 ]] ; then
+    if [[ $DARWIN == 0 ]]; then
       printf "\nFixing perl symlink..."
       sudo ln -sf "$HOMEBREW_PATH/bin/perl" /usr/bin/perl
     fi
@@ -501,65 +518,120 @@ if [[ "$selection" -eq 2 && "$YAML_READY" -eq 1 ]]; then
   fi
 fi
 
-# oh-my-zsh will always be installed with the latest version
-[[ -e ~/.oh-my-zsh ]] && sudo rm -rf ~/.oh-my-zsh
-if [[ -x $(command -v zsh) ]]; then
-    sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
-fi
-# Allow users to run commands: 750. By default the group is users for Synology or staff for macOS
-if [[ -e ~/.oh-my-zsh ]]; then
-    sudo chmod -R 750 ~/.oh-my-zsh  # Synology compaudit command does not allow write access to groups. 750 is maximum
-    sudo chown -R "${USERNAME}:${USERGROUP}" ~/.oh-my-zsh # default to the users group to avoid issues
-fi
-
 # Check if additional Neovim packages should be installed
 echo "-----------------------------------------------------------------"
-if [[ "$selection" -eq 2 && "$YAML_READY" -eq 1 ]]; then
+if [[ "$INSTALL_MODE" == "advanced" && "$YAML_READY" -eq 1 ]]; then
   echo "-----------------------------------------------------------------"
   if [[ $(yq eval -r '.packages.neovim.action' <<< "$CONFIG_YAML") == "install" ]]; then
-      echo "Calling ./install-neovim.sh for additional setup packages"
-      temp_file=$(mktemp)
-      printf '%s\n' "$CONFIG_YAML" > "$temp_file"
-      ./install-neovim.sh "$temp_file"
-      CONFIG_YAML=$(<"$temp_file")
-      rm "$temp_file"
+    echo "Calling ./install-neovim.sh for additional setup packages"
+    temp_file=$(mktemp)
+    printf '%s\n' "$CONFIG_YAML" > "$temp_file"
+    ./install-neovim.sh "$temp_file"
+    CONFIG_YAML=$(<"$temp_file")
+    rm "$temp_file"
   else
-      echo "SKIPPING: Neovim components as config.yaml install flag is set to false."
+    echo "SKIPPING: Neovim components as config.yaml install flag is set to false."
   fi
 fi
 
 # Read YAML and install/uninstall plugins
-if [[ "$selection" -eq 2 && "$YAML_READY" -eq 1 ]]; then
-  yq eval -r '.plugins | to_entries[] | "\(.key) \(.value.action) \(.value.directory) \(.value.url)"' <<< "$CONFIG_YAML" | while read -r plugin action directory url; do
-    directory=${directory/#\~/$HOME}
-    if [[ "$action" == "install" && ! -d "$directory" ]]; then
-        echo "$plugin is not installed, cloning..."
-        git clone "$url" "$directory"
-    elif [[ "$action" == "install" && -d "$directory" ]]; then
-        echo "$plugin is already installed."
-    elif [[ "$action" == "uninstall" && -d "$directory" ]]; then
-        echo "$plugin action is set to uninstall in config.yaml. Removing plugin directory..."
-        rm -rf "$directory"
-    elif [[ "$action" == "uninstall" && ! -d "$directory" ]]; then
-        echo "$plugin is set to uninstall and is not installed. No action needed."
-    elif [[ "$action" == "skip" ]]; then
-        echo "$plugin action is set to skip in config.yaml. No action will be taken."
-    else
-        echo "Invalid action for $plugin in config.yaml. No action will be taken."
+if [[ "$INSTALL_MODE" == "advanced" && "$YAML_READY" -eq 1 ]]; then
+  yq eval -r '.plugins | to_entries[] | "\(.key) \(.value.action) \(.value.directory) \(.value.url)"' <<< "$CONFIG_YAML" \
+    | while read -r plugin action directory url; do
+        directory=${directory/#\~/$HOME}
+        if [[ "$action" == "install" && ! -d "$directory" ]]; then
+          echo "$plugin is not installed, cloning..."
+          git clone "$url" "$directory"
+        elif [[ "$action" == "install" && -d "$directory" ]]; then
+          echo "$plugin is already installed."
+        elif [[ "$action" == "uninstall" && -d "$directory" ]]; then
+          echo "$plugin action is set to uninstall in config.yaml. Removing plugin directory..."
+          rm -rf "$directory"
+        elif [[ "$action" == "uninstall" && ! -d "$directory" ]]; then
+          echo "$plugin is set to uninstall and is not installed. No action needed."
+        elif [[ "$action" == "skip" ]]; then
+          echo "$plugin action is set to skip in config.yaml. No action will be taken."
+        else
+          echo "Invalid action for $plugin in config.yaml. No action will be taken."
+        fi
+      done
+fi
+
+# -----------------------------------------------------------------------------
+# Advanced: GUARANTEE Oh My Zsh is installed (NO prompts, NO auto-run)
+# We use git clone (idempotent) to avoid OMZ installer prompting/updating.
+# -----------------------------------------------------------------------------
+if [[ "$INSTALL_MODE" == "advanced" && "$YAML_READY" -eq 1 ]]; then
+  OMZ_DIR="$HOME/.oh-my-zsh"
+  OMZ_SH="$OMZ_DIR/oh-my-zsh.sh"
+
+  if [[ ! -f "$OMZ_SH" ]]; then
+    echo "Installing Oh My Zsh (non-interactive, git clone)..."
+    rm -rf "$OMZ_DIR" 2>/dev/null || true
+    git clone --depth=1 https://github.com/ohmyzsh/ohmyzsh.git "$OMZ_DIR"
+  else
+    echo "Oh My Zsh already installed."
+  fi
+
+  # Ensure ~/.zshrc exists
+  [[ -f "$HOME/.zshrc" ]] || touch "$HOME/.zshrc"
+
+  # Ensure OMZ path + source line exist exactly once (safe, idempotent)
+  if ! grep -qE '^[[:space:]]*export[[:space:]]+ZSH=' "$HOME/.zshrc" 2>/dev/null; then
+    echo 'export ZSH="$HOME/.oh-my-zsh"' >> "$HOME/.zshrc"
+  fi
+
+  if ! grep -qE '^[[:space:]]*source[[:space:]].*oh-my-zsh\.sh' "$HOME/.zshrc" 2>/dev/null; then
+    echo 'source "$ZSH/oh-my-zsh.sh"' >> "$HOME/.zshrc"
+  fi
+
+  # Also hard-disable prompts/updates at runtime (belt + suspenders)
+  if ! grep -qE '^[[:space:]]*export[[:space:]]+ZSH_DISABLE_AUTO_UPDATE=' "$HOME/.zshrc" 2>/dev/null; then
+    echo 'export ZSH_DISABLE_AUTO_UPDATE=true' >> "$HOME/.zshrc"
+  fi
+  if ! grep -qE '^[[:space:]]*export[[:space:]]+DISABLE_UPDATE_PROMPT=' "$HOME/.zshrc" 2>/dev/null; then
+    echo 'export DISABLE_UPDATE_PROMPT=true' >> "$HOME/.zshrc"
+  fi
+fi
+
+# -----------------------------------------------------------------------------
+# Advanced: Ensure Powerlevel10k is the active OMZ theme (MUST be BEFORE OMZ source)
+# This MUST occur before any script that might add/source oh-my-zsh.sh.
+# -----------------------------------------------------------------------------
+if [[ "$INSTALL_MODE" == "advanced" && "$YAML_READY" -eq 1 ]]; then
+  if [[ $(yq eval -r '.plugins.powerlevel10k.action // "skip"' <<< "$CONFIG_YAML") == "install" ]]; then
+
+    # Ensure p10k repo exists (in case plugin loop was skipped earlier)
+    P10K_DIR="$HOME/.oh-my-zsh/custom/themes/powerlevel10k"
+    if [[ ! -d "$P10K_DIR" ]]; then
+      echo "Powerlevel10k missing, cloning..."
+      git clone --depth=1 https://github.com/romkatv/powerlevel10k.git "$P10K_DIR"
     fi
-  done
+
+    # Ensure theme is set and placed BEFORE OMZ source line
+    if grep -qE '^[[:space:]]*source[[:space:]].*oh-my-zsh\.sh' "$HOME/.zshrc" 2>/dev/null; then
+      echo "Activating Powerlevel10k theme (pre-OMZ)"
+      sed -i.bak '
+        /^ZSH_THEME=/d
+        /^[[:space:]]*source[[:space:]].*oh-my-zsh\.sh/i\
+ZSH_THEME="powerlevel10k/powerlevel10k"
+      ' "$HOME/.zshrc"
+    else
+      echo "⚠️ Could not find OMZ source line in ~/.zshrc (theme not injected)."
+    fi
+  fi
 fi
 
 # Check if any zsh packages should be configured
 echo "-----------------------------------------------------------------"
-if [[ "$selection" -eq 2 && "$YAML_READY" -eq 1 ]]; then
+if [[ "$INSTALL_MODE" == "advanced" && "$YAML_READY" -eq 1 ]]; then
   echo "-----------------------------------------------------------------"
   echo "Calling ./zsh_config.sh for additional zsh configuration"
   ./zsh_config.sh "$CONFIG_YAML"
 fi
 
 # Extract and filter alias commands directly from CONFIG_YAML
-if [[ "$selection" -eq 2 && "$YAML_READY" -eq 1 ]]; then
+if [[ "$INSTALL_MODE" == "advanced" && "$YAML_READY" -eq 1 ]]; then
   alias_commands=$(yq eval -r '
     (.packages + .plugins)
     | to_entries[]
@@ -571,23 +643,23 @@ if [[ "$selection" -eq 2 && "$YAML_READY" -eq 1 ]]; then
   ' <<< "$CONFIG_YAML" | grep -v "^=$")
 
   if [[ -n "$alias_commands" ]]; then
-      while IFS='=' read -r key value; do
-          value=$(printf '%s' "$value" | sed 's/"/\\"/g')
-          formatted_alias="alias ${key}=\"${value}\""
-          if ! grep -qF "$formatted_alias" ~/.zshrc; then
-              echo "Adding alias command: $formatted_alias"
-              echo "$formatted_alias" >> ~/.zshrc
-          else
-              echo "Alias already exists: $formatted_alias"
-          fi
-      done <<< "$alias_commands"
+    while IFS='=' read -r key value; do
+      value=$(printf '%s' "$value" | sed 's/"/\\"/g')
+      formatted_alias="alias ${key}=\"${value}\""
+      if ! grep -qF "$formatted_alias" "$HOME/.zshrc" 2>/dev/null; then
+        echo "Adding alias command: $formatted_alias"
+        echo "$formatted_alias" >> "$HOME/.zshrc"
+      else
+        echo "Alias already exists: $formatted_alias"
+      fi
+    done <<< "$alias_commands"
   else
-      echo "No aliases to add."
+    echo "No aliases to add."
   fi
 fi
 
 # Extract and filter eval commands directly from CONFIG_YAML
-if [[ "$selection" -eq 2 && "$YAML_READY" -eq 1 ]]; then
+if [[ "$INSTALL_MODE" == "advanced" && "$YAML_READY" -eq 1 ]]; then
   eval_commands=$(yq eval -r '
     (.packages + .plugins)
     | to_entries[]
@@ -596,88 +668,38 @@ if [[ "$selection" -eq 2 && "$YAML_READY" -eq 1 ]]; then
   ' <<< "$CONFIG_YAML" | grep -v "^=$")
 
   if [[ -n "$eval_commands" ]]; then
-      while IFS= read -r eval_command; do
-          eval_command=$(printf '%s' "$eval_command" | sed 's/"/\\"/g')
-          formatted_eval="eval \"\$($eval_command)\""
-          if ! grep -qF "$formatted_eval" ~/.zshrc; then
-              echo "Adding eval command: $formatted_eval"
-              echo "$formatted_eval" >> ~/.zshrc
-          else
-              echo "Eval command already exists: $formatted_eval"
-          fi
-      done <<< "$eval_commands"
+    while IFS= read -r eval_command; do
+      eval_command=$(printf '%s' "$eval_command" | sed 's/"/\\"/g')
+      formatted_eval="eval \"\$($eval_command)\""
+      if ! grep -qF "$formatted_eval" "$HOME/.zshrc" 2>/dev/null; then
+        echo "Adding eval command: $formatted_eval"
+        echo "$formatted_eval" >> "$HOME/.zshrc"
+      else
+        echo "Eval command already exists: $formatted_eval"
+      fi
+    done <<< "$eval_commands"
   else
-      echo "No eval commands to add."
+    echo "No eval commands to add."
   fi
 fi
 
+###############################################################################
+# FINAL TRANSPORT — COMPLETE CLEANUP THEN ZSH HANDOFF (KNOWN-GOOD)
+###############################################################################
 
+# 1) Perform full cleanup explicitly (sudoers, logs, permissions, etc.)
+cleanup_once 0
 
-func_cleanup_exit 0
+# 2) Disable all traps so nothing fires again
+trap - EXIT
+trap - INT TERM HUP QUIT ABRT ALRM PIPE
 
+# 3) Final installer message (last thing installer prints)
 echo ""
 echo "✨====================================================================✨"
-echo "  🎉 Script completed successfully."
-echo "  🚀 You are about to be transported into your shiny new Zsh shell!"
+echo "  🚀 You will now be transported to zsh..."
 echo "✨====================================================================✨"
 echo ""
 
-if command -v zsh >/dev/null 2>&1; then
-    echo "🔧 Finalizing Zsh environment..."
-
-    ######################################################################
-    # 1️⃣ Create a guaranteed-safe completion environment BEFORE startup
-    ######################################################################
-    mkdir -p "$HOME/.zfunc" 2>/dev/null
-    mkdir -p "$HOME/.cache" 2>/dev/null
-
-    # Remove stale caches (Synology often generates invalid dumps)
-    rm -f "$HOME/.zcompdump"* 2>/dev/null
-
-    ######################################################################
-    # 2️⃣ Inject Zsh-safe initialization block at TOP of ~/.zshrc (once)
-    ######################################################################
-    if ! grep -q "### Synology-Homebrew Zsh initialization" "$HOME/.zshrc" 2>/dev/null; then
-        TEMPFILE=$(mktemp)
-
-        {
-            echo "### Synology-Homebrew Zsh initialization (must be FIRST)"
-            echo "export ZSH_DISABLE_COMPFIX=true"
-            echo ""
-            echo "# Build a clean fpath from zsh’s default environment"
-            echo "DEFAULT_ZSH_FPATH=\$(zsh -dfc 'print -rl -- \$fpath' 2>/dev/null | tr '\n' ':' | sed 's/:$//')"
-            echo "export FPATH=\"\$DEFAULT_ZSH_FPATH:\$FPATH:$HOME/.zfunc\""
-            echo ""
-            echo "# Load completions without security checks (Synology ACLs trigger false positives)"
-            echo "autoload -Uz compinit"
-            echo "compinit -u"
-            echo "### End Synology-Homebrew block"
-            echo ""
-            # Append original zshrc
-            cat "$HOME/.zshrc"
-        } > "$TEMPFILE"
-
-        mv "$TEMPFILE" "$HOME/.zshrc"
-        echo "✅ Injected Synology Zsh initialization block at top of ~/.zshrc"
-    else
-        echo "ℹ️ Zsh initialization block already present — skipping."
-    fi
-
-    ######################################################################
-    # 3️⃣ Pre-warm compinit non-interactively (avoids startup warnings)
-    ######################################################################
-    echo "🔄 Generating safe compdump cache..."
-    zsh -dfc "autoload -Uz compinit; compinit -u" >/dev/null 2>&1
-
-    echo ""
-    echo "--------------------------------------------------------"
-    echo "  Setup complete! Launching your new Zsh environment..."
-    echo "--------------------------------------------------------"
-    echo ""
-
-    exec zsh --login
-else
-    echo "⚠️ Zsh not found. Staying in current shell."
-fi
-
-
+# 4) Replace the installer process with zsh, attached to a real TTY
+exec /bin/zsh -il </dev/tty >/dev/tty 2>&1

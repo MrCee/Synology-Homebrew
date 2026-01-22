@@ -1,4 +1,11 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -e
+
+if [[ "${INSTALL_MODE:-minimal}" == "minimal" ]]; then
+  echo "❌ ERROR: zsh_config.sh must never run in minimal install mode"
+  echo "   This would violate minimal shell guarantees."
+  exit 1
+fi
 
 source ./functions.sh
 

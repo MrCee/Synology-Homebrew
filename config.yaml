@@ -1,3 +1,8 @@
+shell:
+  framework:
+    name: oh-my-zsh
+    action: install
+
 packages:
   make:
     action: install
@@ -80,6 +85,7 @@ packages:
     aliases:
       lg: "lazygit"
     eval: []
+
 plugins:
   powerlevel10k:
     action: install
