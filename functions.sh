@@ -1,5 +1,12 @@
 #!/bin/bash
 
+# -----------------------------------------------------------------------------
+# functions.sh
+#
+# Library file — must be sourced by install-synology-homebrew.sh
+# Do NOT execute directly.
+# -----------------------------------------------------------------------------
+
 # Check if the script is being sourced
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     echo "🚫 This file should not be run directly; it should be sourced from the main script."
@@ -228,36 +235,69 @@ func_check_sudoers() {
 
 # -----------------------------------------------
 # Function: func_initialize_env_vars
-# Description: Initializes environment variables based on the operating system.
+# Description: Initializes environment variables and FAILS FAST on
+#              known-incompatible platforms for Homebrew.
 # -----------------------------------------------
 func_initialize_env_vars() {
     local arch os
     arch=$(uname -m)
     os=$(uname -s)
+
     USERNAME=$(id -un)
     USERGROUP=$(id -gn)
     ROOTGROUP=$(id -gn root | awk '{print $1}')  # Primary group only
 
+    # ------------------------------------------------------------
+    # HARD BLOCK: Unsupported CPU architectures (Homebrew limit)
+    # ------------------------------------------------------------
+    case "$arch" in
+        x86_64|aarch64)
+            # Supported by Homebrew on Linux
+            ;;
+        arm64)
+            # macOS Apple Silicon (handled under Darwin)
+            ;;
+        *)
+            echo "❌ Unsupported architecture: $arch"
+            echo "Homebrew supports ONLY:"
+            echo "  - x86_64 (Intel 64-bit)"
+            echo "  - aarch64 / arm64 (ARM64)"
+            echo ""
+            echo "32-bit architectures (armv7, armv6, i386, etc.) are permanently unsupported."
+            echo "This is a Homebrew limitation, not a bug in this installer."
+            exit 1
+            ;;
+    esac
+
+    # ------------------------------------------------------------
+    # OS detection + Homebrew root
+    # ------------------------------------------------------------
     if [[ "$os" == "Darwin" ]]; then
         DARWIN=1
+
         if [[ "$arch" == "arm64" ]]; then
-            # Expected path for Apple Silicon (M1, M2) macOS
+            # Apple Silicon macOS
             HOMEBREW_PATH="/opt/homebrew"
         else
-            # Expected path for Intel macOS
+            # Intel macOS
             HOMEBREW_PATH="/usr/local"
         fi
+
     elif [[ "$os" == "Linux" ]]; then
-		DARWIN=0
-        # Expected path for Linuxbrew
+        DARWIN=0
+
+        # Linuxbrew root (Synology / generic Linux)
         HOMEBREW_PATH="/home/linuxbrew/.linuxbrew"
-	else
-        printf "❌ Unsupported OS: %s\n" "$os" >&2
-        return 1
+
+    else
+        echo "❌ Unsupported operating system: $os"
+        exit 1
     fi
 
-    # Export DARWIN and HOMEBREW_PATH after setting their values
-    export DARWIN HOMEBREW_PATH
+    # ------------------------------------------------------------
+    # Export authoritative environment
+    # ------------------------------------------------------------
+    export DARWIN HOMEBREW_PATH USERNAME USERGROUP ROOTGROUP
 }
 
 # -----------------------------------------------

@@ -18,18 +18,17 @@
 
 It respects your Synology environment, avoids overwriting system packages, and includes a full uninstall path.
 
+> ℹ️ For supported platforms, architectures, and DSM version notes, see  
+> **[Compatibility & Platform Support](#-compatibility--platform-support)**.
+
 ---
 
 ## 🔥 What’s New (Minimal mode fixes)
 
-Thanks to user reports (e.g., large bottles like `binutils` or `gcc` extracting into `/`, and YAML being parsed in Minimal mode), the installer has been updated:
+Thanks to user reports, the installer has been updated to improve correctness and safety:
 
 - **Minimal ≠ YAML**  
   Minimal no longer touches `config.yaml`. YAML parsing now only happens in **Advanced** mode.
-
-- **Bottles extract off the tiny root volume (DSM)**  
-  On Synology, Homebrew’s temp is forced to **`$HOME/tmp`**, preventing large bottles from filling `/tmp` on `md0`.  
-  The script also sets `TMPDIR=$HOME/tmp` during install.
 
 - **Safer pruning in Minimal mode**  
   After a Minimal run, the script can **optionally prune** your system back to a minimal set by **only offering to uninstall leaf formulas** (things you explicitly installed).  
@@ -80,8 +79,6 @@ git clone https://github.com/MrCee/Synology-Homebrew.git ~/Synology-Homebrew && 
 - **macOS baseline**  
   `git yq ruby python3 coreutils findutils gnu-sed grep gawk`  
 
-> On DSM, bottle extraction is done under `$HOME/tmp` to avoid filling the small `/` volume.
-
 ---
 
 ## ⚡ Option 2: Advanced Install (Fully Loaded)
@@ -92,50 +89,6 @@ git clone https://github.com/MrCee/Synology-Homebrew.git ~/Synology-Homebrew && 
   - `skip` → do nothing  
 - Adds aliases and `eval` lines to your `~/.zshrc`, but only for packages you’ve chosen to keep  
 - Invokes optional Neovim bootstrap and Zsh configuration helpers when flagged in YAML  
-
-**File location:**
-```zsh
-~/Synology-Homebrew/config.yaml
-```
-
-**Open it with:**
-```zsh
-nvim ~/Synology-Homebrew/config.yaml
-# or
-nano ~/Synology-Homebrew/config.yaml
-```
-
-**Example (excerpt):**
-```yaml
-packages:
-  neovim:
-    action: install
-    aliases:
-      vim: "nvim"
-    eval: []
-
-  bat:
-    action: install
-    aliases:
-      cat: "bat --paging=never"
-    eval: []
-
-plugins:
-  powerlevel10k:
-    action: install
-    url: "https://github.com/romkatv/powerlevel10k"
-    directory: "~/.oh-my-zsh/custom/themes/powerlevel10k"
-    aliases: []
-    eval: []
-
-  kickstart.nvim:
-    action: install
-    url: "https://github.com/nvim-lua/kickstart.nvim"
-    directory: "~/.config/nvim-kickstart"
-    aliases:
-      nvim: 'NVIM_APPNAME="nvim-kickstart" nvim'
-    eval: []
-```
 
 ---
 
@@ -153,105 +106,63 @@ This keeps pruning **safe** and predictable.
 
 ## 🧱 Synology Notes (DSM 7.2+)
 
-- **Homebrew temp** is set to **`$HOME/tmp`** during install so big bottles don’t fill `/`:  
-  - `HOMEBREW_TEMP=$HOME/tmp`  
-  - `TMPDIR=$HOMEBREW_TEMP`  
-- After installation, `~/.profile` is updated to include Homebrew’s bin directories.  
-- A post-boot Task Scheduler job can re-bind `/home` and fix permissions (see snippet below).
+- The installer avoids overwriting Synology system files  
+- Homebrew is installed in a self-contained prefix  
+- `~/.profile` is updated to include Homebrew’s bin directories  
+- Optional post-boot tasks can be used to re-bind `/home` and correct permissions  
 
-**Suggested boot task (User-defined Script):**
-```bash
-#!/bin/bash
-[[ ! -d /home ]] && sudo mkdir /home
-if ! grep -qs ' /home ' /proc/mounts; then
-  sudo mount -o bind "$(readlink -f /var/services/homes)" /home
-fi
-sudo chown root:root /home && sudo chmod 775 /home
-if [[ -d /home/linuxbrew ]]; then
-  sudo chown root:root /home/linuxbrew && sudo chmod 775 /home/linuxbrew
-fi
-```
+---
+
+## 🔧 Compatibility & Platform Support
+
+This project is **fully validated on DSM 7.2+** and **supported macOS versions**.
+
+We have made **best-effort accommodations for DSM 7.1**, however support on DSM 7.1 is **inherently limited by platform and upstream constraints**.
+
+### ✅ Supported platforms
+
+- **Synology DSM 7.2+**
+  - `x86_64` (Intel 64-bit)
+  - `aarch64 / arm64` (ARM64, model-dependent)
+- **macOS**
+  - Intel (`x86_64`)
+  - Apple Silicon (`arm64`)
+
+### ⚠️ DSM 7.1 (limited support)
+
+What works:
+
+- Installer validation and preflight checks  
+- **Minimal mode** on compatible architectures  
+- No Synology system packages are overwritten  
+
+What does **not** work or is **not guaranteed**:
+
+- ❌ **32-bit ARM systems** (`armv7l`, `armv6l`, `armhf`)
+- ❌ Any architecture unsupported by Homebrew
+- ❌ Guaranteed bottle availability or build success
+- ❌ Full **Advanced mode parity** with DSM 7.2+
+- ❌ Fixes for Homebrew upstream limitations
+
+> **Important:**  
+> Synology NAS devices using **32-bit ARM CPUs** cannot run Homebrew at all.  
+> This is a **Homebrew limitation**, not a bug in this installer.
+
+### 🚫 Unsupported platforms (hard stop)
+
+- armv7 / armv6 / armhf  
+- i386 / i686  
+- Any non-64-bit CPU architecture  
+- Operating systems unsupported by Homebrew  
 
 ---
 
 ## 🍎 macOS Notes
 
-- Homebrew installs to `/opt/homebrew` on Apple Silicon, and `/usr/local` on Intel  
+- Homebrew installs to `/opt/homebrew` on Apple Silicon  
+- Homebrew installs to `/usr/local` on Intel  
 - The installer updates your `~/.zprofile` with `brew shellenv`  
 - Since macOS already includes zsh, the script does not install it  
-- **oh-my-zsh** is installed by default (you can comment that block out if you don’t want it)  
-
----
-
-## 🧪 Neovim (optional)
-
-You can bootstrap Neovim via **Advanced** mode and/or use `kickstart.nvim`.  
-Switch profiles with `NVIM_APPNAME`:
-
-```zsh
-NVIM_APPNAME="nvim-kickstart" nvim
-```
-
-Inside Neovim, run:
-```vim
-:checkhealth
-```
-
-<img src="screenshots/SCR-neovim-plugins-updated.png" width="800">
-
----
-
-## 🖌️ Customize Your Zsh
-
-Your shell environment comes preloaded with:
-
-- `zsh` + `oh-my-zsh`  
-- The `powerlevel10k` theme  
-- Helpful plugins (such as autosuggestions and syntax highlighting)  
-- Useful command aliases (`ll`, `vim → nvim`, `cat → bat`, `cd → zoxide`, `ls → eza`)
-
-<img src="screenshots/SCR-iTerm2.png" width="800">
-
----
-
-## 📦 Installed Packages (Advanced)
-
-When you select **Advanced Install**, the script installs everything defined in `config.yaml`.  
-Below is the full curated list — collapsed for readability, but fully indexed (search engines and GitHub search can still see it).
-
-## 📋 Full Package List
-
-| Package | Description | Dependency |
-|---------|-------------|------------|
-| [brew](https://brew.sh) | Homebrew - The Missing Package Manager now for macOS & Linux. | Essential for: Synology-Homebrew |
-| [git](https://git-scm.com) | Latest version replaces Synology Package Centre version. | Essential for: Synology-Homebrew |
-| [ruby](https://www.ruby-lang.org) | Latest version replaces Synology Package Centre version. | Essential for: Synology-Homebrew |
-| [zsh](https://www.zsh.org) | UNIX shell (command interpreter). | Essential for: Synology-Homebrew |
-| [python3 / pip3](https://www.python.org) | Latest version installed. | Essential for: Synology-Homebrew |
-| [glibc](https://www.gnu.org/software/libc) | The GNU C Library - Core libraries for the GNU system. | Essential for: Synology-Homebrew |
-| [gcc](https://gcc.gnu.org) | GNU compiler collection. | Essential for: Synology-Homebrew |
-| [oh-my-zsh](https://ohmyz.sh) | Community-driven framework for managing Zsh configuration. | Essential for: Synology-Homebrew, zsh |
-| [jq](https://jqlang.github.io/jq) | Lightweight and flexible command-line JSON processor. | Essential for: Synology-Homebrew |
-| [make](https://www.gnu.org/software/make) | Utility for directing compilation. | Essential for: neovim plugins |
-| [node](https://nodejs.org) | JavaScript runtime environment. | Essential for: neovim |
-| [neovim](https://neovim.io) | Hyperextensible Vim-based text editor. | Recommended for: Synology |
-| [powerlevel10k](https://github.com/romkatv/powerlevel10k) | A theme for zsh. | Recommended for: oh-my-zsh |
-| [zsh-syntax-highlighting](https://github.com/zsh-users/zsh-syntax-highlighting) | A plugin for zsh. | Recommended for: oh-my-zsh |
-| [zsh-autosuggestions](https://github.com/zsh-users/zsh-autosuggestions) | A plugin for zsh. | Recommended for: oh-my-zsh |
-| [ripgrep](https://github.com/BurntSushi/ripgrep) | Recursive regex directory search tool. | Essential for: neovim, telescope, fzf |
-| [fd](https://github.com/sharkdp/fd) | User-friendly alternative to `find`. | Essential for: neovim, telescope |
-| [fzf](https://github.com/junegunn/fzf) | A command-line fuzzy finder. | Essential for: neovim, telescope |
-| [fzf-git.sh](https://github.com/junegunn/fzf-git.sh) | Bash and zsh key bindings for Git objects. | Recommended for: neovim, telescope, fzf |
-| [bat](https://github.com/sharkdp/bat) | A `cat` clone with syntax highlighting and Git integration. | Recommended for: zsh, neovim |
-| [git-delta](https://github.com/dandavison/delta) | Syntax highlighting for diffs using Levenshtein algorithm. | Recommended for: neovim |
-| [eza](https://github.com/eza-community/eza.git) | A modern replacement for `ls`. | Recommended for: zsh, neovim |
-| [tldr](https://github.com/tldr-pages/tldr) | Simplified help pages for command-line tools. | Recommended for: neovim |
-| [thefuck](https://github.com/nvbn/thefuck) | Corrects previous console command errors. | Recommended for: zsh |
-| [kickstart.nvim](https://github.com/nvim-lua/kickstart.nvim) | A starting point for Neovim. | Optional for: neovim |
-| [perl](https://www.perl.org) | Feature-rich programming language. | Essential for: stow |
-| [stow](https://www.gnu.org/software/stow) | GNU Stow: Manage symlinks for dotfiles. | Optional |
-| [zoxide](https://github.com/ajeetdsouza/zoxide) | Smarter `cd` command, inspired by `z` and `autojump`. | Recommended for: zsh |
-| [lazygit](https://github.com/jesseduffield/lazygit) | Terminal UI for Git commands. | Recommended for: zsh, neovim |
 
 ---
 
@@ -259,7 +170,7 @@ Below is the full curated list — collapsed for readability, but fully indexed 
 
 - No hidden network calls beyond Homebrew itself  
 - No credentials or sudo passwords are logged  
-- Sudoers fragments are created + removed automatically at the end of a run  
+- Sudoers fragments are created and removed automatically  
 - Full uninstall path is included  
 - 100% open-source and auditable  
 
@@ -267,22 +178,26 @@ Below is the full curated list — collapsed for readability, but fully indexed 
 
 ## 🧩 Troubleshooting
 
-### “No space left on device” unpacking bottles (DSM)  
-This happens because DSM’s `/tmp` lives on the small `md0` volume. The installer now sets:
+### “No space left on device” unpacking bottles (DSM)
 
-```zsh
-export HOMEBREW_TEMP=$HOME/tmp
-export TMPDIR=$HOMEBREW_TEMP
-```
+On Synology DSM, the system `/tmp` directory resides on the small system volume.  
+Large Homebrew bottles or build stages can exhaust this space on older setups.
 
-### Minimal tried to validate YAML  
-Fixed. Minimal no longer touches `config.yaml`. YAML parsing only happens in **Advanced**.
+The installer accounts for this internally so installs complete reliably.
 
-### Minimal “prune” isn’t removing enough  
-Prune only targets **leaf formulas** (`brew leaves`). To remove dependencies, uninstall their leaf dependents first.
+### Minimal tried to validate YAML
 
-### Git messages during install  
-The installer shows the current git commit hash and whether your branch is up to date with `origin`. This is informational only.
+Fixed. Minimal no longer touches `config.yaml`. YAML parsing only happens in **Advanced** mode.
+
+### Minimal “prune” isn’t removing enough
+
+Prune only targets **leaf formulas** (`brew leaves`).  
+To remove dependencies, uninstall their leaf dependents first.
+
+### Git messages during install
+
+The installer prints the current git commit hash and branch for traceability.  
+This output is informational only.
 
 ---
 
@@ -296,25 +211,19 @@ curl -sSL https://raw.githubusercontent.com/MrCee/Synology-Git/refs/heads/main/i
 
 ## 🤝 Contributing
 
-- Found a bug? Open an issue with:  
-  - Synology model, DSM version  
-  - `uname -m` (arch), minimal vs advanced  
-  - Log excerpt and Git commit hash printed by the script  
-- PRs welcome — especially for prune logic, docs, and portability  
+- Found a bug? Open an issue with:
+  - Synology model and DSM version  
+  - `uname -m` (architecture)  
+  - Minimal vs Advanced mode  
+  - Relevant log output and commit hash  
+
+PRs are welcome — especially for portability, documentation, and edge-case handling.
 
 ---
 
 ## ⚖️ License
 
 This project is licensed under the [MIT License](./LICENSE).
-
----
-
-## 🙏 Credits
-
-- The Homebrew team and community  
-- @ogerardin, @AppleBoiy, @josean-dev, @tjdevries  
-- Everyone filing issues and PRs — thank you!  
 
 ---
 

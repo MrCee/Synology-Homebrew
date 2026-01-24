@@ -103,49 +103,36 @@ uninstall_powerlevel10k_theme() {
 install_bat_theme() {
     local theme_name="tokyonight_night"
     local bat_config_dir
-    local theme_dir
-    local theme_file
-
     bat_config_dir="$(bat --config-dir)"
-    theme_dir="$bat_config_dir/themes"
-    theme_file="$theme_dir/${theme_name}.tmTheme"
+    local themes_dir="$bat_config_dir/themes"
+    local theme_file="$themes_dir/${theme_name}.tmTheme"
+    local theme_url="https://raw.githubusercontent.com/folke/tokyonight.nvim/main/extras/sublime/${theme_name}.tmTheme"
 
     echo ""
-    echo "Installing bat theme: $theme_name"
+    echo "🎨 Configuring bat theme: $theme_name"
 
-    mkdir -p "$theme_dir"
+    mkdir -p "$themes_dir"
 
-    # If theme file exists and is a symlink, do NOT touch it
-    if [[ -L "$theme_file" ]]; then
-        echo "bat theme: $theme_name is managed via symlink — skipping install"
-        return 0
-    fi
-
-    # Download only if missing
-    if [[ ! -f "$theme_file" ]]; then
-        echo "Downloading bat theme file..."
-        if ! curl -fsSL \
-            "https://raw.githubusercontent.com/folke/tokyonight.nvim/main/extras/sublime/${theme_name}.tmTheme" \
-            -o "$theme_file"; then
-            echo "⚠️ Failed to download bat theme file — continuing without it"
+    # If the theme already exists (file OR symlink), do not touch it
+    if [[ -e "$theme_file" ]]; then
+        echo "ℹ️ bat theme already present (file or symlink detected)"
+    else
+        echo "⬇️ Downloading bat theme..."
+        if ! curl -fsSL "$theme_url" -o "$theme_file"; then
+            echo "⚠️ Failed to download bat theme — continuing without modifying existing setup"
             return 0
         fi
-    else
-        echo "bat theme file already present"
     fi
 
-    echo "Rebuilding bat theme cache..."
+    echo "🔄 Rebuilding bat cache..."
     bat cache --build >/dev/null 2>&1
 
-    if bat --list-themes | grep -q "^${theme_name}\$"; then
-        if ! grep -q -- "--theme=\"$theme_name\"" "$bat_config_dir/config" 2>/dev/null; then
-            echo "--theme=\"$theme_name\"" >> "$bat_config_dir/config"
-            echo "bat theme: $theme_name activated"
-        else
-            echo "bat theme: $theme_name already configured"
-        fi
+    # Ensure theme is set in config (once)
+    if ! grep -q -- "--theme=\"$theme_name\"" "$bat_config_dir/config" 2>/dev/null; then
+        echo "--theme=\"$theme_name\"" >> "$bat_config_dir/config"
+        echo "✅ bat theme set to $theme_name"
     else
-        echo "⚠️ bat theme cache rebuilt, but theme not detected"
+        echo "✅ bat theme already configured"
     fi
 }
 
