@@ -1,39 +1,34 @@
 # Synology-Homebrew
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/MrCee/Synology-Homebrew/pulls)
 [![Last Commit](https://img.shields.io/github/last-commit/MrCee/Synology-Homebrew)](https://github.com/MrCee/Synology-Homebrew/commits)
-[![Platform: DSM 7.2+](https://img.shields.io/badge/Platform-DSM%207.2%2B-1C1C1C)](https://www.synology.com/en-global/dsm)
-[![macOS Supported](https://img.shields.io/badge/macOS-Supported-lightgrey)](https://support.apple.com/macos)
-[![Arch: ARM64 & x86_64](https://img.shields.io/badge/Arch-ARM64%20%7C%20x86__64-1793D1)](https://en.wikipedia.org/wiki/X86-64)
+[![Platform](https://img.shields.io/badge/Platform-DSM%207.2%2B%20%7C%20macOS-1C1C1C)](https://www.synology.com/en-global/dsm)
+[![Architecture](https://img.shields.io/badge/Architecture-x86__64%20%7C%20ARM64-1793D1)](https://en.wikipedia.org/wiki/X86-64)
 
 ---
 
-## 🚀 Overview
+### 🚀 Overview
 
-**Synology-Homebrew** provides a safe, repeatable way to install and manage Homebrew on **Synology DSM 7.2+** and **macOS**, with two modes:
+**Synology-Homebrew** provides a safe, repeatable way to install and manage Homebrew on **Synology DSM** and **macOS**, with two modes:
 
 - **Minimal**: a clean base install of Homebrew + essentials  
 - **Advanced**: drive everything from a `config.yaml` (packages, plugins, aliases)
 
 It respects your Synology environment, avoids overwriting system packages, and includes a full uninstall path.
 
+*macOS support exists to allow the same `config.yaml` used on a Synology NAS to be applied consistently on a Mac (for development, replication, or local tooling parity).*
+
 ---
 
-## 🔥 What’s New (Minimal mode fixes)
+## 🔥 What’s New Jan 2026
 
-Thanks to user reports (e.g., large bottles like `binutils` or `gcc` extracting into `/`, and YAML being parsed in Minimal mode), the installer has been updated:
+**Expanded DSM compatibility with explicit platform safeguards**  
 
-- **Minimal ≠ YAML**  
-  Minimal no longer touches `config.yaml`. YAML parsing now only happens in **Advanced** mode.
+DSM 7.1 is supported on a best-effort basis.  
+32-bit platforms are not supported by Homebrew and are blocked by the installer.
 
-- **Bottles extract off the tiny root volume (DSM)**  
-  On Synology, Homebrew’s temp is forced to **`$HOME/tmp`**, preventing large bottles from filling `/tmp` on `md0`.  
-  The script also sets `TMPDIR=$HOME/tmp` during install.
-
-- **Safer pruning in Minimal mode**  
-  After a Minimal run, the script can **optionally prune** your system back to a minimal set by **only offering to uninstall leaf formulas** (things you explicitly installed).  
-  On macOS and Synology, baselines differ (see below).
+Because DSM 7.1 can run on unsupported 32-bit platforms, the installer performs upfront CPU architecture validation to prevent silent Homebrew installer failures.
 
 ---
 
@@ -69,7 +64,6 @@ git clone https://github.com/MrCee/Synology-Homebrew.git ~/Synology-Homebrew && 
 ## 🧼 Option 1: Minimal Install (Clean & Lightweight)
 
 - Installs **Homebrew + essentials** only (platform-specific baseline)  
-- **Ignores `config.yaml` entirely**  
 - Offers a **prune** prompt at the end (optional) to remove extras you installed previously  
 
 ### Minimal baselines
@@ -79,8 +73,6 @@ git clone https://github.com/MrCee/Synology-Homebrew.git ~/Synology-Homebrew && 
 
 - **macOS baseline**  
   `git yq ruby python3 coreutils findutils gnu-sed grep gawk`  
-
-> On DSM, bottle extraction is done under `$HOME/tmp` to avoid filling the small `/` volume.
 
 ---
 
@@ -98,7 +90,8 @@ git clone https://github.com/MrCee/Synology-Homebrew.git ~/Synology-Homebrew && 
 ~/Synology-Homebrew/config.yaml
 ```
 
-**Open it with:**
+**Edit with your preferred editor:**
+
 ```zsh
 nvim ~/Synology-Homebrew/config.yaml
 # or
@@ -151,13 +144,12 @@ This keeps pruning **safe** and predictable.
 
 ---
 
-## 🧱 Synology Notes (DSM 7.2+)
+## 🧱 Synology Notes
 
-- **Homebrew temp** is set to **`$HOME/tmp`** during install so big bottles don’t fill `/`:  
-  - `HOMEBREW_TEMP=$HOME/tmp`  
-  - `TMPDIR=$HOMEBREW_TEMP`  
-- After installation, `~/.profile` is updated to include Homebrew’s bin directories.  
-- A post-boot Task Scheduler job can re-bind `/home` and fix permissions (see snippet below).
+- `/home` is bind-mounted from `/var/services/homes`
+- Permissions are repaired defensively
+- Homebrew is isolated from Synology system packages
+- No permanent DSM modifications are required
 
 **Suggested boot task (User-defined Script):**
 ```bash
@@ -179,7 +171,6 @@ fi
 - Homebrew installs to `/opt/homebrew` on Apple Silicon, and `/usr/local` on Intel  
 - The installer updates your `~/.zprofile` with `brew shellenv`  
 - Since macOS already includes zsh, the script does not install it  
-- **oh-my-zsh** is installed by default (you can comment that block out if you don’t want it)  
 
 ---
 
@@ -217,22 +208,13 @@ Your shell environment comes preloaded with:
 ## 📦 Installed Packages (Advanced)
 
 When you select **Advanced Install**, the script installs everything defined in `config.yaml`.  
-Below is the full curated list — collapsed for readability, but fully indexed (search engines and GitHub search can still see it).
+Below is the full curated list — collapsed for readability, but fully indexed.
 
 ## 📋 Full Package List
 
 | Package | Description | Dependency |
 |---------|-------------|------------|
-| [brew](https://brew.sh) | Homebrew - The Missing Package Manager now for macOS & Linux. | Essential for: Synology-Homebrew |
-| [git](https://git-scm.com) | Latest version replaces Synology Package Centre version. | Essential for: Synology-Homebrew |
-| [ruby](https://www.ruby-lang.org) | Latest version replaces Synology Package Centre version. | Essential for: Synology-Homebrew |
-| [zsh](https://www.zsh.org) | UNIX shell (command interpreter). | Essential for: Synology-Homebrew |
-| [python3 / pip3](https://www.python.org) | Latest version installed. | Essential for: Synology-Homebrew |
-| [glibc](https://www.gnu.org/software/libc) | The GNU C Library - Core libraries for the GNU system. | Essential for: Synology-Homebrew |
-| [gcc](https://gcc.gnu.org) | GNU compiler collection. | Essential for: Synology-Homebrew |
-| [oh-my-zsh](https://ohmyz.sh) | Community-driven framework for managing Zsh configuration. | Essential for: Synology-Homebrew, zsh |
 | [jq](https://jqlang.github.io/jq) | Lightweight and flexible command-line JSON processor. | Essential for: Synology-Homebrew |
-| [make](https://www.gnu.org/software/make) | Utility for directing compilation. | Essential for: neovim plugins |
 | [node](https://nodejs.org) | JavaScript runtime environment. | Essential for: neovim |
 | [neovim](https://neovim.io) | Hyperextensible Vim-based text editor. | Recommended for: Synology |
 | [powerlevel10k](https://github.com/romkatv/powerlevel10k) | A theme for zsh. | Recommended for: oh-my-zsh |
@@ -255,6 +237,28 @@ Below is the full curated list — collapsed for readability, but fully indexed 
 
 ---
 
+## 🧩 Compatibility & Platform Support
+
+### Architectures
+
+| Architecture | Status |
+|-------------|--------|
+| x86_64 | ✅ Supported |
+| ARM64 (aarch64) | ✅ Supported |
+| ARMv7 / ARMv6 | ❌ Unsupported |
+
+32-bit ARM systems are blocked early to prevent silent Homebrew installer failures.
+
+### DSM Versions
+
+| DSM Version | Status |
+|------------|--------|
+| DSM 7.2+ | ✅ Fully supported |
+| DSM 7.1 | ⚠️ Best-effort |
+| DSM < 7.1 | ❌ Unsupported |
+
+---
+
 ## 🛡️ Security & Safety
 
 - No hidden network calls beyond Homebrew itself  
@@ -262,27 +266,6 @@ Below is the full curated list — collapsed for readability, but fully indexed 
 - Sudoers fragments are created + removed automatically at the end of a run  
 - Full uninstall path is included  
 - 100% open-source and auditable  
-
----
-
-## 🧩 Troubleshooting
-
-### “No space left on device” unpacking bottles (DSM)  
-This happens because DSM’s `/tmp` lives on the small `md0` volume. The installer now sets:
-
-```zsh
-export HOMEBREW_TEMP=$HOME/tmp
-export TMPDIR=$HOMEBREW_TEMP
-```
-
-### Minimal tried to validate YAML  
-Fixed. Minimal no longer touches `config.yaml`. YAML parsing only happens in **Advanced**.
-
-### Minimal “prune” isn’t removing enough  
-Prune only targets **leaf formulas** (`brew leaves`). To remove dependencies, uninstall their leaf dependents first.
-
-### Git messages during install  
-The installer shows the current git commit hash and whether your branch is up to date with `origin`. This is informational only.
 
 ---
 
@@ -294,27 +277,9 @@ curl -sSL https://raw.githubusercontent.com/MrCee/Synology-Git/refs/heads/main/i
 
 ---
 
-## 🤝 Contributing
-
-- Found a bug? Open an issue with:  
-  - Synology model, DSM version  
-  - `uname -m` (arch), minimal vs advanced  
-  - Log excerpt and Git commit hash printed by the script  
-- PRs welcome — especially for prune logic, docs, and portability  
-
----
-
 ## ⚖️ License
 
 This project is licensed under the [MIT License](./LICENSE).
-
----
-
-## 🙏 Credits
-
-- The Homebrew team and community  
-- @ogerardin, @AppleBoiy, @josean-dev, @tjdevries  
-- Everyone filing issues and PRs — thank you!  
 
 ---
 
@@ -328,4 +293,6 @@ This project is licensed under the [MIT License](./LICENSE).
 
 If this script saved your bacon, rescued your dotfiles, or spared you from another SSH debugging spiral — legend.  
 Buy me a coffee (flat white, long black, or whatever keeps the terminal open) and I’ll keep shipping fixes, features, and fewer headaches.
+
+
 
