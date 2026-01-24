@@ -432,6 +432,16 @@ install_brew_and_packages() {
         echo "Profile template '$PROFILE_TEMPLATE' not found."
         return 1
     fi
+# ------------------------------------------------------------
+# Minimal mode: suppress zsh first-run wizard without adding
+# opinionated configuration.
+# ------------------------------------------------------------
+if [[ "${INSTALL_MODE:-}" == "minimal" ]]; then
+    if [[ ! -f "$HOME/.zshrc" ]]; then
+        echo "# Minimal zsh config (intentionally empty)" > "$HOME/.zshrc"
+        echo "Created minimal ~/.zshrc to suppress zsh first-run prompt."
+    fi
+fi
 
     echo "Homebrew and packages installation completed successfully."
 }
