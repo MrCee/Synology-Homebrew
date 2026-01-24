@@ -333,7 +333,9 @@ fi
 # Advanced only: validate & load YAML
 if [[ "$INSTALL_MODE" == "advanced" ]]; then
   # Clean/escape edge cases in YAML (your two func_sed lines)
+  printf "🧩 YAML escape pass 1: fixing unescaped backslashes → "
   func_sed 's/([^\\])\\([^\\"])/\1\\\\\2/g' "$CONFIG_YAML_PATH"
+  printf "🧩 YAML escape pass 2: fixing embedded quotes → "
   func_sed 's/(^.*:[[:space:]]"[^\"]*)("[^"]*)(".*"$)/\1\\\2\\\3/g' "$CONFIG_YAML_PATH"
 
   if ! yq eval '.' "$CONFIG_YAML_PATH" > /dev/null 2>&1; then

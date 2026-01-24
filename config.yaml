@@ -1,8 +1,3 @@
-shell:
-  framework:
-    name: oh-my-zsh
-    action: install
-
 packages:
   make:
     action: install
