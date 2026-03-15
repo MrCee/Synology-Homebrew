@@ -11,7 +11,6 @@ SCRIPT_DIR=$(dirname "$SCRIPT_PATH")
 cd "$SCRIPT_DIR" || { echo "Failed to change directory to $SCRIPT_DIR" >&2; exit 1; }
 echo "Working directory: $(pwd)"
 
-
 # Define icons for better readability
 INFO="ℹ️"
 SUCCESS="✅"
@@ -71,22 +70,43 @@ else
     fi
 
     echo -e "-----------------------------------------------------------------\n"
-    read -p "Would you like to check and install Neovim dependencies? (y/n): " answer
+
+    read -r -p "Would you like to check and install Neovim dependencies? (y/n): " answer
     if [[ "$answer" == "y" ]]; then
         CONFIG_YAML=$(printf '%s\n' "$CONFIG_YAML" | yq e '.packages.neovim.action = "install"')
     else
         CONFIG_YAML=$(printf '%s\n' "$CONFIG_YAML" | yq e '.packages.neovim.action = "skip"')
     fi
 
-    read -p "Would you like to check and install kickstart.nvim? (y/n): " answer
+    read -r -p "Would you like to check and install kickstart.nvim? (y/n): " answer
     if [[ "$answer" == "y" ]]; then
         CONFIG_YAML=$(printf '%s\n' "$CONFIG_YAML" | yq e '.plugins."kickstart.nvim".action = "install"')
     else
         CONFIG_YAML=$(printf '%s\n' "$CONFIG_YAML" | yq e '.plugins."kickstart.nvim".action = "skip"')
-
     fi
- func_sudoers
+
+    func_sudoers
 fi
+
+# Resolve authoritative Python interpreter from Homebrew first
+PYTHON_CMD="${HOMEBREW_PATH}/bin/python3"
+if [[ ! -x "$PYTHON_CMD" ]]; then
+    PYTHON_CMD="$(command -v python3 2>/dev/null || true)"
+fi
+
+if [[ -z "$PYTHON_CMD" || ! -x "$PYTHON_CMD" ]]; then
+    echo "${ERROR} Could not locate a usable python3 interpreter." >&2
+    exit 1
+fi
+
+echo "${INFO} Using Python interpreter: $PYTHON_CMD"
+
+# Define dedicated Neovim Python provider virtualenv
+NVIM_PYTHON_VENV="${HOME}/.local/share/neovim-python"
+NVIM_PYTHON_BIN="${NVIM_PYTHON_VENV}/bin/python3"
+NVIM_HOST_EXPORT='export NVIM_PYTHON3_HOST_PROG="$HOME/.local/share/neovim-python/bin/python3"'
+NVIM_INIT_LUA_LINE='vim.g.python3_host_prog = vim.fn.expand("$HOME/.local/share/neovim-python/bin/python3")'
+NVIM_INIT_VIM_LINE='let g:python3_host_prog = expand("$HOME/.local/share/neovim-python/bin/python3")'
 
 # Function to update the action status in the YAML
 update_action_status() {
@@ -94,12 +114,20 @@ update_action_status() {
     CONFIG_YAML=$(printf '%s\n' "$CONFIG_YAML" | yq e ".plugins[\"$plugin\"].action = \"handled\"" -)
 }
 
+ensure_line_in_file() {
+    local file="$1"
+    local exact_line="$2"
+    [[ -f "$file" ]] || touch "$file"
+    if ! grep -Fqx "$exact_line" "$file" 2>/dev/null; then
+        echo "$exact_line" >> "$file"
+    fi
+}
+
 # Install kickstart.nvim based on the action in config.yaml
 kickstart_action=$(printf '%s\n' "$CONFIG_YAML" | yq eval -r '.plugins."kickstart.nvim".action')
 
 if [[ "$kickstart_action" == "install" ]]; then
     kickstart_dir=$(printf '%s\n' "$CONFIG_YAML" | yq eval -r '.plugins."kickstart.nvim".directory')
-    # Expand variables in the directory path
     eval kickstart_dir="$kickstart_dir"
 
     if [[ ! -d "$kickstart_dir" ]]; then
@@ -133,15 +161,11 @@ neovim_action=$(printf '%s\n' "$CONFIG_YAML" | yq eval -r '.packages.neovim.acti
 
 if [[ "$neovim_action" == "install" ]]; then
     echo "${TOOLS} Installing Neovim dependencies..."
-    if [[ $DARWIN == 0 ]]; then
-        brew install --quiet neovim 2> /dev/null || true
-    else
-        brew install --quiet neovim 2> /dev/null || true
-    fi
+    brew install --quiet neovim 2>/dev/null || true
     echo "${SUCCESS} Neovim dependencies installed."
 elif [[ "$neovim_action" == "uninstall" ]]; then
     echo "${REMOVE} Uninstalling Neovim and its dependencies..."
-    brew uninstall --quiet neovim 2> /dev/null || true
+    brew uninstall --quiet neovim 2>/dev/null || true
     echo "${SUCCESS} Neovim dependencies uninstalled."
 elif [[ "$neovim_action" == "skip" ]]; then
     echo "${INFO} Skipping Neovim dependencies as per config.yaml."
@@ -150,17 +174,15 @@ else
 fi
 
 # Additional configuration and logic
-
-# Configure OSC52 clipboard support if Neovim is installed
 if [[ "$neovim_action" == "install" ]]; then
-    config_files=$(find -L ~/.config -type f -exec grep -l 'unnamedplus' {} +)
+    config_files=$(find -L ~/.config -type f -exec grep -l 'unnamedplus' {} + 2>/dev/null || true)
+
     echo "----------------------------------------"
     echo "FOUND files with 'unnamedplus':"
     printf "%s\n" "$config_files"
     echo "----------------------------------------"
 
-# Use a heredoc to store the code block in a variable which is used to activate clipboard over SSH
-code_to_add=$(cat <<'EOF'
+    code_to_add=$(cat <<'EOF'
 -- Added by Synology-Homebrew OSC52
 vim.g.clipboard = {
     name = 'OSC52',
@@ -176,106 +198,112 @@ vim.g.clipboard = {
 EOF
 )
 
-# Check if any files are found
-if [[ -n "$config_files" ]]; then
-    echo "Processing files:"
-    while IFS= read -r config_file; do
-        echo "Checking: $config_file"
-        if ! grep -q "Added by Synology-Homebrew OSC52" "$config_file"; then
-            echo "Adding OSC52 code to $config_file"
-            if func_sed "/unnamedplus/ r /dev/stdin" "$config_file" <<<"$code_to_add"; then
-                echo "OSC52 code successfully added to $config_file"
+    if [[ -n "$config_files" ]]; then
+        echo "Processing files:"
+        while IFS= read -r config_file; do
+            [[ -z "$config_file" ]] && continue
+            echo "Checking: $config_file"
+            if ! grep -q "Added by Synology-Homebrew OSC52" "$config_file"; then
+                echo "Adding OSC52 code to $config_file"
+                if func_sed "/unnamedplus/ r /dev/stdin" "$config_file" <<<"$code_to_add"; then
+                    echo "OSC52 code successfully added to $config_file"
+                else
+                    echo "Error: Failed to apply sed to $config_file" >&2
+                    continue
+                fi
             else
-                echo "Error: Failed to apply sed to $config_file" >&2
-                continue
+                echo "OSC52 code already exists in $config_file"
             fi
-        else
-            echo "OSC52 code already exists in $config_file"
-        fi
-    done <<< "$config_files"
-else
-    echo "No file containing 'unnamedplus' found in ~/.config folder."
-fi
+        done <<< "$config_files"
+    else
+        echo "No file containing 'unnamedplus' found in ~/.config folder."
+    fi
 
-    # Install additional packages for Neovim
     echo "----------------------------------------"
+
     if [[ -n "$CONFIG_YAML" ]]; then
         if [[ "$neovim_action" == "install" ]]; then
             echo "Installing additional Neovim components..."
 
-            # Install or upgrade pynvim
-            if ! pip3 show pynvim &> /dev/null; then
-                echo "pynvim is not installed. Installing pynvim..."
-                pip3 install pynvim --break-system-packages
+            echo "Ensuring Neovim Python provider virtualenv exists..."
+            mkdir -p "${HOME}/.local/share"
+
+            if [[ ! -x "$NVIM_PYTHON_BIN" ]]; then
+                echo "Creating virtualenv at $NVIM_PYTHON_VENV"
+                "$PYTHON_CMD" -m venv "$NVIM_PYTHON_VENV"
             else
-                echo "pynvim is already installed. Upgrading pynvim..."
-                pip3 install --upgrade pynvim --break-system-packages
+                echo "Neovim Python provider virtualenv already exists."
             fi
 
-            # Upgrade pip
-            python3 -m pip install --upgrade pip --break-system-packages
+            echo "Upgrading pip/setuptools/wheel inside Neovim virtualenv..."
+            "$NVIM_PYTHON_BIN" -m pip install --upgrade pip setuptools wheel
+
+            echo "Installing/upgrading pynvim inside Neovim virtualenv..."
+            "$NVIM_PYTHON_BIN" -m pip install --upgrade pynvim
+
+            echo "Ensuring shell export for NVIM_PYTHON3_HOST_PROG..."
+            ensure_line_in_file "$HOME/.zshrc" "$NVIM_HOST_EXPORT"
+
+            echo "Ensuring Neovim config points to dedicated python host..."
+            mkdir -p "$HOME/.config/nvim"
+
+            if [[ -f "$HOME/.config/nvim/init.lua" ]]; then
+                ensure_line_in_file "$HOME/.config/nvim/init.lua" "$NVIM_INIT_LUA_LINE"
+            elif [[ -f "$HOME/.config/nvim/init.vim" ]]; then
+                ensure_line_in_file "$HOME/.config/nvim/init.vim" "$NVIM_INIT_VIM_LINE"
+            else
+                printf '%s\n' "$NVIM_INIT_LUA_LINE" > "$HOME/.config/nvim/init.lua"
+            fi
 
             echo "npm check:"
-            # Check if npm is installed, if not, install it
-            if ! brew list npm &> /dev/null; then
+            if ! brew list npm >/dev/null 2>&1; then
                 echo "npm is not installed. Installing npm..."
                 brew install --quiet npm
             fi
 
-            # Ensure icu4c is installed
-            if ! brew list icu4c &>/dev/null; then
+            if ! brew list icu4c >/dev/null 2>&1; then
                 echo "icu4c is not installed. Installing icu4c..."
                 brew install icu4c
             else
                 echo "icu4c is already installed."
             fi
 
-            # Check if icu4c is already linked
-            if ! brew list --versions icu4c &>/dev/null; then
-                echo "Linking icu4c libraries..."
-                brew link --force icu4c
-            else
-                echo "icu4c is already linked."
-            fi
+            echo "Ensuring icu4c libraries are linked..."
+            brew link --force icu4c >/dev/null 2>&1 || true
 
-            # Remove existing global node_modules directory
             sudo rm -rf "$HOMEBREW_PATH/lib/node_modules"
 
-            # Run the postinstall step for Node.js
-            brew postinstall node
+            brew postinstall node || true
 
-            # Disable npm funding messages globally
             sudo npm config set fund false --location=global
 
-             # Install neovim globally using npm
-	     echo -e "\ninstalling neovim with npm."
-
-            [[ ! -d ~/.npm ]] && mkdir ~/.npm
+            echo -e "\nInstalling neovim with npm."
+            [[ ! -d ~/.npm ]] && mkdir -p ~/.npm
             sudo npm install -g neovim@latest
 
-HOMEBREW_PREFIX=$(brew --prefix)
+            HOMEBREW_PREFIX=$(brew --prefix)
 
-[[ -d ~/.npm ]] && sudo chown -R "$USERNAME:$USERGROUP" ~/.npm
-[[ -d "$HOMEBREW_PREFIX/lib/node_modules" ]] && sudo chown -R "$USERNAME:$USERGROUP" "$HOMEBREW_PREFIX/lib/node_modules"
-[[ -e "$HOMEBREW_PREFIX/bin/npm" ]] && sudo chown "$USERNAME:$USERGROUP" "$HOMEBREW_PREFIX/bin/npm"
-[[ -e "$HOMEBREW_PREFIX/bin/npx" ]] && sudo chown "$USERNAME:$USERGROUP" "$HOMEBREW_PREFIX/bin/npx"
-[[ -e "$HOMEBREW_PREFIX/etc/npmrc" ]] && sudo chown "$USERNAME:$USERGROUP" "$HOMEBREW_PREFIX/etc/npmrc"
-
+            [[ -d ~/.npm ]] && sudo chown -R "$USERNAME:$USERGROUP" ~/.npm
+            [[ -d "$HOMEBREW_PREFIX/lib/node_modules" ]] && sudo chown -R "$USERNAME:$USERGROUP" "$HOMEBREW_PREFIX/lib/node_modules"
+            [[ -e "$HOMEBREW_PREFIX/bin/npm" ]] && sudo chown "$USERNAME:$USERGROUP" "$HOMEBREW_PREFIX/bin/npm"
+            [[ -e "$HOMEBREW_PREFIX/bin/npx" ]] && sudo chown "$USERNAME:$USERGROUP" "$HOMEBREW_PREFIX/bin/npx"
+            [[ -e "$HOMEBREW_PREFIX/etc/npmrc" ]] && sudo chown "$USERNAME:$USERGROUP" "$HOMEBREW_PREFIX/etc/npmrc"
 
             echo "checking neovim gem..."
-            if ! gem list -i neovim; then
+            if ! gem list -i neovim >/dev/null 2>&1; then
                 gem install neovim --no-document
             fi
 
-            # Check if a compatible version of Bundler is installed
             echo "checking gem bundler..."
-            if ! gem list -i bundler; then
+            if ! gem list -i bundler >/dev/null 2>&1; then
                 gem install bundler -v '< 2.5' --no-document
             fi
 
-            # Clone fzf-git.sh into scripts directory for fzf git keybindings. This will be sourced in .profile
             echo "Cloning fzf-git.sh into ~/.scripts directory"
-            mkdir -p ~/.scripts && curl -o ~/.scripts/fzf-git.sh https://raw.githubusercontent.com/junegunn/fzf-git.sh/main/fzf-git.sh
+            mkdir -p ~/.scripts && curl -fsSL -o ~/.scripts/fzf-git.sh https://raw.githubusercontent.com/junegunn/fzf-git.sh/main/fzf-git.sh
+
+            echo "${SUCCESS} Neovim provider setup complete."
+            echo "${INFO} Python host: $NVIM_PYTHON_BIN"
         else
             echo "SKIPPING: Neovim components as config.yaml action is not set to 'install'."
         fi
@@ -285,7 +313,7 @@ HOMEBREW_PREFIX=$(brew --prefix)
 fi
 
 # Write updated YAML back to the temporary file
-[[ -n $temp_file ]] && printf '%s\n' "$CONFIG_YAML" > "$temp_file"
+[[ -n "$temp_file" ]] && printf '%s\n' "$CONFIG_YAML" > "$temp_file"
 
 # Perform cleanup only if run directly
 if [[ "$CALLED_BY_MAIN" -eq 0 ]]; then
@@ -294,3 +322,4 @@ if [[ "$CALLED_BY_MAIN" -eq 0 ]]; then
 else
     echo "${INFO} Skipping cleanup because the main script is managing it."
 fi
+
