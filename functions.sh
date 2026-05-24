@@ -52,6 +52,98 @@ func_sed() {
     return 0  # Ensure the function returns success
 }
 
+# -----------------------------------------------
+# Function: func_ensure_zsh_function_path_guard
+# Description: Inserts an idempotent pre-Oh My Zsh guard so compinit can
+#              autoload zsh core helpers such as compdump.
+# Arguments:
+#   $1 - zshrc file path (defaults to ~/.zshrc)
+# -----------------------------------------------
+func_ensure_zsh_function_path_guard() {
+    local zshrc_file="${1:-$HOME/.zshrc}"
+    local tmp_file
+
+    [[ -f "$zshrc_file" ]] || touch "$zshrc_file"
+
+    tmp_file=$(mktemp) || { echo "❌ Error: Failed to create temporary file." >&2; return 1; }
+
+    awk '
+      BEGIN { skip = 0 }
+      /^# >>> Synology-Homebrew zsh function path guard >>>$/ { skip = 1; next }
+      /^# <<< Synology-Homebrew zsh function path guard <<<$/{ skip = 0; next }
+      skip == 0 { print }
+    ' "$zshrc_file" > "$tmp_file" || {
+        rm -f "$tmp_file"
+        echo "❌ Error: Failed to remove existing zsh function path guard from '$zshrc_file'." >&2
+        return 1
+    }
+
+    mv "$tmp_file" "$zshrc_file" || {
+        rm -f "$tmp_file"
+        echo "❌ Error: Failed to update '$zshrc_file'." >&2
+        return 1
+    }
+
+    tmp_file=$(mktemp) || { echo "❌ Error: Failed to create temporary file." >&2; return 1; }
+
+    awk '
+      function print_guard() {
+        print "# >>> Synology-Homebrew zsh function path guard >>>"
+        print "# Keep zsh core functions available before Oh My Zsh runs compinit."
+        print "typeset -gaU fpath"
+        print "_synology_homebrew_zsh_function_dirs=("
+        print "  \"${HOMEBREW_PATH:-}/share/zsh/functions\""
+        print "  \"${HOMEBREW_PATH:-}/share/zsh/site-functions\""
+        print "  \"${HOMEBREW_PATH:-}\"/share/zsh/*/functions(N)"
+        print "  /opt/homebrew/share/zsh/functions"
+        print "  /opt/homebrew/share/zsh/site-functions"
+        print "  /opt/homebrew/share/zsh/*/functions(N)"
+        print "  /usr/local/share/zsh/functions"
+        print "  /usr/local/share/zsh/site-functions"
+        print "  /usr/local/share/zsh/*/functions(N)"
+        print "  /home/linuxbrew/.linuxbrew/share/zsh/functions"
+        print "  /home/linuxbrew/.linuxbrew/share/zsh/site-functions"
+        print "  /home/linuxbrew/.linuxbrew/share/zsh/*/functions(N)"
+        print "  /usr/share/zsh/functions"
+        print "  /usr/share/zsh/site-functions"
+        print "  /usr/share/zsh/*/functions(N)"
+        print ")"
+        print "for _synology_homebrew_zsh_function_dir in ${_synology_homebrew_zsh_function_dirs[@]}; do"
+        print "  [[ -d \"$_synology_homebrew_zsh_function_dir\" ]] || continue"
+        print "  fpath=(\"$_synology_homebrew_zsh_function_dir\" \"${fpath[@]}\")"
+        print "done"
+        print "unset _synology_homebrew_zsh_function_dir _synology_homebrew_zsh_function_dirs"
+        print "# <<< Synology-Homebrew zsh function path guard <<<"
+      }
+
+      /^[[:space:]]*source[[:space:]].*oh-my-zsh\.sh/ && inserted == 0 {
+        print_guard()
+        inserted = 1
+      }
+
+      { print }
+
+      END {
+        if (inserted == 0) {
+          print ""
+          print_guard()
+        }
+      }
+    ' "$zshrc_file" > "$tmp_file" || {
+        rm -f "$tmp_file"
+        echo "❌ Error: Failed to insert zsh function path guard into '$zshrc_file'." >&2
+        return 1
+    }
+
+    mv "$tmp_file" "$zshrc_file" || {
+        rm -f "$tmp_file"
+        echo "❌ Error: Failed to update '$zshrc_file'." >&2
+        return 1
+    }
+
+    echo "✅ Ensured zsh function path guard in '$zshrc_file'."
+}
+
 
 # -----------------------------------------------
 # Function: func_sudoers
@@ -467,4 +559,3 @@ func_git_commit_check() {
     echo "${INFO} Not a git repository; skipping commit info."
   fi
 }
-

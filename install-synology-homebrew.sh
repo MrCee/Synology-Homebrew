@@ -603,6 +603,8 @@ if [[ "$INSTALL_MODE" == "advanced" && "$YAML_READY" -eq 1 ]]; then
   if ! grep -qE '^[[:space:]]*export[[:space:]]+DISABLE_UPDATE_PROMPT=' "$HOME/.zshrc" 2>/dev/null; then
     echo 'export DISABLE_UPDATE_PROMPT=true' >> "$HOME/.zshrc"
   fi
+
+  func_ensure_zsh_function_path_guard "$HOME/.zshrc"
 fi
 
 # -----------------------------------------------------------------------------
@@ -713,4 +715,8 @@ echo "✨====================================================================✨
 echo ""
 
 # 4) Replace the installer process with zsh, attached to a real TTY
-exec /bin/zsh -il </dev/tty >/dev/tty 2>&1
+FINAL_ZSH="/bin/zsh"
+if [[ -x "$HOMEBREW_PATH/bin/zsh" ]]; then
+  FINAL_ZSH="$HOMEBREW_PATH/bin/zsh"
+fi
+exec "$FINAL_ZSH" -il </dev/tty >/dev/tty 2>&1
