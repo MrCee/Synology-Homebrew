@@ -10,9 +10,16 @@ Practical Homebrew bootstrap and shell tooling for Synology DSM, with matching m
 
 This repository is the public source of truth for the installer, uninstall flow, zsh hardening, and the current Neovim integration.
 
+| Area | Included |
+| --- | --- |
+| 🧰 Homebrew/Linuxbrew | Basic and Advanced install flows |
+| 🐚 zsh | Oh My Zsh, Powerlevel10k, plugins, completion hardening |
+| 📝 Neovim | Canonical `nvim-mrcee` config via `NVIM_APPNAME` |
+| 🧹 Uninstall | Conservative cleanup for managed paths only |
+
 ---
 
-## What This Project Does
+## 🧭 What This Project Does
 
 Synology-Homebrew installs and maintains a Homebrew/Linuxbrew environment without replacing Synology system packages.
 
@@ -31,7 +38,7 @@ macOS support is included so the same `config.yaml` can be used for local develo
 
 ---
 
-## Current Status
+## ✅ Current Status
 
 | Area | Status |
 | --- | --- |
@@ -48,7 +55,7 @@ The installer performs upfront CPU architecture checks. Homebrew does not suppor
 
 ---
 
-## Key Features
+## ✨ Key Features
 
 - Two install modes: Basic and Advanced
 - Synology/Linuxbrew install root at `/home/linuxbrew/.linuxbrew`
@@ -64,7 +71,7 @@ The installer performs upfront CPU architecture checks. Homebrew does not suppor
 
 ---
 
-## Important Safety Notes
+## ⚠️ Important Safety Notes
 
 - Do not run `install-synology-homebrew.sh` as root. Run it as your normal user; it will request sudo when required.
 - The installer creates a temporary sudoers fragment during a run and removes it during cleanup.
@@ -77,7 +84,7 @@ The installer performs upfront CPU architecture checks. Homebrew does not suppor
 
 ---
 
-## Install
+## 🚀 Install
 
 ### Basic
 
@@ -122,9 +129,9 @@ Each package or plugin in `config.yaml` uses an action:
 
 ---
 
-## Advanced Mode Details
+## 🛠️ Advanced Mode Details
 
-### Homebrew / Linuxbrew
+### 🧰 Homebrew / Linuxbrew
 
 On Synology and Linux, Homebrew is installed under:
 
@@ -141,19 +148,19 @@ On macOS, the standard Homebrew locations are used:
 
 The installer writes the appropriate Homebrew shell environment into the platform profile file so `brew` is available in future shells.
 
-### zsh
+### 🐚 zsh
 
 Advanced mode configures zsh as the interactive shell experience after the installer finishes. On Synology, Homebrew's zsh is symlinked at `/bin/zsh` and the final installer step hands the session to zsh.
 
-### Oh My Zsh
+### 🧩 Oh My Zsh
 
 Oh My Zsh is installed non-interactively by cloning the upstream repository. The installer disables Oh My Zsh update prompts during setup and ensures the expected source line is present in `~/.zshrc`.
 
-### Powerlevel10k
+### ⚡ Powerlevel10k
 
 Powerlevel10k is cloned into the Oh My Zsh custom theme directory when enabled in `config.yaml`. The installer also places the theme selection before the Oh My Zsh source line so the prompt loads correctly.
 
-### Plugins And Tools
+### 🔌 Plugins And Tools
 
 The default Advanced profile currently includes useful shell and editor tools such as:
 
@@ -168,7 +175,7 @@ The default Advanced profile currently includes useful shell and editor tools su
 
 The authoritative package and plugin list is [`config.yaml`](./config.yaml).
 
-### Neovim Using nvim-mrcee
+### 📝 Neovim Using nvim-mrcee
 
 Advanced mode can install Neovim and the canonical public config:
 
@@ -186,7 +193,7 @@ This avoids depending on `~/.config/nvim`, which is a common location for person
 
 ---
 
-## Neovim
+## 📝 Neovim
 
 The canonical Neovim config for this project is [`MrCee/nvim-mrcee`](https://github.com/MrCee/nvim-mrcee).
 
@@ -215,7 +222,7 @@ For ongoing use, `~/.config/nvim-mrcee` is preferred over `~/.config/nvim` becau
 
 ---
 
-## zsh Completion Hardening
+## 🧯 zsh Completion Hardening
 
 Synology can expose completion-related directories with permissions that zsh considers insecure. When Oh My Zsh runs `compinit`, this can surface as:
 
@@ -235,7 +242,7 @@ Do not treat `ZSH_DISABLE_COMPFIX=true` as the main fix. It can suppress Oh My Z
 
 ---
 
-## Uninstall
+## 🧹 Uninstall
 
 Run the uninstall script from the repository:
 
@@ -271,7 +278,7 @@ It does not remove large unknown user configs, non-canonical git checkouts, or s
 
 ---
 
-## Verification Commands
+## 🧪 Verification Commands
 
 After install, useful checks are:
 
@@ -302,7 +309,7 @@ Expected prefix:
 
 ---
 
-## Troubleshooting
+## 🩺 Troubleshooting
 
 ### Insecure Completion Directories
 
@@ -358,7 +365,7 @@ If you keep a personal `~/.config/nvim`, use `NVIM_APPNAME="nvim-mrcee"` for thi
 
 ---
 
-## Repository Notes
+## 📌 Repository Notes
 
 - Public repository: [`MrCee/Synology-Homebrew`](https://github.com/MrCee/Synology-Homebrew)
 - Canonical Neovim config: [`MrCee/nvim-mrcee`](https://github.com/MrCee/nvim-mrcee)
