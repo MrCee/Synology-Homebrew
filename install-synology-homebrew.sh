@@ -696,6 +696,12 @@ if [[ "$INSTALL_MODE" == "advanced" && "$YAML_READY" -eq 1 ]]; then
   fi
 fi
 
+# Harden Oh My Zsh and Homebrew zsh completion directories before compinit runs
+# during the final interactive zsh handoff.
+if [[ "$INSTALL_MODE" == "advanced" && "$YAML_READY" -eq 1 ]]; then
+  func_harden_zsh_completion_permissions
+fi
+
 ###############################################################################
 # FINAL TRANSPORT — COMPLETE CLEANUP THEN ZSH HANDOFF (KNOWN-GOOD)
 ###############################################################################

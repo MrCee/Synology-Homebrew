@@ -144,6 +144,99 @@ func_ensure_zsh_function_path_guard() {
     echo "✅ Ensured zsh function path guard in '$zshrc_file'."
 }
 
+# -----------------------------------------------
+# Function: func_harden_zsh_completion_permissions
+# Description: Removes group/other write access from Oh My Zsh and active
+#              Homebrew zsh completion directories before compinit runs.
+# -----------------------------------------------
+func_harden_zsh_completion_permissions() {
+    local status=0
+    local current_user
+    local current_uid
+    local prefix
+    local dir
+    local brew_prefixes=()
+    local seen_prefixes=":"
+
+    current_user=$(/usr/bin/whoami 2>/dev/null || whoami)
+    current_uid=$(/usr/bin/id -u 2>/dev/null || id -u)
+
+    echo "Hardening zsh completion permissions for user '$current_user'..."
+
+    _func_harden_chmod_go_w() {
+        local target_dir="$1"
+
+        [[ -d "$target_dir" ]] || return 0
+
+        echo "Removing group/other write permission from: $target_dir"
+        if /bin/chmod -R go-w "$target_dir" 2>/dev/null; then
+            return 0
+        fi
+
+        if [[ "$current_uid" -ne 0 ]] && command -v sudo >/dev/null 2>&1; then
+            sudo /bin/chmod -R go-w "$target_dir"
+            return $?
+        fi
+
+        return 1
+    }
+
+    if [[ -d "$HOME/.oh-my-zsh" ]]; then
+        _func_harden_chmod_go_w "$HOME/.oh-my-zsh" || status=1
+    else
+        echo "Oh My Zsh directory not found at '$HOME/.oh-my-zsh'; skipping."
+    fi
+
+    if [[ -n "${HOMEBREW_PATH:-}" ]]; then
+        brew_prefixes+=("$HOMEBREW_PATH")
+    else
+        brew_prefixes+=("/home/linuxbrew/.linuxbrew" "/opt/homebrew" "/usr/local")
+    fi
+
+    for prefix in "${brew_prefixes[@]}"; do
+        [[ -n "$prefix" ]] || continue
+        [[ -d "$prefix" ]] || continue
+
+        case "$seen_prefixes" in
+            *:"$prefix":*) continue ;;
+        esac
+        seen_prefixes="${seen_prefixes}${prefix}:"
+
+        # Keep hardening scoped to zsh completion/share directories below a
+        # Homebrew prefix. This avoids broad chmods on unrelated paths.
+        if [[ -d "$prefix/share/zsh" ]]; then
+            _func_harden_chmod_go_w "$prefix/share/zsh" || status=1
+        fi
+
+        if [[ -d "$prefix/share/zsh/site-functions" ]]; then
+            _func_harden_chmod_go_w "$prefix/share/zsh/site-functions" || status=1
+        fi
+
+        if [[ -d "$prefix/share/zsh/functions" ]]; then
+            _func_harden_chmod_go_w "$prefix/share/zsh/functions" || status=1
+        fi
+
+        if [[ -d "$prefix/Cellar/zsh" ]]; then
+            while IFS= read -r -d '' dir; do
+                _func_harden_chmod_go_w "$dir" || status=1
+            done < <(/usr/bin/find "$prefix/Cellar/zsh" -mindepth 3 -maxdepth 3 -type d -path "$prefix/Cellar/zsh/*/share/zsh" -print0 2>/dev/null)
+        fi
+    done
+
+    if [[ -d "$HOME" ]]; then
+        /usr/bin/find "$HOME" -maxdepth 1 -type f -name '.zcompdump*' -exec /bin/rm -f {} + 2>/dev/null || status=1
+    fi
+
+    if [[ "$status" -eq 0 ]]; then
+        echo "✅ zsh completion permissions hardened."
+    else
+        echo "❌ Failed to harden one or more zsh completion paths." >&2
+    fi
+
+    unset -f _func_harden_chmod_go_w
+    return "$status"
+}
+
 
 # -----------------------------------------------
 # Function: func_sudoers
