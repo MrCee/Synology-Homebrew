@@ -3,6 +3,11 @@
 source ./functions.sh
 func_initialize_env_vars
 
+NVIM_CONFIG_URL="REPLACE_THIS_WITH_MY_PUBLIC_NVIM_REPO_URL"
+NVIM_DEFAULT_CONFIG_DIR="$HOME/.config/nvim"
+NVIM_APP_CONFIG_DIR="$HOME/.config/nvim-mrcee"
+NVIM_APPNAME="nvim-mrcee"
+
 # Set Trap for EXIT to Handle Normal Cleanup
 trap 'code=$?; func_cleanup_exit $code' EXIT
 
@@ -32,7 +37,7 @@ else
 fi
 
 DEL_NVIM=0
-read -rp "Do you also want to remove kickstart.nvim config and cached files? (yes/no): " response
+read -rp "Do you also want to remove the canonical Neovim config and cached files? (yes/no): " response
 # Convert the response to lowercase and trim leading/trailing whitespace
 response=$(echo "$response" | tr '[:upper:]' '[:lower:]' | xargs)
 
@@ -41,17 +46,33 @@ if [[ $response == "yes" || $response == "y" ]]; then
 	DEL_NVIM=1
 elif [[ $response == "no" || $response == "n" ]]; then
 	DEL_NVIM=0
-	echo "Skipping removal of nvim"
+	echo "Skipping removal of Neovim config"
 else
     echo "Invalid response. Please enter 'yes' or 'no'."
 	exit 1
 fi
 
 if [[ $DEL_NVIM == 1 ]]; then
-rm -rf ~/.config/nvim-kickstart
-rm -rf ~/.cache/nvim-kickstart
-rm -rf ~/.local/share/nvim-kickstart
-rm -rf ~/.local/state/nvim-kickstart
+    for nvim_config_dir in "$NVIM_DEFAULT_CONFIG_DIR" "$NVIM_APP_CONFIG_DIR"; do
+        if [[ ! -d "$nvim_config_dir" ]]; then
+            continue
+        fi
+
+        if [[ ! -d "$nvim_config_dir/.git" ]]; then
+            echo "Skipping $nvim_config_dir because it is not a git checkout of the canonical Neovim config."
+            continue
+        fi
+
+        existing_origin=$(git -C "$nvim_config_dir" remote get-url origin 2>/dev/null || true)
+        if [[ "$existing_origin" == "$NVIM_CONFIG_URL" ]]; then
+            rm -rf "$nvim_config_dir"
+            rm -rf "$HOME/.cache/$NVIM_APPNAME"
+            rm -rf "$HOME/.local/share/$NVIM_APPNAME"
+            rm -rf "$HOME/.local/state/$NVIM_APPNAME"
+        else
+            echo "Skipping $nvim_config_dir because its origin is '$existing_origin', not '$NVIM_CONFIG_URL'."
+        fi
+    done
 fi
 
 NONINTERACTIVE=1 sudo /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/uninstall.sh)"

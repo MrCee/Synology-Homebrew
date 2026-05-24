@@ -100,10 +100,10 @@ plugins:
     directory: "~/.oh-my-zsh/custom/plugins/zsh-autosuggestions"
     aliases: []
     eval: []
-  kickstart.nvim:
+  mrcee.nvim:
     action: install
-    url: "https://github.com/nvim-lua/kickstart.nvim"
-    directory: "~/.config/nvim-kickstart"
+    url: "REPLACE_THIS_WITH_MY_PUBLIC_NVIM_REPO_URL"
+    directory: "~/.config/nvim"
     aliases:
-      nvim: "NVIM_APPNAME=\"nvim-kickstart\" nvim"
+      nvim: "nvim"
     eval: []

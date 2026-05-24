@@ -33,6 +33,22 @@ echo "${INFO} USERNAME: $USERNAME"
 echo "${INFO} USERGROUP: $USERGROUP"
 echo "${INFO} ROOTGROUP: $ROOTGROUP"
 
+NVIM_CONFIG_PLUGIN="mrcee.nvim"
+NVIM_APPNAME="nvim-mrcee"
+NVIM_DEFAULT_CONFIG_DIR="${HOME}/.config/nvim"
+NVIM_APP_CONFIG_DIR="${HOME}/.config/${NVIM_APPNAME}"
+
+require_command() {
+    local cmd="$1"
+    if ! command -v "$cmd" >/dev/null 2>&1; then
+        echo "${ERROR} Required command not found: $cmd" >&2
+        exit 1
+    fi
+}
+
+require_command yq
+require_command git
+
 # Assign the first argument to temp_file, default to empty if not provided
 temp_file=${1:-}
 
@@ -78,11 +94,11 @@ else
         CONFIG_YAML=$(printf '%s\n' "$CONFIG_YAML" | yq e '.packages.neovim.action = "skip"')
     fi
 
-    read -r -p "Would you like to check and install kickstart.nvim? (y/n): " answer
+    read -r -p "Would you like to check and install the canonical Neovim config? (y/n): " answer
     if [[ "$answer" == "y" ]]; then
-        CONFIG_YAML=$(printf '%s\n' "$CONFIG_YAML" | yq e '.plugins."kickstart.nvim".action = "install"')
+        CONFIG_YAML=$(printf '%s\n' "$CONFIG_YAML" | yq e ".plugins.\"${NVIM_CONFIG_PLUGIN}\".action = \"install\"")
     else
-        CONFIG_YAML=$(printf '%s\n' "$CONFIG_YAML" | yq e '.plugins."kickstart.nvim".action = "skip"')
+        CONFIG_YAML=$(printf '%s\n' "$CONFIG_YAML" | yq e ".plugins.\"${NVIM_CONFIG_PLUGIN}\".action = \"skip\"")
     fi
 
     func_sudoers
@@ -105,8 +121,6 @@ echo "${INFO} Using Python interpreter: $PYTHON_CMD"
 NVIM_PYTHON_VENV="${HOME}/.local/share/neovim-python"
 NVIM_PYTHON_BIN="${NVIM_PYTHON_VENV}/bin/python3"
 NVIM_HOST_EXPORT='export NVIM_PYTHON3_HOST_PROG="$HOME/.local/share/neovim-python/bin/python3"'
-NVIM_INIT_LUA_LINE='vim.g.python3_host_prog = vim.fn.expand("$HOME/.local/share/neovim-python/bin/python3")'
-NVIM_INIT_VIM_LINE='let g:python3_host_prog = expand("$HOME/.local/share/neovim-python/bin/python3")'
 
 # Function to update the action status in the YAML
 update_action_status() {
@@ -123,37 +137,82 @@ ensure_line_in_file() {
     fi
 }
 
-# Install kickstart.nvim based on the action in config.yaml
-kickstart_action=$(printf '%s\n' "$CONFIG_YAML" | yq eval -r '.plugins."kickstart.nvim".action')
+directory_is_empty() {
+    local dir="$1"
+    [[ -d "$dir" ]] || return 0
+    [[ -z "$(find "$dir" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]]
+}
 
-if [[ "$kickstart_action" == "install" ]]; then
-    kickstart_dir=$(printf '%s\n' "$CONFIG_YAML" | yq eval -r '.plugins."kickstart.nvim".directory')
-    eval kickstart_dir="$kickstart_dir"
-
-    if [[ ! -d "$kickstart_dir" ]]; then
-        echo "${TOOLS} Installing kickstart.nvim..."
-        git clone "$(printf '%s\n' "$CONFIG_YAML" | yq eval -r '.plugins."kickstart.nvim".url')" "$kickstart_dir"
-        update_action_status "kickstart.nvim"
+set_nvim_alias_for_dir() {
+    local dir="$1"
+    local alias_value
+    if [[ "$dir" == "$NVIM_DEFAULT_CONFIG_DIR" ]]; then
+        alias_value="nvim"
     else
-        echo "${SUCCESS} kickstart.nvim is already installed."
-        update_action_status "kickstart.nvim"
+        alias_value="NVIM_APPNAME=\"${NVIM_APPNAME}\" nvim"
     fi
-elif [[ "$kickstart_action" == "uninstall" ]]; then
-    kickstart_dir=$(printf '%s\n' "$CONFIG_YAML" | yq eval -r '.plugins."kickstart.nvim".directory')
-    eval kickstart_dir="$kickstart_dir"
+    CONFIG_YAML=$(printf '%s\n' "$CONFIG_YAML" | NVIM_ALIAS_VALUE="$alias_value" yq e ".plugins.\"${NVIM_CONFIG_PLUGIN}\".aliases.nvim = strenv(NVIM_ALIAS_VALUE)")
+}
 
-    if [[ -d "$kickstart_dir" ]]; then
-        echo "${REMOVE} Uninstalling kickstart.nvim..."
-        rm -rf "$kickstart_dir"
-        update_action_status "kickstart.nvim"
-    else
-        echo "${INFO} kickstart.nvim is not installed. Nothing to uninstall."
-        update_action_status "kickstart.nvim"
+# Install the canonical Neovim config based on the action in config.yaml
+nvim_config_action=$(printf '%s\n' "$CONFIG_YAML" | yq eval -r ".plugins.\"${NVIM_CONFIG_PLUGIN}\".action")
+nvim_config_url=$(printf '%s\n' "$CONFIG_YAML" | yq eval -r ".plugins.\"${NVIM_CONFIG_PLUGIN}\".url")
+nvim_config_dir=$(printf '%s\n' "$CONFIG_YAML" | yq eval -r ".plugins.\"${NVIM_CONFIG_PLUGIN}\".directory")
+eval nvim_config_dir="$nvim_config_dir"
+
+if [[ "$nvim_config_action" == "install" ]]; then
+    if [[ -z "$nvim_config_url" || "$nvim_config_url" == "null" ]]; then
+        echo "${ERROR} Missing URL for ${NVIM_CONFIG_PLUGIN} in config.yaml." >&2
+        exit 1
     fi
-elif [[ "$kickstart_action" == "skip" ]]; then
-    echo "${INFO} Skipping kickstart.nvim as per config.yaml."
+
+    if [[ "$nvim_config_dir" == "$NVIM_DEFAULT_CONFIG_DIR" && ! -d "$nvim_config_dir/.git" ]] && ! directory_is_empty "$nvim_config_dir"; then
+        echo "${WARNING} $NVIM_DEFAULT_CONFIG_DIR is not empty, so it will not be replaced."
+        echo "${INFO} Installing canonical Neovim config at $NVIM_APP_CONFIG_DIR and selecting it through the ~/.zshrc nvim alias."
+        nvim_config_dir="$NVIM_APP_CONFIG_DIR"
+        CONFIG_YAML=$(printf '%s\n' "$CONFIG_YAML" | yq e ".plugins.\"${NVIM_CONFIG_PLUGIN}\".directory = \"~/.config/${NVIM_APPNAME}\"")
+    elif [[ "$nvim_config_dir" == "$NVIM_DEFAULT_CONFIG_DIR" ]]; then
+        echo "${INFO} $NVIM_DEFAULT_CONFIG_DIR is empty or already managed by this repo, so it can be used directly."
+    fi
+    set_nvim_alias_for_dir "$nvim_config_dir"
+
+    if [[ ! -d "$nvim_config_dir" ]]; then
+        echo "${TOOLS} Installing canonical Neovim config at $nvim_config_dir..."
+        git clone "$nvim_config_url" "$nvim_config_dir"
+        update_action_status "$NVIM_CONFIG_PLUGIN"
+    elif [[ -d "$nvim_config_dir/.git" ]]; then
+        existing_origin=$(git -C "$nvim_config_dir" remote get-url origin 2>/dev/null || true)
+        if [[ "$existing_origin" != "$nvim_config_url" ]]; then
+            echo "${ERROR} Existing Neovim config at $nvim_config_dir has origin '$existing_origin', expected '$nvim_config_url'." >&2
+            echo "${ERROR} Move or back up the existing config before re-running; it was not modified." >&2
+            exit 1
+        fi
+        echo "${TOOLS} Updating canonical Neovim config at $nvim_config_dir..."
+        git -C "$nvim_config_dir" pull --ff-only
+        update_action_status "$NVIM_CONFIG_PLUGIN"
+    else
+        echo "${ERROR} Existing Neovim config directory is not a git checkout: $nvim_config_dir" >&2
+        echo "${ERROR} Move or back up the existing config before re-running; it was not modified." >&2
+        exit 1
+    fi
+elif [[ "$nvim_config_action" == "uninstall" ]]; then
+    if [[ -d "$nvim_config_dir/.git" ]]; then
+        existing_origin=$(git -C "$nvim_config_dir" remote get-url origin 2>/dev/null || true)
+        if [[ "$existing_origin" == "$nvim_config_url" ]]; then
+            echo "${REMOVE} Uninstalling canonical Neovim config..."
+            rm -rf "$nvim_config_dir"
+            update_action_status "$NVIM_CONFIG_PLUGIN"
+        else
+            echo "${WARNING} Refusing to remove $nvim_config_dir because its origin is '$existing_origin', not '$nvim_config_url'."
+        fi
+    else
+        echo "${INFO} Canonical Neovim config is not installed at $nvim_config_dir. Nothing to uninstall."
+        update_action_status "$NVIM_CONFIG_PLUGIN"
+    fi
+elif [[ "$nvim_config_action" == "skip" ]]; then
+    echo "${INFO} Skipping canonical Neovim config as per config.yaml."
 else
-    echo "${WARNING} Invalid action for kickstart.nvim: '$kickstart_action'. Skipping."
+    echo "${WARNING} Invalid action for ${NVIM_CONFIG_PLUGIN}: '$nvim_config_action'. Skipping."
 fi
 
 # Install Neovim dependencies based on the action in config.yaml
@@ -244,16 +303,7 @@ EOF
             echo "Ensuring shell export for NVIM_PYTHON3_HOST_PROG..."
             ensure_line_in_file "$HOME/.zshrc" "$NVIM_HOST_EXPORT"
 
-            echo "Ensuring Neovim config points to dedicated python host..."
-            mkdir -p "$HOME/.config/nvim"
-
-            if [[ -f "$HOME/.config/nvim/init.lua" ]]; then
-                ensure_line_in_file "$HOME/.config/nvim/init.lua" "$NVIM_INIT_LUA_LINE"
-            elif [[ -f "$HOME/.config/nvim/init.vim" ]]; then
-                ensure_line_in_file "$HOME/.config/nvim/init.vim" "$NVIM_INIT_VIM_LINE"
-            else
-                printf '%s\n' "$NVIM_INIT_LUA_LINE" > "$HOME/.config/nvim/init.lua"
-            fi
+            echo "Leaving existing Neovim configs unchanged unless ~/.config/nvim was empty; otherwise the canonical config is selected via the ~/.zshrc nvim alias."
 
             echo "npm check:"
             if ! brew list npm >/dev/null 2>&1; then
@@ -322,4 +372,3 @@ if [[ "$CALLED_BY_MAIN" -eq 0 ]]; then
 else
     echo "${INFO} Skipping cleanup because the main script is managing it."
 fi
-

@@ -121,12 +121,12 @@ plugins:
     aliases: []
     eval: []
 
-  kickstart.nvim:
+  mrcee.nvim:
     action: install
-    url: "https://github.com/nvim-lua/kickstart.nvim"
-    directory: "~/.config/nvim-kickstart"
+    url: "REPLACE_THIS_WITH_MY_PUBLIC_NVIM_REPO_URL"
+    directory: "~/.config/nvim"
     aliases:
-      nvim: 'NVIM_APPNAME="nvim-kickstart" nvim'
+      nvim: "nvim"
     eval: []
 ```
 
@@ -176,12 +176,30 @@ fi
 
 ## 🧪 Neovim (optional)
 
-You can bootstrap Neovim via **Advanced** mode and/or use `kickstart.nvim`.  
-Switch profiles with `NVIM_APPNAME`:
+You can bootstrap Neovim via **Advanced** mode. The canonical Neovim configuration
+comes from:
 
 ```zsh
-NVIM_APPNAME="nvim-kickstart" nvim
+REPLACE_THIS_WITH_MY_PUBLIC_NVIM_REPO_URL
 ```
+
+The installer follows the old “use it if it is empty” rule:
+
+- If `~/.config/nvim` is absent or empty, the public repo is cloned there and
+  `nvim` uses it normally.
+- If `~/.config/nvim` is already a git checkout of the canonical repo, the
+  installer updates it with `git pull --ff-only`.
+- If `~/.config/nvim` contains an existing user config, it is left untouched and
+  the public config is cloned to `~/.config/nvim-mrcee` instead.
+
+When the fallback path is used, Advanced mode writes this alias to `~/.zshrc`:
+
+```zsh
+alias nvim='NVIM_APPNAME="nvim-mrcee" nvim'
+```
+
+That alias is what makes the public config the default `nvim` experience for
+interactive shells when the default config directory was already occupied.
 
 Inside Neovim, run:
 ```vim
@@ -229,7 +247,7 @@ Below is the full curated list — collapsed for readability, but fully indexed.
 | [eza](https://github.com/eza-community/eza.git) | A modern replacement for `ls`. | Recommended for: zsh, neovim |
 | [tldr](https://github.com/tldr-pages/tldr) | Simplified help pages for command-line tools. | Recommended for: neovim |
 | [thefuck](https://github.com/nvbn/thefuck) | Corrects previous console command errors. | Recommended for: zsh |
-| [kickstart.nvim](https://github.com/nvim-lua/kickstart.nvim) | A starting point for Neovim. | Optional for: neovim |
+| [mrcee.nvim](REPLACE_THIS_WITH_MY_PUBLIC_NVIM_REPO_URL) | Canonical public Neovim configuration. | Optional for: neovim |
 | [perl](https://www.perl.org) | Feature-rich programming language. | Essential for: stow |
 | [stow](https://www.gnu.org/software/stow) | GNU Stow: Manage symlinks for dotfiles. | Optional |
 | [zoxide](https://github.com/ajeetdsouza/zoxide) | Smarter `cd` command, inspired by `z` and `autojump`. | Recommended for: zsh |
@@ -293,6 +311,3 @@ This project is licensed under the [MIT License](./LICENSE).
 
 If this script saved your bacon, rescued your dotfiles, or spared you from another SSH debugging spiral — legend.  
 Buy me a coffee (flat white, long black, or whatever keeps the terminal open) and I’ll keep shipping fixes, features, and fewer headaches.
-
-
-
