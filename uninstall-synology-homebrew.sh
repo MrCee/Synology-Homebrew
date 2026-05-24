@@ -3,7 +3,7 @@
 source ./functions.sh
 func_initialize_env_vars
 
-NVIM_CONFIG_URL="REPLACE_THIS_WITH_MY_PUBLIC_NVIM_REPO_URL"
+NVIM_CONFIG_URL="https://github.com/MrCee/nvim-mrcee"
 NVIM_DEFAULT_CONFIG_DIR="$HOME/.config/nvim"
 NVIM_APP_CONFIG_DIR="$HOME/.config/nvim-mrcee"
 NVIM_APPNAME="nvim-mrcee"

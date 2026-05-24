@@ -102,7 +102,7 @@ plugins:
     eval: []
   mrcee.nvim:
     action: install
-    url: "REPLACE_THIS_WITH_MY_PUBLIC_NVIM_REPO_URL"
+    url: "https://github.com/MrCee/nvim-mrcee"
     directory: "~/.config/nvim"
     aliases:
       nvim: "nvim"

@@ -123,7 +123,7 @@ plugins:
 
   mrcee.nvim:
     action: install
-    url: "REPLACE_THIS_WITH_MY_PUBLIC_NVIM_REPO_URL"
+    url: "https://github.com/MrCee/nvim-mrcee"
     directory: "~/.config/nvim"
     aliases:
       nvim: "nvim"
@@ -180,7 +180,7 @@ You can bootstrap Neovim via **Advanced** mode. The canonical Neovim configurati
 comes from:
 
 ```zsh
-REPLACE_THIS_WITH_MY_PUBLIC_NVIM_REPO_URL
+https://github.com/MrCee/nvim-mrcee
 ```
 
 The installer follows the old “use it if it is empty” rule:
@@ -247,7 +247,7 @@ Below is the full curated list — collapsed for readability, but fully indexed.
 | [eza](https://github.com/eza-community/eza.git) | A modern replacement for `ls`. | Recommended for: zsh, neovim |
 | [tldr](https://github.com/tldr-pages/tldr) | Simplified help pages for command-line tools. | Recommended for: neovim |
 | [thefuck](https://github.com/nvbn/thefuck) | Corrects previous console command errors. | Recommended for: zsh |
-| [mrcee.nvim](REPLACE_THIS_WITH_MY_PUBLIC_NVIM_REPO_URL) | Canonical public Neovim configuration. | Optional for: neovim |
+| [mrcee.nvim](https://github.com/MrCee/nvim-mrcee) | Canonical public Neovim configuration. | Optional for: neovim |
 | [perl](https://www.perl.org) | Feature-rich programming language. | Essential for: stow |
 | [stow](https://www.gnu.org/software/stow) | GNU Stow: Manage symlinks for dotfiles. | Optional |
 | [zoxide](https://github.com/ajeetdsouza/zoxide) | Smarter `cd` command, inspired by `z` and `autojump`. | Recommended for: zsh |
