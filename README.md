@@ -148,6 +148,45 @@ On macOS, the standard Homebrew locations are used:
 
 The installer writes the appropriate Homebrew shell environment into the platform profile file so `brew` is available in future shells.
 
+### 🔁 Synology Reboot Startup
+
+The installer mounts `/home` for the current run. On Synology, that mount does not necessarily survive a DSM reboot, so create a DSM Scheduled Task if you want the Linuxbrew path prepared automatically after each startup.
+
+DSM path:
+
+```text
+Control Panel -> Task Scheduler -> Create -> Triggered Task -> User-defined script
+```
+
+Recommended settings:
+
+| Setting | Value |
+| --- | --- |
+| User | `root` |
+| Event | `Boot-up` |
+| Enabled | yes |
+
+Script:
+
+```bash
+#!/bin/bash
+[[ ! -d /home ]] && mkdir /home
+
+if ! grep -qs ' /home ' /proc/mounts; then
+  mount -o bind "$(readlink -f /var/services/homes)" /home
+fi
+
+chown root:root /home
+chmod 775 /home
+
+if [[ -d /home/linuxbrew ]]; then
+  chown root:root /home/linuxbrew
+  chmod 775 /home/linuxbrew
+fi
+```
+
+This task does not start Homebrew as a service. It only restores the expected `/home` mount and permissions so shells can find `/home/linuxbrew/.linuxbrew` after a reboot.
+
 ### 🐚 zsh
 
 Advanced mode configures zsh as the interactive shell experience after the installer finishes. On Synology, Homebrew's zsh is symlinked at `/bin/zsh` and the final installer step hands the session to zsh.
