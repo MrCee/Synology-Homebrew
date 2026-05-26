@@ -86,9 +86,27 @@ The installer performs upfront CPU architecture checks. Homebrew does not suppor
 
 ## 🚀 Install
 
+### Fresh Synology NAS: install Git first
+
+This project is normally installed with `git clone`. On a new DSM system, Git may not be installed yet.
+
+Use this sequence on a fresh Synology NAS:
+
+| Stage | Action |
+| --- | --- |
+| Stage 0 | Get Git working through DSM Package Center, SynoCommunity, or the companion [`MrCee/Synology-Git`](https://github.com/MrCee/Synology-Git) bootstrap helper. |
+| Stage 1 | Clone this Synology-Homebrew repository. |
+| Stage 2 | Run the Homebrew/Linuxbrew installer from the cloned repository. |
+
+The Homebrew installer can check for Git after it starts and can try to install it through SynoCommunity. That helps during the installer run, but the normal public install path uses `git clone`, so Git must exist before this repository can be downloaded.
+
+Some DSM systems may have `wget`, `curl`, Python, or direct ZIP download options available, and portable/static Git binaries may be theoretically possible. Those are not the supported default path because Synology DSM varies by CPU architecture, DSM version, libc/toolchain expectations, package availability, TLS/certificate behaviour, and permissions. Prefer Synology-native Git installation paths: DSM Package Center, SynoCommunity, or [`Synology-Git`](https://github.com/MrCee/Synology-Git).
+
 ### Basic
 
 Basic mode installs Homebrew plus the platform baseline packages. It ignores optional packages and plugins in `config.yaml`.
+
+Fresh Synology note: if `git clone` is not available, complete Stage 0 above first.
 
 ```zsh
 git clone https://github.com/MrCee/Synology-Homebrew.git ~/Synology-Homebrew
@@ -109,6 +127,8 @@ At the end of Basic mode, the installer can optionally prune extra explicitly in
 ### Advanced
 
 Advanced mode installs the baseline first, then applies `config.yaml`.
+
+Fresh Synology note: if `git clone` is not available, complete Stage 0 above first.
 
 ```zsh
 git clone https://github.com/MrCee/Synology-Homebrew.git ~/Synology-Homebrew
@@ -350,6 +370,12 @@ Expected prefix:
 
 ## 🩺 Troubleshooting
 
+### `git clone` Is Not Available
+
+On a fresh Synology DSM system, `git clone` may fail because Git is not installed yet. Install Git first through DSM Package Center, SynoCommunity, or the companion [`MrCee/Synology-Git`](https://github.com/MrCee/Synology-Git) helper, then rerun the Synology-Homebrew clone command.
+
+This is a Stage 0 bootstrap step. Synology-Homebrew is the Stage 1 Homebrew/Linuxbrew environment installer and should be cloned after Git is working.
+
 ### Insecure Completion Directories
 
 If zsh reports insecure completion directories, inspect them with:
@@ -407,6 +433,7 @@ If you keep a personal `~/.config/nvim`, use `NVIM_APPNAME="nvim-mrcee"` for thi
 ## 📌 Repository Notes
 
 - Public repository: [`MrCee/Synology-Homebrew`](https://github.com/MrCee/Synology-Homebrew)
+- Stage 0 Git bootstrap helper: [`MrCee/Synology-Git`](https://github.com/MrCee/Synology-Git)
 - Canonical Neovim config: [`MrCee/nvim-mrcee`](https://github.com/MrCee/nvim-mrcee)
 - Main installer: [`install-synology-homebrew.sh`](./install-synology-homebrew.sh)
 - Uninstaller: [`uninstall-synology-homebrew.sh`](./uninstall-synology-homebrew.sh)

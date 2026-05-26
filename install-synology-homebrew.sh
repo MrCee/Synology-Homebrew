@@ -110,9 +110,10 @@ if [[ $DARWIN == 0 ]]; then
     error=true
   fi
 
-  # Check if Git is installed
+  # Check if Git is installed. The normal README flow already needs Git for
+  # the initial repository clone; this keeps later installer clone steps usable.
   if ! git --version > /dev/null 2>&1; then
-    echo "Git not installed. Adding the SynoCommunity repository..."
+    echo "Git not installed. Adding the SynoCommunity repository for installer clone steps..."
 
     # Add SynoCommunity feed if not present
     if [[ ! -f /usr/syno/etc/packages/feeds ]]; then
@@ -136,7 +137,7 @@ if [[ $DARWIN == 0 ]]; then
     if git --version > /dev/null 2>&1; then
       echo "✅ Git has been installed"
     else
-      echo "❌ Git could not be installed. Please install it manually from SynoCommunity in Package Centre (https://packages.synocommunity.com)." >&2
+      echo "❌ Git could not be installed. Please install it through DSM Package Center, SynoCommunity (https://packages.synocommunity.com), or the Synology-Git bootstrap helper: https://github.com/MrCee/Synology-Git" >&2
       error=true
     fi
   else
