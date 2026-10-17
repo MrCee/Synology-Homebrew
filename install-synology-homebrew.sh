@@ -283,7 +283,10 @@ if [[ $DARWIN == 0 ]]; then
   mkdir -p "$HOMEBREW_TEMP" || true
 fi
 
-install_brew_and_packages
+if ! install_brew_and_packages; then
+  echo "❌ Homebrew dependency setup failed. See the installation errors above." >&2
+  exit 1
+fi
 
 echo "--------------------------PATH SET-------------------------------"
 echo "$PATH"

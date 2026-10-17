@@ -492,10 +492,10 @@ func_initialize_env_vars() {
 get_minimal_baseline() {
   if [[ $DARWIN -eq 0 ]]; then
     # Synology/Linux baseline
-    echo "binutils glibc gcc git ruby python3 zsh yq"
+    echo "yq binutils glibc gcc git ruby python3 zsh"
   else
     # macOS baseline - without zsh (already included in macOS)
-    echo "git yq ruby python3 coreutils findutils gnu-sed grep gawk"
+    echo "yq git ruby python3 coreutils findutils gnu-sed grep gawk"
   fi
 }
 
@@ -506,6 +506,8 @@ get_minimal_baseline() {
 # Description: Installs Homebrew and necessary packages based on the operating system.
 # -----------------------------------------------
 install_brew_and_packages() {
+    local brew_installer
+    local -a failed_packages=()
     echo "Initializing environment variables..."
     func_initialize_env_vars
     if [[ $? -ne 0 ]]; then
@@ -541,8 +543,11 @@ install_brew_and_packages() {
     # Install Homebrew if it's not already installed
     if ! command -v brew >/dev/null 2>&1; then
         echo "Homebrew not found. Installing Homebrew..."
-        NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" 2> /dev/null | sed '/==> Next steps:/,/^$/d'
-        if [[ $? -ne 0 ]]; then
+        if ! brew_installer=$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh); then
+            echo "Failed to download the Homebrew installer." >&2
+            return 1
+        fi
+        if ! NONINTERACTIVE=1 /bin/bash -c "$brew_installer"; then
             echo "Homebrew installation failed."
             return 1
         fi
@@ -577,13 +582,12 @@ install_brew_and_packages() {
         return 1
     fi
 
-    # Install each package individually from the PACKAGES array
+    # Homebrew is ready; install yq first, then attempt every other dependency.
     echo "Starting package installations..."
     for pkg in "${PACKAGES[@]}"; do
-        brew install --quiet "$pkg" 2> /dev/null
-        if [[ $? -ne 0 ]]; then
-            echo "Failed to install $pkg."
-            return 1
+        if ! brew install --quiet "$pkg"; then
+            echo "Failed to install $pkg; continuing with the remaining packages." >&2
+            failed_packages+=("$pkg")
         else
             echo "Installed $pkg."
         fi
@@ -591,12 +595,31 @@ install_brew_and_packages() {
 
     # Upgrade existing packages
     echo "Upgrading Homebrew packages..."
-    brew upgrade --quiet 2> /dev/null
-    if [[ $? -ne 0 ]]; then
-        echo "Failed to upgrade Homebrew packages."
-        return 1
+    if ! brew upgrade --quiet; then
+        echo "Failed to upgrade Homebrew packages." >&2
+        failed_packages+=("Homebrew upgrades")
     else
         echo "Upgraded Homebrew packages."
+    fi
+
+    if (( ${#failed_packages[@]} > 0 )); then
+        printf 'Dependency setup failed: %s\n' "${failed_packages[*]}" >&2
+        echo "All baseline packages were attempted. Resolve the Homebrew errors above and rerun the installer." >&2
+        return 1
+    fi
+
+    if [[ "${INSTALL_MODE:-}" == "advanced" ]]; then
+        hash -r
+        if ! command -v yq >/dev/null 2>&1; then
+            echo "Homebrew did not provide an executable yq. See the installation output above." >&2
+            return 1
+        fi
+        if ! yq eval -n 'true' >/dev/null; then
+            echo "The installed yq cannot run the required eval command (Mike Farah yq v4)." >&2
+            command -v yq >&2
+            yq --version >&2
+            return 1
+        fi
     fi
 
     # Create or update the appropriate profile file with Homebrew paths
