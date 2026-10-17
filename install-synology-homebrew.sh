@@ -342,8 +342,8 @@ if [[ "$INSTALL_MODE" == "advanced" ]]; then
   printf "🧩 YAML escape pass 2: fixing embedded quotes → "
   func_sed 's/(^.*:[[:space:]]"[^\"]*)("[^"]*)(".*"$)/\1\\\2\\\3/g' "$CONFIG_YAML_PATH"
 
-  # Validate syntax independently of yq while its required version is bootstrapped.
-  if ! ruby -rpsych -e 'Psych.parse_file(ARGV.fetch(0))' "$CONFIG_YAML_PATH" > /dev/null; then
+  # Homebrew setup above has already installed and activated a working yq.
+  if ! yq eval '.' "$CONFIG_YAML_PATH" > /dev/null; then
     printf "Error: The YAML file '%s' is invalid.\n" "$CONFIG_YAML_PATH" >&2
     exit 1
   else
