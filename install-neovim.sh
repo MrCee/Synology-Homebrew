@@ -220,7 +220,11 @@ neovim_action=$(printf '%s\n' "$CONFIG_YAML" | yq eval -r '.packages.neovim.acti
 
 if [[ "$neovim_action" == "install" ]]; then
     echo "${TOOLS} Installing Neovim dependencies..."
-    brew install --quiet neovim 2>/dev/null || true
+    if [[ "$DARWIN" == 1 && "${SYNOBREW_PACKAGES_READY:-0}" == 1 ]] && brew list --versions neovim >/dev/null 2>&1; then
+        echo "${INFO} Reusing Neovim installed by the completed background queue."
+    else
+        brew install --quiet neovim 2>/dev/null || true
+    fi
     echo "${SUCCESS} Neovim dependencies installed."
 elif [[ "$neovim_action" == "uninstall" ]]; then
     echo "${REMOVE} Uninstalling Neovim and its dependencies..."

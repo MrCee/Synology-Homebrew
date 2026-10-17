@@ -575,19 +575,13 @@ func_bootstrap_yq() {
     echo "Standalone yq is ready; continuing the installation."
 }
 
-install_brew_and_packages() {
+func_ensure_homebrew() {
     local brew_installer brew_installer_url
-    local intel_macos=0
-    local -a failed_packages=()
     echo "Initializing environment variables..."
     func_initialize_env_vars
     if [[ $? -ne 0 ]]; then
         echo "Failed to initialize environment variables."
         return 1
-    fi
-
-    if [[ "$DARWIN" == 1 && "$(uname -m)" == x86_64 ]]; then
-        intel_macos=1
     fi
 
     if [[ $DARWIN == 0 ]]; then 
@@ -643,6 +637,26 @@ install_brew_and_packages() {
         return 1
     fi
 
+    "$HOMEBREW_PATH/bin/brew" --version >/dev/null
+}
+
+func_persist_macos_brew_env() {
+    [[ "$DARWIN" == 1 ]] || return 0
+    local line
+    printf -v line 'eval "$(%q shellenv)"' "$HOMEBREW_PATH/bin/brew"
+    if ! grep -Fxq "$line" "$HOME/.zprofile" 2>/dev/null; then
+        printf '\n# Homebrew environment (background package setup)\n%s\n' "$line" >> "$HOME/.zprofile" || return 1
+    fi
+}
+
+install_brew_and_packages() {
+    local intel_macos=0
+    local -a failed_packages=()
+    func_ensure_homebrew || return 1
+    if [[ "$DARWIN" == 1 && "$(uname -m)" == x86_64 ]]; then
+        intel_macos=1
+    fi
+
     # Increase the maximum number of open file descriptors
     ulimit -n 2048
     echo "Set ulimit -n to 2048."
@@ -664,6 +678,9 @@ install_brew_and_packages() {
     # Homebrew is ready; install yq first, then attempt every other dependency.
     echo "Starting package installations..."
     for pkg in "${PACKAGES[@]}"; do
+        if [[ "$DARWIN" == 1 && "${SYNOBREW_PACKAGES_READY:-0}" == 1 ]]; then
+            continue
+        fi
         if [[ "$pkg" == yq ]]; then
             if [[ "$intel_macos" == 1 ]]; then
                 echo "Intel macOS: reusing a working yq or downloading the official binary; skipping the Homebrew source build."
@@ -685,7 +702,9 @@ install_brew_and_packages() {
 
     # A blanket upgrade can rebuild yq and its compiler/documentation chain on
     # Intel, even after we deliberately selected the standalone executable.
-    if [[ "$intel_macos" == 1 ]]; then
+    if [[ "$DARWIN" == 1 && "${SYNOBREW_PACKAGES_READY:-0}" == 1 ]]; then
+        echo "Reusing verified background packages; skipping baseline installs and upgrades."
+    elif [[ "$intel_macos" == 1 ]]; then
         echo "Skipping blanket Homebrew upgrades on Intel macOS to avoid unrelated source builds."
     else
         echo "Upgrading Homebrew packages..."
