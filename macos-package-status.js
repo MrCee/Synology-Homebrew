@@ -6,6 +6,7 @@ var titleLabel, detailLabel, countLabel, timeLabel, stageLabel, noteLabel, outpu
 var progress, spinner, retryButton, finishButton, pauseButton;
 var previousPackage = "", currentDependency = "";
 var selfTest = false, ticks = 0;
+var lastAppearance = "";
 ObjC.bindFunction("kill", ["int", ["int", "int"]]);
 
 function readFile(path) {
@@ -72,7 +73,25 @@ function launchRunner(action) {
 
 function shellQuote(value) { return "'" + value.replace(/'/g, "'\\''") + "'"; }
 
+function applyAppearance() {
+    if (!panel || !outputView || !noteLabel) return;
+    var name = ObjC.unwrap(panel.effectiveAppearance.bestMatchFromAppearancesWithNames($([
+        $.NSAppearanceNameAqua, $.NSAppearanceNameDarkAqua
+    ])));
+    if (name === lastAppearance) return;
+    lastAppearance = name;
+    var dark = name === ObjC.unwrap($.NSAppearanceNameDarkAqua);
+    var background = dark ? $.NSColor.colorWithSRGBRedGreenBlueAlpha(0.15, 0.15, 0.16, 1) : $.NSColor.colorWithSRGBRedGreenBlueAlpha(0.94, 0.94, 0.95, 1);
+    var text = dark ? $.NSColor.colorWithSRGBRedGreenBlueAlpha(0.94, 0.94, 0.95, 1) : $.NSColor.colorWithSRGBRedGreenBlueAlpha(0.12, 0.12, 0.13, 1);
+    panel.contentView.layer.backgroundColor = background.CGColor;
+    [titleLabel, detailLabel, countLabel, timeLabel, stageLabel, noteLabel].forEach(function (field) { field.textColor = text; });
+    outputView.backgroundColor = dark ? $.NSColor.colorWithSRGBRedGreenBlueAlpha(0.10, 0.10, 0.11, 1) : $.NSColor.whiteColor;
+    outputView.textColor = text;
+    outputView.enclosingScrollView.backgroundColor = background;
+}
+
 function update() {
+    applyAppearance();
     var state = readFile(job + "/status").trim() || "pending";
     var pid = Number(readFile(job + "/lock/pid").trim());
     if (state === "running" && (!pid || $.kill(pid, 0) !== 0)) state = "interrupted";
@@ -137,6 +156,14 @@ function update() {
 }
 
 ObjC.registerSubclass({
+    name: "SynologyHomebrewStatusContentView",
+    superclass: "NSView",
+    methods: {
+        "viewDidChangeEffectiveAppearance": { types: ["void", []], implementation: function () { applyAppearance(); } }
+    }
+});
+
+ObjC.registerSubclass({
     name: "SynologyHomebrewStatusController",
     methods: {
         "tick:": { types: ["void", ["id"]], implementation: function () {
@@ -178,9 +205,13 @@ function run(argv) {
         $.NSBackingStoreBuffered, false
     );
     panel.title = $("Homebrew package setup");
-    panel.appearance = $.NSAppearance.appearanceNamed($.NSAppearanceNameAqua);
+    panel.contentView = $.SynologyHomebrewStatusContentView.alloc.initWithFrame($.NSMakeRect(0, 0, 470, 350));
+    // Production windows inherit the system appearance. Overrides are for QA only.
+    var appearanceIndex = argv.indexOf("--appearance");
+    if (appearanceIndex !== -1 && (argv.indexOf("--render") !== -1 || selfTest)) {
+        panel.appearance = $.NSAppearance.appearanceNamed(argv[appearanceIndex + 1] === "dark" ? $.NSAppearanceNameDarkAqua : $.NSAppearanceNameAqua);
+    }
     panel.contentView.wantsLayer = true;
-    panel.contentView.layer.backgroundColor = $.NSColor.windowBackgroundColor.CGColor;
     panel.level = $.NSFloatingWindowLevel;
     panel.hidesOnDeactivate = false;
     panel.collectionBehavior = $.NSWindowCollectionBehaviorCanJoinAllSpaces | $.NSWindowCollectionBehaviorFullScreenAuxiliary;

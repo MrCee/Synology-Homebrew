@@ -186,7 +186,7 @@ Each package or plugin in `config.yaml` uses an action:
 
 ### macOS Background Builds and Intel/Tahoe Guidance
 
-On macOS, choose **3** to install Homebrew now and run package builds in a resumable background queue with a small always-on-top status window. It installs the user LaunchAgents on the Mac running the installer, resumes unfinished work at login after a restart, and leaves full shell/Neovim configuration for option **2** after packages finish.
+On macOS, choose **3** to install Homebrew now and run package builds in a resumable background queue, or **4** to finish the bootstrap and save the compilation queue paused until you choose **Resume**. Both open a small always-on-top window that follows macOS light/dark mode. They install the user LaunchAgents on the Mac running the installer and leave full shell/Neovim configuration for option **2** after packages finish. Once started, unfinished work resumes at login after a restart; a deliberately paused queue stays paused.
 
 See the [Intel macOS and background-build guide](docs/intel-macos.md) for what changed upstream, setup on your MacBook, the separate queue command, progress/retry controls, and LaunchAgent lifecycle. This new workflow is macOS-only; the Synology install choices are unchanged.
 

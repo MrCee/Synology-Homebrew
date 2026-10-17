@@ -75,8 +75,8 @@ esac
         self.assertEqual(result.returncode, expect, result.stdout + result.stderr)
         return result
 
-    def prepare(self):
-        self.command("start", self.config)
+    def prepare(self, paused=False):
+        self.command("start", self.config, *(["--paused"] if paused else []))
         state = self.home / ".local/share/synology-homebrew/background"
         self.job = Path((state / "latest").read_text().strip())
         return self.job
@@ -197,6 +197,27 @@ esac
         self.assertEqual((self.job / "status").read_text().strip(), "cancelled")
         self.assertTrue((self.job / "config.yaml").exists())
 
+    def test_deferred_queue_does_not_compile_until_resumed(self):
+        self.prepare(paused=True)
+        self.assertEqual((self.job / "status").read_text().strip(), "paused")
+        process = self.worker()
+        self.assertEqual(process.wait(timeout=3), 0)
+        self.assertFalse((self.root / "install-calls").exists())
+        self.command("resume")
+        process = self.worker()
+        self.wait_state("packages_ready")
+        self.assertEqual(process.wait(timeout=3), 0)
+
+    def test_window_refresh_keeps_worker_snapshot_and_queue_unchanged(self):
+        self.prepare()
+        worker = (self.job / "runner.sh").read_bytes()
+        queue = (self.job / "queue").read_bytes()
+        (self.repo / "macos-package-status.js").write_text("// refreshed appearance\n")
+        self.command("window")
+        self.assertEqual((self.job / "status-window.js").read_text(), "// refreshed appearance\n")
+        self.assertEqual((self.job / "runner.sh").read_bytes(), worker)
+        self.assertEqual((self.job / "queue").read_bytes(), queue)
+
     def test_removed_completed_formula_is_reinstalled(self):
         self.prepare()
         (self.job / "completed").write_text("git\n")
@@ -238,7 +259,7 @@ esac
     def test_native_window_render_and_timer_callbacks(self):
         self.prepare()
         image = self.root / "window.png"
-        for arguments in (("--render", str(image)), ("--self-test",)):
+        for arguments in (("--render", str(image), "--appearance", "light"), ("--render", str(image), "--appearance", "dark"), ("--self-test",)):
             result = subprocess.run(
                 ["/usr/bin/osascript", "-l", "JavaScript", str(REPO / "macos-package-status.js"), str(self.job), *arguments],
                 capture_output=True, text=True, timeout=12,

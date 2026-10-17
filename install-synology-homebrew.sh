@@ -11,7 +11,7 @@
 # - Final user-visible line is:
 #     "🚀 You will now be transported to zsh..."
 #   then zsh launches and Powerlevel10k loads from ~/.zshrc
-# macOS option 3 instead cleans up and returns while its package queue runs.
+# macOS options 3/4 instead clean up and return with a running/paused queue.
 # -----------------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
@@ -174,6 +174,9 @@ EOF
     echo "3) Homebrew now, macOS packages in background (resumes at login)."
     echo "   ** Recommended for long Intel Mac builds; opens a floating progress window."
     echo "   ** Run option 2 after packages finish to configure the shell and Neovim."
+    echo ""
+    echo "4) Homebrew now, compile later: save a paused queue and open its window."
+    echo "   ** Nothing compiles until you choose Resume in the window."
   fi
   echo ""
   echo "Enter selection:"
@@ -186,7 +189,7 @@ while true; do
 
   case "$selection" in
     1|2) break ;;
-    3) [[ "$DARWIN" == 1 ]] && break
+    3|4) [[ "$DARWIN" == 1 ]] && break
        echo "Background package setup is available on macOS only." ;;
     *) echo "Invalid selection."
        read -r -p "Press Enter to continue..." ;;
@@ -292,21 +295,30 @@ if [[ $DARWIN == 0 ]]; then
   mkdir -p "$HOMEBREW_TEMP" || true
 fi
 
-if [[ "$selection" == 3 ]]; then
+if [[ "$selection" == 3 || "$selection" == 4 ]]; then
   if ! func_ensure_homebrew || ! func_bootstrap_yq || ! func_persist_macos_brew_env; then
     echo "❌ Could not prepare Homebrew and yq for the package queue." >&2
     exit 1
   fi
   # The worker only installs formulas, so it does not need the sudoers fragment.
   if /bin/bash "$SCRIPT_DIR/background-packages.sh" busy; then
-    /bin/bash "$SCRIPT_DIR/background-packages.sh" resume || exit 1
+    if [[ "$selection" == 4 ]]; then
+      /bin/bash "$SCRIPT_DIR/background-packages.sh" pause || exit 1
+      /bin/bash "$SCRIPT_DIR/background-packages.sh" window || exit 1
+    else
+      /bin/bash "$SCRIPT_DIR/background-packages.sh" resume || exit 1
+    fi
   else
-    /bin/bash "$SCRIPT_DIR/background-packages.sh" start "$CONFIG_YAML_PATH" || exit 1
+    if [[ "$selection" == 4 ]]; then
+      /bin/bash "$SCRIPT_DIR/background-packages.sh" start "$CONFIG_YAML_PATH" --paused || exit 1
+    else
+      /bin/bash "$SCRIPT_DIR/background-packages.sh" start "$CONFIG_YAML_PATH" || exit 1
+    fi
   fi
   cleanup_once 0
   trap - EXIT INT TERM HUP QUIT ABRT ALRM PIPE
   echo ""
-  echo "Homebrew is ready. Package installation is running separately; full setup is still pending."
+  echo "Homebrew is ready. The package queue is saved separately; full setup is still pending."
   echo "Check progress: bash ./background-packages.sh status"
   echo "After packages finish, run this installer again and choose option 2 to configure the environment."
   exit 0
