@@ -492,10 +492,10 @@ func_initialize_env_vars() {
 get_minimal_baseline() {
   if [[ $DARWIN -eq 0 ]]; then
     # Synology/Linux baseline
-    echo "binutils glibc gcc git ruby python3 zsh yq"
+    echo "yq binutils glibc gcc git ruby python3 zsh"
   else
     # macOS baseline - without zsh (already included in macOS)
-    echo "git yq ruby python3 coreutils findutils gnu-sed grep gawk"
+    echo "yq git ruby python3 coreutils findutils gnu-sed grep gawk"
   fi
 }
 
@@ -505,7 +505,69 @@ get_minimal_baseline() {
 # Function: install_brew_and_packages
 # Description: Installs Homebrew and necessary packages based on the operating system.
 # -----------------------------------------------
+# Use a pinned official binary when Homebrew cannot supply a working yq.
+# Keep it separate from Homebrew-managed files and available to child scripts.
+func_bootstrap_yq() {
+    local platform arch asset expected actual tmp_dir target_dir
+    hash -r
+    if command -v yq >/dev/null 2>&1 && yq eval -n 'true' >/dev/null 2>&1; then
+        return 0
+    fi
+
+    platform=$(uname -s)
+    arch=$(uname -m)
+    case "$platform/$arch" in
+        Darwin/x86_64) asset=yq_darwin_amd64; expected=216ddfa03e7ba0e5aba00b236ec78324b5bfc49b610db254fe92310878baea20 ;;
+        Darwin/arm64) asset=yq_darwin_arm64; expected=559a594ef7a6ebc5b81a67b7717fb3accedd266d8fa7d8352da7fec9e463f48b ;;
+        Linux/x86_64) asset=yq_linux_amd64; expected=a2c097180dd884a8d50c956ee16a9cec070f30a7947cf4ebf87d5f36213e9ed7 ;;
+        Linux/aarch64|Linux/arm64) asset=yq_linux_arm64; expected=0e7e1524f68d91b3ff9b089872d185940ab0fa020a5a9052046ef10547023156 ;;
+        *) echo "No standalone yq available for $platform/$arch." >&2; return 1 ;;
+    esac
+    target_dir="$HOME/.local/share/synology-homebrew/bin"
+    if [[ -x "$target_dir/yq" ]] && "$target_dir/yq" eval -n 'true' >/dev/null 2>&1; then
+        export PATH="$target_dir:$PATH"
+        hash -r
+        return 0
+    fi
+    echo "Homebrew yq is unavailable; downloading official yq v4.44.3 ($asset)..."
+    tmp_dir=$(mktemp -d) || return 1
+    if ! curl -fL --retry 2 -o "$tmp_dir/yq" "https://github.com/mikefarah/yq/releases/download/v4.44.3/$asset"; then
+        rm -rf "$tmp_dir"
+        return 1
+    fi
+    if command -v shasum >/dev/null 2>&1; then
+        actual=$(shasum -a 256 "$tmp_dir/yq")
+    elif command -v sha256sum >/dev/null 2>&1; then
+        actual=$(sha256sum "$tmp_dir/yq")
+    else
+        echo "Cannot verify the yq download: no SHA-256 tool available." >&2
+        rm -rf "$tmp_dir"
+        return 1
+    fi
+    actual=${actual%% *}
+    if [[ "$actual" != "$expected" ]]; then
+        echo "The yq download failed SHA-256 verification." >&2
+        rm -rf "$tmp_dir"
+        return 1
+    fi
+    if ! chmod 755 "$tmp_dir/yq" || ! "$tmp_dir/yq" eval -n 'true' >/dev/null; then
+        echo "The downloaded yq cannot run on this system." >&2
+        rm -rf "$tmp_dir"
+        return 1
+    fi
+    if ! mkdir -p "$target_dir" || ! mv "$tmp_dir/yq" "$target_dir/yq"; then
+        rm -rf "$tmp_dir"
+        return 1
+    fi
+    rm -rf "$tmp_dir"
+    export PATH="$target_dir:$PATH"
+    hash -r
+    echo "Standalone yq is ready; continuing the installation."
+}
+
 install_brew_and_packages() {
+    local brew_installer
+    local -a failed_packages=()
     echo "Initializing environment variables..."
     func_initialize_env_vars
     if [[ $? -ne 0 ]]; then
@@ -541,8 +603,11 @@ install_brew_and_packages() {
     # Install Homebrew if it's not already installed
     if ! command -v brew >/dev/null 2>&1; then
         echo "Homebrew not found. Installing Homebrew..."
-        NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)" 2> /dev/null | sed '/==> Next steps:/,/^$/d'
-        if [[ $? -ne 0 ]]; then
+        if ! brew_installer=$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh); then
+            echo "Failed to download the Homebrew installer." >&2
+            return 1
+        fi
+        if ! NONINTERACTIVE=1 /bin/bash -c "$brew_installer"; then
             echo "Homebrew installation failed."
             return 1
         fi
@@ -577,13 +642,21 @@ install_brew_and_packages() {
         return 1
     fi
 
-    # Install each package individually from the PACKAGES array
+    # Homebrew is ready; install yq first, then attempt every other dependency.
     echo "Starting package installations..."
     for pkg in "${PACKAGES[@]}"; do
-        brew install --quiet "$pkg" 2> /dev/null
-        if [[ $? -ne 0 ]]; then
-            echo "Failed to install $pkg."
-            return 1
+        if [[ "$pkg" == yq ]]; then
+            if ! brew install --quiet yq; then
+                echo "Homebrew could not install yq; trying the standalone fallback." >&2
+            fi
+            if ! func_bootstrap_yq; then
+                failed_packages+=("yq")
+            fi
+            continue
+        fi
+        if ! brew install --quiet "$pkg"; then
+            echo "Failed to install $pkg; continuing with the remaining packages." >&2
+            failed_packages+=("$pkg")
         else
             echo "Installed $pkg."
         fi
@@ -591,12 +664,24 @@ install_brew_and_packages() {
 
     # Upgrade existing packages
     echo "Upgrading Homebrew packages..."
-    brew upgrade --quiet 2> /dev/null
-    if [[ $? -ne 0 ]]; then
-        echo "Failed to upgrade Homebrew packages."
-        return 1
+    if ! brew upgrade --quiet; then
+        echo "Failed to upgrade Homebrew packages." >&2
+        failed_packages+=("Homebrew upgrades")
     else
         echo "Upgraded Homebrew packages."
+    fi
+
+    if (( ${#failed_packages[@]} > 0 )); then
+        printf 'Warning: dependency operations reported errors: %s\n' "${failed_packages[*]}" >&2
+        echo "All baseline packages were attempted; continuing with available tools." >&2
+    fi
+
+    if [[ "${INSTALL_MODE:-}" == "advanced" ]]; then
+        hash -r
+        if ! func_bootstrap_yq; then
+            echo "Both Homebrew and the standalone yq bootstrap failed; see their errors above." >&2
+            return 1
+        fi
     fi
 
     # Create or update the appropriate profile file with Homebrew paths
@@ -628,7 +713,13 @@ if [[ "${INSTALL_MODE:-}" == "minimal" ]]; then
     fi
 fi
 
-    echo "Homebrew and packages installation completed successfully."
+    # Sourcing a profile can put Homebrew's broken yq ahead of the fallback again.
+    if [[ "${INSTALL_MODE:-}" == "advanced" ]] && ! func_bootstrap_yq; then
+        echo "Could not activate yq after loading the shell profile." >&2
+        return 1
+    fi
+
+    echo "Homebrew setup completed; baseline package installation attempts finished."
 }
 
 func_git_commit_check() {
