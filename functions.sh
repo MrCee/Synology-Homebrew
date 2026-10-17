@@ -505,6 +505,16 @@ get_minimal_baseline() {
 # Function: install_brew_and_packages
 # Description: Installs Homebrew and necessary packages based on the operating system.
 # -----------------------------------------------
+func_homebrew_installer_url() {
+    if [[ "$(uname -s)" == Darwin && "$(uname -m)" == x86_64 ]]; then
+        # Upstream HEAD rejects Intel macOS since September 2026. This official
+        # revision still bootstraps Intel into /usr/local and recognises Tahoe.
+        echo "https://raw.githubusercontent.com/Homebrew/install/0f5b7666a65fc2d1a2615549f02771353c250f9a/install.sh"
+    else
+        echo "https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh"
+    fi
+}
+
 # Use a pinned official binary when Homebrew cannot supply a working yq.
 # Keep it separate from Homebrew-managed files and available to child scripts.
 func_bootstrap_yq() {
@@ -566,7 +576,7 @@ func_bootstrap_yq() {
 }
 
 install_brew_and_packages() {
-    local brew_installer
+    local brew_installer brew_installer_url
     local -a failed_packages=()
     echo "Initializing environment variables..."
     func_initialize_env_vars
@@ -601,9 +611,13 @@ install_brew_and_packages() {
     fi
 
     # Install Homebrew if it's not already installed
-    if ! command -v brew >/dev/null 2>&1; then
+    if [[ ! -x "$HOMEBREW_PATH/bin/brew" ]] && ! command -v brew >/dev/null 2>&1; then
         echo "Homebrew not found. Installing Homebrew..."
-        if ! brew_installer=$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh); then
+        brew_installer_url=$(func_homebrew_installer_url)
+        if [[ "$brew_installer_url" != */HEAD/install.sh ]]; then
+            echo "Intel Mac detected: using the pinned Intel-compatible Homebrew installer (/usr/local)."
+        fi
+        if ! brew_installer=$(curl -fsSL "$brew_installer_url"); then
             echo "Failed to download the Homebrew installer." >&2
             return 1
         fi
