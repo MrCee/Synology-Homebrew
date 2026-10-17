@@ -119,8 +119,10 @@ Baseline packages:
 
 | Platform | Packages |
 | --- | --- |
-| Synology/Linux | `binutils glibc gcc git ruby python3 zsh yq` |
-| macOS | `git yq ruby python3 coreutils findutils gnu-sed grep gawk` |
+| Synology/Linux | `yq binutils glibc gcc git ruby python3 zsh` |
+| macOS | `yq git ruby python3 coreutils findutils gnu-sed grep gawk` |
+
+The installer sets up Homebrew first, then attempts `yq` before the other packages. If Homebrew cannot provide a working `yq`, it automatically downloads the official v4.44.3 binary for macOS or Linux (Intel/ARM64), verifies its pinned SHA-256, and uses it from `~/.local/share/synology-homebrew/bin` for this installation and its child scripts. Other package failures are reported without skipping the remaining installation attempts. Advanced mode only stops for `yq` if both Homebrew and the standalone fallback fail.
 
 At the end of Basic mode, the installer can optionally prune extra explicitly installed leaf formulas back to the baseline. It does not remove dependencies that are still required by remaining formulas or Homebrew itself.
 
