@@ -59,7 +59,7 @@ Intel Macs are detected automatically; use the same installer command as on othe
 
 ## ✨ Key Features
 
-- Two install modes: Basic and Advanced
+- Basic and Advanced install modes, plus an optional macOS background package stage
 - Synology/Linuxbrew install root at `/home/linuxbrew/.linuxbrew`
 - macOS Homebrew roots handled automatically
 - Minimal baseline mode with an optional safe prune prompt
@@ -183,6 +183,12 @@ Each package or plugin in `config.yaml` uses an action:
 | `install` | Install or update the item |
 | `uninstall` | Remove the item where the script owns the path |
 | `skip` | Leave the item alone |
+
+### macOS Background Builds and Intel/Tahoe Guidance
+
+On macOS, choose **3** to install Homebrew now and run package builds in a resumable background queue with a small always-on-top status window. It installs the user LaunchAgents on the Mac running the installer, resumes unfinished work at login after a restart, and leaves full shell/Neovim configuration for option **2** after packages finish.
+
+See the [Intel macOS and background-build guide](docs/intel-macos.md) for what changed upstream, setup on your MacBook, the separate queue command, progress/retry controls, and LaunchAgent lifecycle. This new workflow is macOS-only; the Synology install choices are unchanged.
 
 ---
 

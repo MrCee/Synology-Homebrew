@@ -3,6 +3,14 @@
 source ./functions.sh
 func_initialize_env_vars
 
+if [[ "$DARWIN" == 1 ]] && /bin/bash "$(dirname "$0")/background-packages.sh" busy; then
+    echo "An unfinished macOS package queue exists. Pause it, wait for the current formula, then abandon it before uninstalling." >&2
+    echo "  bash ./background-packages.sh pause" >&2
+    echo "  bash ./background-packages.sh status" >&2
+    echo "  bash ./background-packages.sh abandon" >&2
+    exit 1
+fi
+
 NVIM_CONFIG_URL="https://github.com/MrCee/nvim-mrcee"
 NVIM_DEFAULT_CONFIG_DIR="$HOME/.config/nvim"
 NVIM_APP_CONFIG_DIR="$HOME/.config/nvim-mrcee"
@@ -93,6 +101,10 @@ else
 fi
 
 DEL_NVIM=0
+if [[ "$DARWIN" == 1 ]]; then
+    /bin/bash "$(dirname "$0")/background-packages.sh" disable || exit 1
+fi
+
 read -rp "Do you also want to remove the canonical Neovim config and cached files? (yes/no): " response
 # Convert the response to lowercase and trim leading/trailing whitespace
 response=$(echo "$response" | tr '[:upper:]' '[:lower:]' | xargs)

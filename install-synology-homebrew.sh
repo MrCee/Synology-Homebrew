@@ -3,7 +3,7 @@
 # -----------------------------------------------------------------------------
 # Synology-Homebrew Installer (DROP-IN, FIXED ENDING + OMZ/P10K GUARANTEE)
 #
-# GUARANTEES (authoritative):
+# FOREGROUND COMPLETION GUARANTEES (authoritative):
 # - NEVER allow Oh My Zsh to self-update or prompt during install
 # - NEVER let OMZ auto-run zsh during install (we control final exec)
 # - ALLOWED: change shell at the END by exec into zsh (transport experience)
@@ -11,6 +11,7 @@
 # - Final user-visible line is:
 #     "🚀 You will now be transported to zsh..."
 #   then zsh launches and Powerlevel10k loads from ~/.zshrc
+# macOS option 3 instead cleans up and returns while its package queue runs.
 # -----------------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
@@ -165,11 +166,17 @@ Select your install type:
 1) Minimal Install: This will provide the homebrew basics, ignore packages in config.yaml, leaving the rest to you.
    ** You can also use this option to uninstall packages in config.yaml installed by option 2 by running the script again.
 
-2) Advanced Install: Full setup includes packages in config.yaml
+2) Advanced Install (foreground): Full setup includes packages in config.yaml
    ** Recommended if you want to get started with Neovim or install some of the great packages listed.
-
-Enter selection:
 EOF
+  if [[ "$DARWIN" == 1 ]]; then
+    echo ""
+    echo "3) Homebrew now, macOS packages in background (resumes at login)."
+    echo "   ** Recommended for long Intel Mac builds; opens a floating progress window."
+    echo "   ** Run option 2 after packages finish to configure the shell and Neovim."
+  fi
+  echo ""
+  echo "Enter selection:"
 }
 
 [[ $DEBUG == 0 ]] && clear
@@ -179,7 +186,9 @@ while true; do
 
   case "$selection" in
     1|2) break ;;
-    *) echo "Invalid selection. Please enter 1 or 2."
+    3) [[ "$DARWIN" == 1 ]] && break
+       echo "Background package setup is available on macOS only." ;;
+    *) echo "Invalid selection."
        read -r -p "Press Enter to continue..." ;;
   esac
 done
@@ -281,6 +290,39 @@ if [[ $DARWIN == 0 ]]; then
   export HOMEBREW_TEMP="${HOMEBREW_TEMP:-$HOME/tmp}"
   export TMPDIR="${TMPDIR:-$HOMEBREW_TEMP}"
   mkdir -p "$HOMEBREW_TEMP" || true
+fi
+
+if [[ "$selection" == 3 ]]; then
+  if ! func_ensure_homebrew || ! func_bootstrap_yq || ! func_persist_macos_brew_env; then
+    echo "❌ Could not prepare Homebrew and yq for the package queue." >&2
+    exit 1
+  fi
+  # The worker only installs formulas, so it does not need the sudoers fragment.
+  if /bin/bash "$SCRIPT_DIR/background-packages.sh" busy; then
+    /bin/bash "$SCRIPT_DIR/background-packages.sh" resume || exit 1
+  else
+    /bin/bash "$SCRIPT_DIR/background-packages.sh" start "$CONFIG_YAML_PATH" || exit 1
+  fi
+  cleanup_once 0
+  trap - EXIT INT TERM HUP QUIT ABRT ALRM PIPE
+  echo ""
+  echo "Homebrew is ready. Package installation is running separately; full setup is still pending."
+  echo "Check progress: bash ./background-packages.sh status"
+  echo "After packages finish, run this installer again and choose option 2 to configure the environment."
+  exit 0
+fi
+
+if [[ "$DARWIN" == 1 ]] && /bin/bash "$SCRIPT_DIR/background-packages.sh" busy; then
+  echo "A package queue is active or interrupted. Check it before starting another install:" >&2
+  echo "  bash ./background-packages.sh status" >&2
+  echo "  bash ./background-packages.sh resume" >&2
+  exit 1
+fi
+
+if [[ "$DARWIN" == 1 && "$selection" == 2 ]] && /bin/bash "$SCRIPT_DIR/background-packages.sh" verify "$CONFIG_YAML_PATH"; then
+  export SYNOBREW_PACKAGES_READY=1
+  export HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_UPGRADE=1
+  echo "Verified completed package queue; reusing its formulas for environment configuration."
 fi
 
 if ! install_brew_and_packages; then

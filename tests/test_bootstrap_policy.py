@@ -14,7 +14,7 @@ REPO = Path(__file__).resolve().parents[1]
 
 
 class BootstrapPolicyTests(unittest.TestCase):
-    def run_bootstrap(self, platform, arch, fail_package=""):
+    def run_bootstrap(self, platform, arch, fail_package="", packages_ready=False):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             (root / "bin").mkdir()
@@ -41,6 +41,8 @@ exit 0
                 TEST_ARCH=arch,
                 TEST_FAIL_PACKAGE=fail_package,
                 INSTALL_MODE="advanced",
+                SYNOBREW_PACKAGES_READY="1" if packages_ready else "0",
+                HOMEBREW_TEMP=str(root / "tmp"),
             )
             script = '''source "$1/functions.sh"
 uname() {
@@ -91,6 +93,35 @@ if install_brew_and_packages; then exit 0; else exit 1; fi
         self.assertIn("standalone-yq-ready", calls)
         self.assertIn("install --quiet gawk", calls)
         self.assertIn("trying the standalone fallback", result.stderr)
+
+    def test_background_profile_setup_preserves_content_and_unchanged_file(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            profile = root / ".zprofile"
+            profile.write_text("# existing user configuration\nexport MY_SETTING=kept\n")
+            environment = os.environ.copy()
+            environment.update(HOME=temporary, TEST_ROOT=temporary)
+            script = '''source "$1/functions.sh"
+DARWIN=1
+HOMEBREW_PATH="$TEST_ROOT/prefix with spaces"
+func_persist_macos_brew_env
+'''
+            for run in range(2):
+                subprocess.run(["/bin/bash", "-c", script, "test", str(REPO)], env=environment, check=True)
+                if run == 0:
+                    first_modified = profile.stat().st_mtime_ns
+            self.assertEqual(profile.stat().st_mtime_ns, first_modified)
+            self.assertIn("export MY_SETTING=kept", profile.read_text())
+            self.assertEqual(profile.read_text().count("shellenv"), 1)
+
+    def test_verified_mac_queue_skips_foreground_baseline_installs_and_upgrades(self):
+        calls, _ = self.run_bootstrap("Darwin", "x86_64", packages_ready=True)
+        self.assertFalse(any(call.startswith(("install ", "upgrade ")) for call in calls))
+
+    def test_verified_mac_queue_flag_does_not_change_linux_installation(self):
+        calls, _ = self.run_bootstrap("Linux", "x86_64", packages_ready=True)
+        self.assertIn("install --quiet yq", calls)
+        self.assertIn("upgrade --quiet", calls)
 
 
 if __name__ == "__main__":
