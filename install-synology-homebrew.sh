@@ -328,9 +328,16 @@ if [[ "$selection" == 3 ]]; then
   cleanup_once 0
   trap - EXIT INT TERM HUP QUIT ABRT ALRM PIPE
   echo ""
-  echo "Homebrew, Oh My Zsh and selected shell plugins are ready. Open a new terminal to use them."
+  echo "Homebrew, Oh My Zsh and selected shell plugins are ready."
   echo "Check progress: bash ./background-packages.sh status"
   echo "Packages remain in the saved queue. After they finish, choose Finish setup in the window for package integrations and Neovim providers."
+  if [[ -t 0 && -t 1 ]]; then
+    echo "🚀 You will now be transported to zsh..."
+    FINAL_ZSH="/bin/zsh"
+    [[ ! -x "$HOMEBREW_PATH/bin/zsh" ]] || FINAL_ZSH="$HOMEBREW_PATH/bin/zsh"
+    exec "$FINAL_ZSH" -il
+  fi
+  echo "Open a new terminal to use the prepared shell."
   exit 0
 fi
 

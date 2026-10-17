@@ -208,10 +208,13 @@ function run(argv) {
     controller = $.SynologyHomebrewStatusController.alloc.init;
     panel = $.NSPanel.alloc.initWithContentRectStyleMaskBackingDefer(
         $.NSMakeRect(0, 0, 470, 350),
-        $.NSWindowStyleMaskTitled | $.NSWindowStyleMaskClosable | $.NSWindowStyleMaskUtilityWindow,
+        $.NSWindowStyleMaskTitled | $.NSWindowStyleMaskClosable | $.NSWindowStyleMaskMiniaturizable | $.NSWindowStyleMaskUtilityWindow,
         $.NSBackingStoreBuffered, false
     );
     panel.title = $("Homebrew package setup");
+    if (selfTest && (!panel.miniaturizable || panel.standardWindowButton($.NSWindowMiniaturizeButton).isNil() || !panel.standardWindowButton($.NSWindowMiniaturizeButton).enabled)) {
+        throw new Error("Status window must provide its native minimise control.");
+    }
     panel.contentView = $.SynologyHomebrewStatusContentView.alloc.initWithFrame($.NSMakeRect(0, 0, 470, 350));
     // Production windows inherit the system appearance. Overrides are for QA only.
     var appearanceIndex = argv.indexOf("--appearance");

@@ -1,5 +1,8 @@
 """Shell-first setup tests use a private HOME and fake Git; no downloads."""
 import os
+import pty
+import select
+import time
 from pathlib import Path
 import shutil
 import subprocess
@@ -72,7 +75,7 @@ esac
 
 
 class MacInstallerMenuTests(unittest.TestCase):
-    def run_menu(self, timing, busy=False):
+    def run_menu(self, timing, busy=False, interactive=False):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             shutil.copy(REPO/'install-synology-homebrew.sh', root)
@@ -91,10 +94,46 @@ func_persist_macos_brew_env() { :; }
 if [[ "$1" == busy ]]; then exit "$TEST_BUSY_EXIT"; fi
 ''')
             env = dict(os.environ, TEST_EVENTS=str(root/'events'), TEST_BUSY_EXIT='0' if busy else '1', TERM='xterm')
-            result = subprocess.run(['/bin/bash', str(root/'install-synology-homebrew.sh')], input='3\n'+timing+'\n', cwd=root, env=env, capture_output=True, text=True)
+            if interactive:
+                env['HOME'] = str(root)
+                (root/'.zshrc').write_text('print SHELL_HANDOFF_READY\nexit 0\n')
+                master, slave = pty.openpty()
+                process = subprocess.Popen(['/bin/bash', str(root/'install-synology-homebrew.sh')], cwd=root, env=env, stdin=slave, stdout=slave, stderr=slave)
+                os.close(slave)
+                output = bytearray()
+                os.write(master, ('3\n'+timing+'\n').encode())
+                deadline = time.monotonic()+15
+                try:
+                    while time.monotonic()<deadline:
+                        if select.select([master], [], [], 0.1)[0]:
+                            try:
+                                part = os.read(master, 65536)
+                            except OSError:
+                                break
+                            if not part:
+                                break
+                            output.extend(part)
+                        elif process.poll() is not None:
+                            break
+                    process.wait(timeout=3)
+                finally:
+                    os.close(master)
+                    if process.poll() is None:
+                        process.kill()
+                        process.wait()
+                result = subprocess.CompletedProcess(process.args, process.returncode, output.decode(errors='replace'), '')
+                self.assertIn('SHELL_HANDOFF_READY', result.stdout)
+                self.assertIn('transported to zsh', result.stdout)
+            else:
+                result = subprocess.run(['/bin/bash', str(root/'install-synology-homebrew.sh')], input='3\n'+timing+'\n', cwd=root, env=env, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stdout+result.stderr)
             self.assertNotIn('4) Homebrew', result.stdout)
             return (root/'events').read_text().splitlines()
+
+    @unittest.skipUnless(sys.platform == 'darwin', 'Requires native zsh')
+    def test_terminal_run_hands_off_to_login_zsh_after_cleanup(self):
+        events = self.run_menu('2', interactive=True)
+        self.assertEqual(events[-1], 'cleanup')
 
     def test_start_now_prepares_shell_before_starting_queue(self):
         events = self.run_menu('1')

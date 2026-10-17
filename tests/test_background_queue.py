@@ -49,7 +49,7 @@ list) [[ -f "$TEST_ROOT/installed/$3" ]]; exit $? ;;
 install)
     package=$2
     echo "$package" >> "$TEST_ROOT/install-calls"
-    printf '%s|%s|%s\n' "$HOMEBREW_MAKE_JOBS" "$HOMEBREW_NO_ASK" "$HOMEBREW_NO_SUDO" >> "$TEST_ROOT/install-environment"
+    printf '%s|%s|%s|%s\n' "$HOMEBREW_MAKE_JOBS" "$HOMEBREW_NO_ASK" "$HOMEBREW_NO_SUDO" "$HOMEBREW_NO_INSTALL_UPGRADE" >> "$TEST_ROOT/install-environment"
     while [[ -f "$TEST_ROOT/block-package" && "$(cat "$TEST_ROOT/block-package")" == "$package" ]]; do sleep 0.1; done
     if [[ -f "$TEST_ROOT/fail-package" && "$(cat "$TEST_ROOT/fail-package")" == "$package" ]]; then exit 1; fi
     touch "$TEST_ROOT/installed/$package"
@@ -142,7 +142,7 @@ esac
         self.assertEqual(process.wait(timeout=3), 0)
         self.assertNotIn("git", (self.root / "install-calls").read_text().splitlines())
         self.assertEqual(len((self.job / "completed").read_text().splitlines()), 4)
-        self.assertTrue(all(line == "2|1|1" for line in (self.root / "install-environment").read_text().splitlines()))
+        self.assertTrue(all(line == "2|1|1|1" for line in (self.root / "install-environment").read_text().splitlines()))
 
     def test_failed_package_does_not_skip_others_and_retries_automatically(self):
         self.prepare()
@@ -223,10 +223,12 @@ esac
         self.assertEqual((self.job / "queue").read_bytes(), queue)
 
     def test_preexisting_formulas_are_counted_and_never_reinstalled(self):
+        self.environment["TEST_PACKAGES"] = "alpha\nbeta\ncmake"
+        (self.installed / "cmake").touch()
         (self.installed / "git").touch()
         (self.installed / "alpha").touch()
         self.prepare(paused=True)
-        self.assertEqual((self.job / "completed").read_text().splitlines(), ["git", "alpha"])
+        self.assertEqual((self.job / "completed").read_text().splitlines(), ["git", "alpha", "cmake"])
         # Also detect packages installed after queue creation.
         (self.installed / "ruby").touch()
         self.command("resume")
