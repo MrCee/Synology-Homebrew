@@ -3,7 +3,7 @@ ObjC.import("Cocoa");
 
 var app, panel, controller, timer, job;
 var titleLabel, detailLabel, countLabel, timeLabel, stageLabel, noteLabel, outputView;
-var progress, spinner, retryButton, finishButton, pauseButton;
+var progress, spinner, retryButton, finishButton, pauseButton, stopButton;
 var previousPackage = "", currentDependency = "";
 var selfTest = false, ticks = 0;
 var lastAppearance = "";
@@ -54,8 +54,8 @@ function label(text, x, y, width, size, bold) {
     return field;
 }
 
-function button(text, x, action) {
-    var control = $.NSButton.alloc.initWithFrame($.NSMakeRect(x, 15, 128, 30));
+function button(text, x, action, width) {
+    var control = $.NSButton.alloc.initWithFrame($.NSMakeRect(x, 15, width || 128, 30));
     control.title = $(text);
     control.bezelStyle = $.NSBezelStyleRounded;
     control.target = controller;
@@ -67,7 +67,8 @@ function button(text, x, action) {
 function launchRunner(action) {
     var task = $.NSTask.alloc.init;
     task.launchPath = $("/bin/bash");
-    task.arguments = $([job + "/runner.sh", action]);
+    var runner = $.NSFileManager.defaultManager.fileExistsAtPath($(job + "/controller.sh")) ? "/controller.sh" : "/runner.sh";
+    task.arguments = $([job + runner, action]);
     task.launch;
 }
 
@@ -104,7 +105,7 @@ function update() {
         pending: "Waiting to start", running: "Installing packages",
         interrupted: "Installation interrupted", needs_attention: "Some packages need attention",
         packages_ready: "Packages are ready", cancelled: "Queue abandoned",
-        retry_wait: "Waiting to retry unfinished packages", paused: "Queue paused"
+        retry_wait: "Waiting to retry unfinished packages", paused: "Queue paused", stopping: "Stopping package queue"
     };
     titleLabel.stringValue = $(headings[state] || state);
     detailLabel.stringValue = $(current ? "Package: " + current : "Homebrew background setup");
@@ -120,8 +121,13 @@ function update() {
     finishButton.hidden = state !== "packages_ready";
     pauseButton.hidden = state === "packages_ready" || state === "cancelled";
     pauseButton.title = $(state === "paused" ? "Resume" : "Pause queue");
+    pauseButton.enabled = state !== "stopping";
+    stopButton.hidden = state === "packages_ready" || state === "cancelled" || state === "paused";
+    stopButton.enabled = state !== "stopping";
     if (state === "packages_ready") {
         noteLabel.stringValue = $("Next: finish shell and Neovim configuration.");
+    } else if (state === "stopping") {
+        noteLabel.stringValue = $("Stopping this build; completed packages are kept.");
     } else if (state === "retry_wait") {
         var remaining = Math.max(0, Number(readFile(job + "/next-retry").trim()) - Math.floor(Date.now() / 1000));
         noteLabel.stringValue = $(failed.length + " failed • retrying in " + Math.ceil(remaining / 60) + "m • see log for details");
@@ -177,6 +183,7 @@ ObjC.registerSubclass({
         "pause:": { types: ["void", ["id"]], implementation: function () {
             launchRunner(readFile(job + "/status").trim() === "paused" ? "resume" : "pause");
         } },
+        "stop:": { types: ["void", ["id"]], implementation: function () { launchRunner("stop"); } },
         "finish:": { types: ["void", ["id"]], implementation: function () {
             var repo = readFile(job + "/repository").trim();
             if (!repo) return;
@@ -239,10 +246,11 @@ function run(argv) {
     scroll.documentView = outputView;
     panel.contentView.addSubview(scroll);
     noteLabel = label("", 20, 53, 430, 11, false);
-    button("Show log", 18, "showLog:");
-    pauseButton = button("Pause queue", 160, "pause:");
-    retryButton = button("Retry now", 302, "retry:");
-    finishButton = button("Finish setup…", 302, "finish:");
+    button("Show log", 18, "showLog:", 100);
+    pauseButton = button("Pause queue", 128, "pause:", 100);
+    stopButton = button("Stop queue", 238, "stop:", 100);
+    retryButton = button("Retry now", 348, "retry:", 100);
+    finishButton = button("Finish setup…", 318, "finish:");
     update();
     var renderIndex = argv.indexOf("--render");
     if (renderIndex !== -1) {

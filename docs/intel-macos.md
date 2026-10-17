@@ -17,7 +17,7 @@ The pinned revision applies only to the Homebrew bootstrap script. It does not f
 
 ## Start on the MacBook itself
 
-Update the checkout on the target Mac, then run the normal installer. Choose **3** to start background builds now, or **4** to finish Homebrew bootstrap and save the package queue paused for later:
+Update the checkout on the target Mac, then run the normal installer. Choose **3** to finish Homebrew and the shell first, then choose **Start now** or **Compile later** for package builds:
 
 ```zsh
 cd ~/Synology-Homebrew
@@ -36,32 +36,34 @@ bash ./background-packages.sh start ./config.yaml
 bash ./background-packages.sh start ./config.yaml --paused
 ```
 
-On a fresh Mac, use main installer option 3 or 4 first; the separate command expects the Homebrew executable to exist. The main installer bootstraps Homebrew before calling that command.
+On a fresh Mac, use main installer option 3 first; the separate command expects the Homebrew executable to exist. The main installer bootstraps Homebrew before calling that command.
 
 ## Background package setup
 
-On Intel or Apple Silicon macOS, options **3** and **4** provide the background package workflow. These options are macOS-only; the Synology flow is unchanged. Option **4** saves the queue paused and opens a **Resume** button: no queued formulas compile until you choose to start them. An already running formula finishes before an existing queue pauses. Homebrew bootstrap can finish separately, but the remaining tools and final configuration are still pending.
+On Intel or Apple Silicon macOS, option **3** provides one background package workflow. It prepares the shell, then asks **Start now** or **Compile later**. This option is macOS-only; the Synology flow is unchanged. Compile later saves the queue paused and opens a **Resume** button: no queued formulas compile until you choose to start them. An already running formula finishes before an existing queue pauses.
 
-The foreground stage installs/verifies Homebrew, prepares the standalone YAML parser, adds Homebrew's shell environment to `~/.zprofile` without replacing existing content, and queues the baseline formulas plus the `install` formulas from `config.yaml`. It then releases temporary sudo access and returns your terminal. A user LaunchAgent installs one queued formula at a time with lower process priority and two build jobs by default. It does not run a blanket upgrade, uninstall packages, or retain sudo access.
+The foreground stage installs/verifies Homebrew, prepares the standalone YAML parser and adds Homebrew's shell environment to `~/.zprofile` without replacing existing content. Using the available macOS Git and zsh, it installs Oh My Zsh, the selected shell plugins and Powerlevel10k before queuing formulas. It preserves existing shell content, saves a backup before the first shell edit and retains an existing `~/.p10k.zsh`. Package aliases and eval integrations are guarded by command availability at shell startup; Perl local::lib initialization also checks the provider exists. Open a new terminal to use the shell now. New terminals pick up those integrations as their commands become available.
+
+The queue contains the baseline formulas plus the `install` formulas from `config.yaml`. After saving or resuming it, the installer releases temporary sudo access and returns your terminal. A user LaunchAgent installs one queued formula at a time with lower process priority and two build jobs by default. It does not run a blanket upgrade, uninstall packages, or retain sudo access.
 
 A small native window stays above normal windows and shows:
 
 - the current formula and recent dependency/build output
 - elapsed time for the current formula and an animated activity indicator
 - an overall progress bar based on completed formulas, not an estimated compile percentage
-- retry timing and failures, with **Show log**, **Pause queue**, **Resume** and **Retry now** controls as appropriate
+- retry timing and failures, with **Show log**, **Pause queue**, **Stop queue**, **Resume** and **Retry now** controls as appropriate
 
-Closing the window hides it without stopping the worker. **Pause queue** lets the current formula finish before pausing. Formula failures do not skip later entries: the worker attempts the rest, then retries unfinished entries after delays from 5 up to 30 minutes. Build tools may still use substantial CPU, and not every build system honours the requested job count. For a different limit, launch the installer with, for example:
+Closing the window hides it without stopping the worker. **Pause queue** lets the current formula finish before pausing. **Stop queue** terminates the queue worker and its current build, retaining the queue, config, completed packages and logs. It stays stopped across login until **Resume** or main installer option **3** with **Start now**. The interrupted formula may have to rebuild; completed formulas are checked and skipped. Formula failures do not skip later entries: the worker attempts the rest, then retries unfinished entries after delays from 5 up to 30 minutes. Build tools may still use substantial CPU, and not every build system honours the requested job count. For a different limit, launch the installer with, for example:
 
 ```zsh
 SYNOBREW_BUILD_JOBS=1 bash ./install-synology-homebrew.sh
 ```
 
-Progress, the config snapshot and a copy of the runner/window are saved under `~/.local/share/synology-homebrew/background`. A restart or logout interrupts the current build; at the next login, the worker and window reopen and resume unfinished work. Completed formulas are checked and skipped. Homebrew does not guarantee resuming inside a partially compiled formula, so that formula may rebuild. The Mac must be awake and the user logged in to make progress.
+Progress, the config snapshot and a copy of the runner/window are saved under `~/.local/share/synology-homebrew/background`. A restart or logout interrupts the current build; at the next login, the worker and window reopen and resume unfinished work. Every queued formula is checked against Homebrew, including packages installed by an earlier foreground run. Already installed versions are reused without requesting an upgrade. Initial progress includes those formulas, and each formula is checked again before installation. Homebrew does not guarantee resuming inside a partially compiled formula, so that formula may rebuild. The Mac must be awake and the user logged in to make progress.
 
-A queue deliberately paused with option 4 or **Pause queue** stays paused across logins until you choose **Resume**.
+A queue deliberately paused with **Compile later** or **Pause queue** stays paused across logins until you choose **Resume**.
 
-When the queue reports **Packages are ready**, choose **Finish setup…** in the window, or rerun the main installer and choose **2**, to apply shell, plugin and Neovim-provider configuration. When the saved config matches and all queued formulas are still installed, the installer reuses them and skips foreground baseline installs/upgrades. It also suppresses automatic package upgrades during this final configuration step. Package completion alone is not completion of the full environment. Keep `config.yaml` unchanged until that final step; changing it can request additional foreground installs instead of reusing the completed queue.
+When the queue reports **Packages are ready**, choose **Finish setup…** in the window, or rerun the main installer and choose **2**, to finish package-dependent configuration, package themes, uninstall requests and Neovim providers. Those provider/setup tasks can still take time; they are not run during shell preparation. When the saved config matches and all queued formulas are still installed, the installer reuses them and skips foreground baseline installs/upgrades. It also suppresses automatic package upgrades during this final configuration step. Package completion alone is not completion of the full environment. The shell-only stage does not remove plugins or run package installers, CPAN, pip, npm or Neovim bootstrap. Keep `config.yaml` unchanged until that final step; changing it can request additional foreground installs instead of reusing the completed queue.
 
 Useful commands, run from the repository:
 
@@ -70,6 +72,7 @@ bash ./background-packages.sh status
 bash ./background-packages.sh window  # reopen the floating window
 bash ./background-packages.sh log     # follow output; Control+C only stops viewing
 bash ./background-packages.sh pause   # pause after the current formula
+bash ./background-packages.sh stop    # stop current build; retain resumable progress
 bash ./background-packages.sh resume  # resume, or retry immediately during a wait
 ```
 
@@ -77,6 +80,20 @@ The LaunchAgents remain registered for future queues. Their workers exit when th
 
 If switching from an older foreground installation, stop that run with Control+C before starting option 3. Already installed Homebrew formulas are retained and reused; the formula interrupted during its build may need to restart. Do not run another Homebrew installation alongside an active queue.
 
+
+## Already used the former option 4?
+
+Your saved queue remains valid. Pull the update and prepare the shell directly without replacing the queue or restarting its current build:
+
+```zsh
+git pull --ff-only
+bash ./macos-shell-setup.sh ./config.yaml
+bash ./background-packages.sh window
+```
+
+Open a new terminal to use Oh My Zsh and the shell plugins. Resume the queue whenever ready. If the older worker is already running, use the refreshed window’s **Stop queue**, then **Resume** to load the installed-package reuse checks; this retains completed checkpoints but can restart the interrupted formula. Alternatively, run main installer option **3**: it prepares the shell and offers Start now/Compile later for the existing queue, retaining its checkpoints.
+
+You can also install ordinary Mac apps while formulas are pending. For example, [iTerm2's official download](https://iterm2.com/downloads.html) installs independently of Homebrew. The YAML queue is for formulas; a separate `brew install` command is not automatically added to it, and can trigger another foreground build. Avoid starting another formula installation alongside the queue. Already installed commands remain usable while the worker runs.
 
 ## Status window
 
@@ -102,6 +119,6 @@ This retains packages, checkpoints and logs; `resume` can register the agents ag
 
 ## What restart recovery means
 
-The queue saves a copy of `config.yaml`, its package list, completed-formula checkpoints and its runner/window scripts. At login it checks saved completions against installed formulas and retries unfinished work. It does not rely on the original terminal or on temporary sudo credentials. Pulling repository changes does not modify a running job's saved scripts or config; to replace that job, pause it, wait, abandon it and create a new queue. Already installed formulas are retained.
+The queue saves a copy of `config.yaml`, its package list, completed-formula checkpoints and its runner/window scripts. At login it checks saved completions against installed formulas and retries unfinished work. It does not rely on the original terminal or on temporary sudo credentials. Pulling repository changes does not modify an actively running worker. Reopening the window refreshes its presentation and command controller without interrupting the worker. Resuming an idle queue refreshes its worker code and checks installed formulas while retaining the saved config and queue. To change that config, stop or pause the queue, abandon it and create a replacement. Already installed formulas are retained.
 
-A whole-Mac reboot has not been exercised by the automated tests: recovery is tested with a saved running state, a stale worker lock and verified completed packages. Package installs and GUI callbacks are tested separately without installing real formulas or registering real LaunchAgents on the development machine. A full run on the target Mac is still needed to verify its particular packages and permissions.
+A whole-Mac reboot has not been exercised by the automated tests: recovery is tested with a saved running state, a stale worker lock and verified completed packages. Worker termination uses the queue LaunchAgent process group; tests simulate this with an isolated process group and verify that the active build stops while completed checkpoints survive. Real launchd termination still needs target-Mac verification. Package installs and GUI callbacks are tested separately without installing real formulas or registering real LaunchAgents on the development machine. A full run on the target Mac is still needed to verify its particular packages and permissions.

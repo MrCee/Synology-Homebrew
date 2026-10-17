@@ -38,7 +38,7 @@ worker_alive() {
 queue_busy() {
     load_job >/dev/null || return 1
     worker_alive && return 0
-    case "$(cat "$JOB/status")" in pending|running|interrupted|retry_wait|needs_attention|paused) return 0 ;; *) return 1 ;; esac
+    case "$(cat "$JOB/status")" in pending|running|interrupted|retry_wait|needs_attention|paused|stopping) return 0 ;; *) return 1 ;; esac
 }
 
 verify_queue() {
@@ -76,6 +76,8 @@ register_agent() {
 <key>RunAtLoad</key><true/>
 <key>ProcessType</key><string>Background</string>
 <key>LowPriorityIO</key><true/>
+<key>AbandonProcessGroup</key><false/>
+<key>ExitTimeOut</key><integer>5</integer>
 <key>StandardOutPath</key><string>$job_xml/worker.log</string>
 <key>StandardErrorPath</key><string>$job_xml/worker.log</string>
 </dict></plist>
@@ -136,6 +138,19 @@ show_status() {
     fi
 }
 
+checkpoint_installed() {
+    local brew package
+    brew=$(cat "$JOB/brew")
+    : > "$JOB/completed.tmp"
+    echo "Checking already installed formulas before starting the queue..."
+    while IFS= read -r package; do
+        if "$brew" list --versions "$package" >/dev/null 2>&1; then
+            printf '%s\n' "$package" >> "$JOB/completed.tmp"
+        fi
+    done < "$JOB/queue"
+    mv "$JOB/completed.tmp" "$JOB/completed"
+}
+
 prepare_queue() {
     [[ ( $# == 1 || ( $# == 2 && "$2" == --paused ) ) && -f "$1" ]] || { echo "Usage: bash background-packages.sh start config.yaml [--paused]" >&2; return 1; }
     if queue_busy; then
@@ -155,6 +170,7 @@ prepare_queue() {
     JOB=$(mktemp -d "$STATE_ROOT/jobs/job.XXXXXXXX") || return 1
     cp "$1" "$JOB/config.yaml" || return 1
     cp "$SCRIPT_DIR/background-packages.sh" "$JOB/runner.sh" || return 1
+    cp "$SCRIPT_DIR/background-packages.sh" "$JOB/controller.sh" || return 1
     cp "$SCRIPT_DIR/macos-package-status.js" "$JOB/status-window.js" || return 1
     printf '%s\n' "$HOMEBREW_PATH/bin/brew" > "$JOB/brew"
     printf '%s\n' "$jobs" > "$JOB/build-jobs"
@@ -178,6 +194,7 @@ prepare_queue() {
     : > "$JOB/current"
     : > "$JOB/worker.log"
     printf '0\n' > "$JOB/retries"
+    checkpoint_installed || return 1
     if [[ "${2:-}" == --paused ]]; then
         touch "$JOB/pause-requested"
         set_status paused
@@ -193,7 +210,7 @@ prepare_queue() {
         echo "Package queue saved and registered to run now and resume at login."
     fi
     echo "One package at a time; build parallelism: $jobs."
-    echo "Plugins, removals, shell configuration and Neovim providers run later in foreground option 2."
+    echo "Package integrations, removals and Neovim providers finish later with option 2."
     show_status
 }
 
@@ -277,11 +294,14 @@ run_queue() {
             trap - TERM INT HUP
             return 0
         fi
+        # Reuse formulas from earlier foreground runs and other queues too.
+        # Existing versions are sufficient here; this is not an upgrade job.
+        if "$brew" list --versions "$package" >/dev/null 2>&1; then
+            grep -Fxq "$package" "$JOB/completed" || printf '%s\n' "$package" >> "$JOB/completed"
+            echo "Already installed; reusing: $package"
+            continue
+        fi
         if grep -Fxq "$package" "$JOB/completed"; then
-            if "$brew" list --versions "$package" >/dev/null 2>&1; then
-                echo "Already completed: $package"
-                continue
-            fi
             grep -Fxv "$package" "$JOB/completed" > "$JOB/completed.tmp" || true
             mv "$JOB/completed.tmp" "$JOB/completed"
         fi
@@ -349,15 +369,37 @@ case "${1:-status}" in
         if [[ -f "$SCRIPT_DIR/macos-package-status.js" ]] && ! cmp -s "$SCRIPT_DIR/macos-package-status.js" "$JOB/status-window.js"; then
             cp "$SCRIPT_DIR/macos-package-status.js" "$JOB/status-window.js.tmp" && mv "$JOB/status-window.js.tmp" "$JOB/status-window.js" || exit 1
         fi
+        # UI commands can gain controls without replacing the executing worker.
+        cp "$SCRIPT_DIR/background-packages.sh" "$JOB/controller.sh.tmp" && mv "$JOB/controller.sh.tmp" "$JOB/controller.sh" || exit 1
         printf 'yes\n' > "$JOB/show-window"
         register_window
         ;;
-    start|resume|run|pause|abandon|disable)
+    start|resume|run|pause|stop|abandon|disable)
         [[ "$(uname -s)" == Darwin ]] || { echo "Background package setup is macOS only." >&2; exit 1; }
         [[ "$EUID" != 0 ]] || { echo "Run as the Mac login user, not root." >&2; exit 1; }
         case "$1" in
             start) shift; start_queue "$@" ;;
             run) worker_loop ;;
+            stop)
+                load_job || exit 1
+                case "$(cat "$JOB/status")" in packages_ready|cancelled) echo "No unfinished package work to stop."; exit 0 ;; esac
+                touch "$JOB/pause-requested"
+                set_status stopping
+                # Unload only this queue's worker service. launchd terminates
+                # its process group, including the active compiler children.
+                launchctl bootout "$DOMAIN/$LABEL" 2>/dev/null || true
+                attempts=0
+                while worker_alive && (( attempts < 30 )); do
+                    sleep 0.2
+                    attempts=$((attempts + 1))
+                done
+                if worker_alive; then
+                    echo "Stop requested, but the worker has not exited yet. Check status before resuming." >&2
+                    exit 1
+                fi
+                set_status paused
+                echo "Queue stopped. Completed packages are retained. Option 3 or Resume continues unfinished work."
+                ;;
             pause)
                 load_job || exit 1
                 case "$(cat "$JOB/status")" in packages_ready|cancelled) echo "No unfinished package work to pause."; exit 0 ;; esac
@@ -376,6 +418,9 @@ case "${1:-status}" in
                     exit 0
                 fi
                 [[ "$(cat "$JOB/status")" != packages_ready ]] || { show_status; exit 0; }
+                # Refresh code only while idle. Preserve queue/config/checkpoints.
+                cp "$0" "$JOB/runner.sh.tmp" && mv "$JOB/runner.sh.tmp" "$JOB/runner.sh" || exit 1
+                checkpoint_installed || exit 1
                 rm -f "$JOB/pause-requested" "$JOB/next-retry"
                 set_status pending
                 register_agent preserve
@@ -398,5 +443,5 @@ case "${1:-status}" in
                 ;;
         esac
         ;;
-    *) echo "Usage: bash background-packages.sh {start config.yaml|status|window|log|resume|pause|abandon|disable}" >&2; exit 1 ;;
+    *) echo "Usage: bash background-packages.sh {start config.yaml|status|window|log|resume|pause|stop|abandon|disable}" >&2; exit 1 ;;
 esac

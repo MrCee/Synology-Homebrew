@@ -35,7 +35,11 @@ func_bootstrap_yq() { return 0; }
 get_minimal_baseline() { echo 'yq git ruby'; }
 ''')
         self.executable("uname", "echo Darwin\n")
-        self.executable("launchctl", 'printf "%s\\n" "$*" >> "$TEST_ROOT/launchctl-calls"\n')
+        self.executable("launchctl", '''printf "%s\\n" "$*" >> "$TEST_ROOT/launchctl-calls"
+if [[ "$1" == bootout && "$2" == */com.mrcee.synology-homebrew.packages && -f "$TEST_ROOT/stop-worker-pid" ]]; then
+    kill -TERM -- -"$(cat "$TEST_ROOT/stop-worker-pid")" 2>/dev/null || true
+fi
+''')
         self.executable("yq", '''[[ "$2" == . ]] && exit 0
 printf '%s\n' "$TEST_PACKAGES"
 ''')
@@ -85,7 +89,7 @@ esac
         log = open(self.job / "test-worker.log", "a")
         process = subprocess.Popen(
             ["/bin/bash", str(self.job / "runner.sh"), "run"],
-            env=self.environment, stdout=log, stderr=log,
+            env=self.environment, stdout=log, stderr=log, start_new_session=True,
         )
         log.close()
         self.processes.append(process)
@@ -217,6 +221,51 @@ esac
         self.assertEqual((self.job / "status-window.js").read_text(), "// refreshed appearance\n")
         self.assertEqual((self.job / "runner.sh").read_bytes(), worker)
         self.assertEqual((self.job / "queue").read_bytes(), queue)
+
+    def test_preexisting_formulas_are_counted_and_never_reinstalled(self):
+        (self.installed / "git").touch()
+        (self.installed / "alpha").touch()
+        self.prepare(paused=True)
+        self.assertEqual((self.job / "completed").read_text().splitlines(), ["git", "alpha"])
+        # Also detect packages installed after queue creation.
+        (self.installed / "ruby").touch()
+        self.command("resume")
+        process = self.worker()
+        self.wait_state("packages_ready")
+        self.assertEqual(process.wait(timeout=3), 0)
+        self.assertEqual((self.root / "install-calls").read_text().splitlines(), ["beta"])
+
+    def test_stop_terminates_active_build_and_resumes_without_reinstalling_completed(self):
+        self.prepare()
+        (self.root / "block-package").write_text("ruby")
+        process = self.worker()
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            calls = self.root / "install-calls"
+            if calls.exists() and "ruby" in calls.read_text().splitlines():
+                break
+            time.sleep(0.05)
+        else:
+            self.fail("Worker did not reach blocked ruby build")
+        (self.root / "stop-worker-pid").write_text(str(process.pid))
+        queue = (self.job / "queue").read_bytes()
+        self.command("stop")
+        process.wait(timeout=3)
+        self.assertEqual((self.job / "status").read_text().strip(), "paused")
+        self.assertEqual((self.job / "completed").read_text().splitlines(), ["git"])
+        self.assertFalse((self.installed / "ruby").exists())
+        self.assertEqual((self.job / "queue").read_bytes(), queue)
+        # A login must not restart a deliberately stopped queue.
+        self.assertEqual(self.worker().wait(timeout=3), 0)
+        (self.root / "stop-worker-pid").unlink()
+        (self.root / "block-package").unlink()
+        self.command("resume")
+        process = self.worker()
+        self.wait_state("packages_ready")
+        self.assertEqual(process.wait(timeout=3), 0)
+        calls = (self.root / "install-calls").read_text().splitlines()
+        self.assertEqual(calls.count("git"), 1)
+        self.assertEqual(calls.count("ruby"), 2)
 
     def test_removed_completed_formula_is_reinstalled(self):
         self.prepare()
