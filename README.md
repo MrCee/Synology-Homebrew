@@ -49,9 +49,11 @@ macOS support is included so the same `config.yaml` can be used for local develo
 | Synology ARM64 / aarch64 | Supported where Homebrew supports the platform |
 | 32-bit ARM / i386 | Blocked by design |
 | macOS Apple Silicon | Supported via `/opt/homebrew` |
-| macOS Intel | Supported via `/usr/local` |
+| macOS Intel | Best effort via `/usr/local`; upstream Tier 3 |
 
 The installer performs upfront CPU architecture checks. Homebrew does not support 32-bit platforms, so those systems are blocked early instead of failing halfway through the Homebrew installer.
+
+Homebrew's current upstream installer rejects Intel Macs. For Intel macOS, this project uses official installer revision `0f5b7666a65fc2d1a2615549f02771353c250f9a`, which recognises Tahoe and installs into `/usr/local`. Apple Silicon and Linux use the current upstream installer. An existing Homebrew executable at the platform prefix is reused even if it is absent from `PATH`. This pins the bootstrap script, not Homebrew itself or package versions; Intel macOS remains [upstream Tier 3](https://docs.brew.sh/Support-Tiers), so packages may require source builds or fail individually.
 
 ---
 
