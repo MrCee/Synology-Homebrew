@@ -17,7 +17,7 @@ The pinned revision applies only to the Homebrew bootstrap script. It does not f
 
 ## Start on the MacBook itself
 
-Update the checkout on the target Mac, then run the normal installer and choose **3**:
+Update the checkout on the target Mac, then run the normal installer. Choose **3** to start background builds now, or **4** to finish Homebrew bootstrap and save the package queue paused for later:
 
 ```zsh
 cd ~/Synology-Homebrew
@@ -32,13 +32,15 @@ If Homebrew is already installed, the queue can also be started separately from 
 
 ```zsh
 bash ./background-packages.sh start ./config.yaml
+# Or save the queue without starting compilation:
+bash ./background-packages.sh start ./config.yaml --paused
 ```
 
-On a fresh Mac, use the main installer option 3 first; the separate command expects the Homebrew executable to exist. The main installer bootstraps Homebrew before calling that command.
+On a fresh Mac, use main installer option 3 or 4 first; the separate command expects the Homebrew executable to exist. The main installer bootstraps Homebrew before calling that command.
 
 ## Background package setup
 
-On Intel or Apple Silicon macOS, choose **3** in the normal installer. This new option is macOS-only; the Synology flow is unchanged.
+On Intel or Apple Silicon macOS, options **3** and **4** provide the background package workflow. These options are macOS-only; the Synology flow is unchanged. Option **4** saves the queue paused and opens a **Resume** button: no queued formulas compile until you choose to start them. An already running formula finishes before an existing queue pauses. Homebrew bootstrap can finish separately, but the remaining tools and final configuration are still pending.
 
 The foreground stage installs/verifies Homebrew, prepares the standalone YAML parser, adds Homebrew's shell environment to `~/.zprofile` without replacing existing content, and queues the baseline formulas plus the `install` formulas from `config.yaml`. It then releases temporary sudo access and returns your terminal. A user LaunchAgent installs one queued formula at a time with lower process priority and two build jobs by default. It does not run a blanket upgrade, uninstall packages, or retain sudo access.
 
@@ -56,6 +58,8 @@ SYNOBREW_BUILD_JOBS=1 bash ./install-synology-homebrew.sh
 ```
 
 Progress, the config snapshot and a copy of the runner/window are saved under `~/.local/share/synology-homebrew/background`. A restart or logout interrupts the current build; at the next login, the worker and window reopen and resume unfinished work. Completed formulas are checked and skipped. Homebrew does not guarantee resuming inside a partially compiled formula, so that formula may rebuild. The Mac must be awake and the user logged in to make progress.
+
+A queue deliberately paused with option 4 or **Pause queue** stays paused across logins until you choose **Resume**.
 
 When the queue reports **Packages are ready**, choose **Finish setup…** in the window, or rerun the main installer and choose **2**, to apply shell, plugin and Neovim-provider configuration. When the saved config matches and all queued formulas are still installed, the installer reuses them and skips foreground baseline installs/upgrades. It also suppresses automatic package upgrades during this final configuration step. Package completion alone is not completion of the full environment. Keep `config.yaml` unchanged until that final step; changing it can request additional foreground installs instead of reusing the completed queue.
 
@@ -78,7 +82,11 @@ If switching from an older foreground installation, stop that run with Control+C
 
 <img src="images/macos-package-status.png" width="470" alt="Floating macOS package status window showing completed packages, current build, live output and controls">
 
+<img src="images/macos-package-status-dark.png" width="470" alt="The macOS package status window in dark mode">
+
 Illustrative window with sample package counts. The activity indicator animates during work; an individual compiler percentage is only available if the build itself reports one in its output. The window uses built-in macOS AppKit through JavaScript for Automation, so no GUI compiler, Python environment or browser server is required. Selecting text or scrolling back in the output pauses output following until you return to the bottom and clear the selection.
+
+The panel and log follow the system appearance, including changes while the window is open. To update the appearance of an existing job after pulling a window fix, run `bash ./background-packages.sh window` from the updated repository. It refreshes only the saved window script and reopens the display; it does not replace the worker, reset package progress or interrupt compilation.
 
 ## LaunchAgent lifecycle and uninstall
 

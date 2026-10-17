@@ -137,7 +137,7 @@ show_status() {
 }
 
 prepare_queue() {
-    [[ $# == 1 && -f "$1" ]] || { echo "Usage: bash background-packages.sh start config.yaml" >&2; return 1; }
+    [[ ( $# == 1 || ( $# == 2 && "$2" == --paused ) ) && -f "$1" ]] || { echo "Usage: bash background-packages.sh start config.yaml [--paused]" >&2; return 1; }
     if queue_busy; then
         echo "An unfinished queue already exists. Use status or resume instead." >&2
         return 1
@@ -178,11 +178,20 @@ prepare_queue() {
     : > "$JOB/current"
     : > "$JOB/worker.log"
     printf '0\n' > "$JOB/retries"
-    set_status pending
+    if [[ "${2:-}" == --paused ]]; then
+        touch "$JOB/pause-requested"
+        set_status paused
+    else
+        set_status pending
+    fi
     printf '%s\n' "$JOB" > "$STATE_ROOT/latest.tmp"
     mv "$STATE_ROOT/latest.tmp" "$STATE_ROOT/latest"
     register_agent || return 1
-    echo "Package queue saved and registered to run now and resume at login."
+    if [[ "${2:-}" == --paused ]]; then
+        echo "Package queue saved paused. Choose Resume in the window when you want compilation to begin."
+    else
+        echo "Package queue saved and registered to run now and resume at login."
+    fi
     echo "One package at a time; build parallelism: $jobs."
     echo "Plugins, removals, shell configuration and Neovim providers run later in foreground option 2."
     show_status
@@ -334,7 +343,15 @@ case "${1:-status}" in
     busy) queue_busy ;;
     verify) shift; verify_queue "$@" ;;
     log) load_job && tail -f "$JOB/worker.log" ;;
-    window) load_job && { printf 'yes\n' > "$JOB/show-window"; register_window; } ;;
+    window)
+        load_job || exit 1
+        # Refresh only the presentation snapshot; never replace a running worker.
+        if [[ -f "$SCRIPT_DIR/macos-package-status.js" ]] && ! cmp -s "$SCRIPT_DIR/macos-package-status.js" "$JOB/status-window.js"; then
+            cp "$SCRIPT_DIR/macos-package-status.js" "$JOB/status-window.js.tmp" && mv "$JOB/status-window.js.tmp" "$JOB/status-window.js" || exit 1
+        fi
+        printf 'yes\n' > "$JOB/show-window"
+        register_window
+        ;;
     start|resume|run|pause|abandon|disable)
         [[ "$(uname -s)" == Darwin ]] || { echo "Background package setup is macOS only." >&2; exit 1; }
         [[ "$EUID" != 0 ]] || { echo "Run as the Mac login user, not root." >&2; exit 1; }
