@@ -11,7 +11,7 @@
 # - Final user-visible line is:
 #     "🚀 You will now be transported to zsh..."
 #   then zsh launches and Powerlevel10k loads from ~/.zshrc
-# macOS options 3/4 instead clean up and return with a running/paused queue.
+# macOS option 3 prepares the shell, then returns with a running/paused queue.
 # -----------------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------
@@ -171,12 +171,9 @@ Select your install type:
 EOF
   if [[ "$DARWIN" == 1 ]]; then
     echo ""
-    echo "3) Homebrew now, macOS packages in background (resumes at login)."
+    echo "3) Install Homebrew and shell; packages in a background progress window."
     echo "   ** Recommended for long Intel Mac builds; opens a floating progress window."
-    echo "   ** Run option 2 after packages finish to configure the shell and Neovim."
-    echo ""
-    echo "4) Homebrew now, compile later: save a paused queue and open its window."
-    echo "   ** Nothing compiles until you choose Resume in the window."
+    echo "   ** Choose Start now or Compile later after the shell is ready."
   fi
   echo ""
   echo "Enter selection:"
@@ -189,7 +186,7 @@ while true; do
 
   case "$selection" in
     1|2) break ;;
-    3|4) [[ "$DARWIN" == 1 ]] && break
+    3) [[ "$DARWIN" == 1 ]] && break
        echo "Background package setup is available on macOS only." ;;
     *) echo "Invalid selection."
        read -r -p "Press Enter to continue..." ;;
@@ -295,21 +292,34 @@ if [[ $DARWIN == 0 ]]; then
   mkdir -p "$HOMEBREW_TEMP" || true
 fi
 
-if [[ "$selection" == 3 || "$selection" == 4 ]]; then
+if [[ "$selection" == 3 ]]; then
   if ! func_ensure_homebrew || ! func_bootstrap_yq || ! func_persist_macos_brew_env; then
     echo "❌ Could not prepare Homebrew and yq for the package queue." >&2
     exit 1
   fi
+  if ! /bin/bash "$SCRIPT_DIR/macos-shell-setup.sh" "$CONFIG_YAML_PATH"; then
+    echo "❌ Shell preparation did not complete. Existing package progress is retained." >&2
+    exit 1
+  fi
+  echo ""
+  echo "Homebrew and the shell are ready. When should the package queue run?"
+  echo "1) Start now in the background"
+  echo "2) Compile later (save paused; choose Resume in the window)"
+  while true; do
+    read -r -p "Choose [1/2]: " package_timing || exit 1
+    case "$package_timing" in 1|2) break ;; *) echo "Enter 1 or 2." ;; esac
+  done
   # The worker only installs formulas, so it does not need the sudoers fragment.
   if /bin/bash "$SCRIPT_DIR/background-packages.sh" busy; then
-    if [[ "$selection" == 4 ]]; then
+    if [[ "$package_timing" == 2 ]]; then
       /bin/bash "$SCRIPT_DIR/background-packages.sh" pause || exit 1
       /bin/bash "$SCRIPT_DIR/background-packages.sh" window || exit 1
     else
       /bin/bash "$SCRIPT_DIR/background-packages.sh" resume || exit 1
+      /bin/bash "$SCRIPT_DIR/background-packages.sh" window || exit 1
     fi
   else
-    if [[ "$selection" == 4 ]]; then
+    if [[ "$package_timing" == 2 ]]; then
       /bin/bash "$SCRIPT_DIR/background-packages.sh" start "$CONFIG_YAML_PATH" --paused || exit 1
     else
       /bin/bash "$SCRIPT_DIR/background-packages.sh" start "$CONFIG_YAML_PATH" || exit 1
@@ -318,9 +328,9 @@ if [[ "$selection" == 3 || "$selection" == 4 ]]; then
   cleanup_once 0
   trap - EXIT INT TERM HUP QUIT ABRT ALRM PIPE
   echo ""
-  echo "Homebrew is ready. The package queue is saved separately; full setup is still pending."
+  echo "Homebrew, Oh My Zsh and selected shell plugins are ready. Open a new terminal to use them."
   echo "Check progress: bash ./background-packages.sh status"
-  echo "After packages finish, run this installer again and choose option 2 to configure the environment."
+  echo "Packages remain in the saved queue. After they finish, choose Finish setup in the window for package integrations and Neovim providers."
   exit 0
 fi
 
