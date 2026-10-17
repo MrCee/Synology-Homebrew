@@ -1,5 +1,10 @@
 #!/bin/bash
 
+# Intel macOS uses binaries only, before logging, sudoers or shell mutations.
+if [[ "$(uname -s)/$(uname -m)" == Darwin/x86_64 ]]; then
+  exec python3 "$(cd "$(dirname "$0")" && pwd)/install-macos-binaries.py" "$@"
+fi
+
 # -----------------------------------------------------------------------------
 # Synology-Homebrew Installer (DROP-IN, FIXED ENDING + OMZ/P10K GUARANTEE)
 #

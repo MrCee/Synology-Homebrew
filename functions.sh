@@ -13,6 +13,17 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     exit 1
 fi
 
+# Legacy functions share the same install policy on Intel macOS, including when
+# sourced by another script. Resolve this file rather than the caller's cwd.
+if [[ "$(uname -s)/$(uname -m)" == Darwin/x86_64 ]]; then
+    SYNOBREW_BINARY_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+    export SYNOBREW_BINARY_ROOT
+    export PIP_ONLY_BINARY=:all: npm_config_ignore_scripts=true
+    brew() {
+        python3 "$SYNOBREW_BINARY_ROOT/binary-brew.py" "$@"
+    }
+fi
+
 # -----------------------------------------------
 # Function: func_sed
 # Description: Performs a sed operation in a portable way.

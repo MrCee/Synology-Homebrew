@@ -44,10 +44,13 @@ exit 0
                 SYNOBREW_PACKAGES_READY="1" if packages_ready else "0",
                 HOMEBREW_TEMP=str(root / "tmp"),
             )
-            script = '''source "$1/functions.sh"
-uname() {
+            script = '''uname() {
     if [[ "$1" == -s ]]; then echo "$TEST_PLATFORM"; else echo "$TEST_ARCH"; fi
 }
+source "$1/functions.sh"
+# These tests exercise the legacy baseline loop using only a fake brew.
+# Machine entry routing and build refusal have separate regression tests.
+brew() { command brew "$@"; }
 func_initialize_env_vars() {
     DARWIN=0
     [[ "$TEST_PLATFORM" == Darwin ]] && DARWIN=1

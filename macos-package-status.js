@@ -94,6 +94,7 @@ function applyAppearance() {
 function update() {
     applyAppearance();
     var state = readFile(job + "/status").trim() || "pending";
+    var sourceFallback = readFile(job + "/allow-source-builds").trim() === "yes";
     var pid = Number(readFile(job + "/lock/pid").trim());
     if (state === "running" && (!pid || $.kill(pid, 0) !== 0)) state = "interrupted";
     var current = readFile(job + "/current").trim();
@@ -108,7 +109,7 @@ function update() {
         retry_wait: "Waiting to retry unfinished packages", paused: "Queue paused", stopping: "Stopping package queue"
     };
     titleLabel.stringValue = $(headings[state] || state);
-    detailLabel.stringValue = $(current ? "Package: " + current : "Homebrew background setup");
+    detailLabel.stringValue = $(current ? "Package: " + current : (sourceFallback ? "Last-resort source compilation" : "Homebrew background setup"));
     countLabel.stringValue = $(completed.length + " of " + queued.length + " packages completed");
     progress.maxValue = Math.max(queued.length, 1);
     progress.doubleValue = completed.length;
@@ -118,21 +119,21 @@ function update() {
     spinner.hidden = !active;
     if (active) spinner.startAnimation(null); else spinner.stopAnimation(null);
     retryButton.hidden = !(state === "interrupted" || state === "needs_attention" || state === "retry_wait");
-    finishButton.hidden = state !== "packages_ready";
+    finishButton.hidden = state !== "packages_ready" || sourceFallback;
     pauseButton.hidden = state === "packages_ready" || state === "cancelled";
     pauseButton.title = $(state === "paused" ? "Resume" : "Pause queue");
     pauseButton.enabled = state !== "stopping";
     stopButton.hidden = state === "packages_ready" || state === "cancelled" || state === "paused";
     stopButton.enabled = state !== "stopping";
     if (state === "packages_ready") {
-        noteLabel.stringValue = $("Next: finish shell and Neovim configuration.");
+        noteLabel.stringValue = $(sourceFallback ? "Selected packages installed. You can close this window." : "Next: finish shell and Neovim configuration.");
     } else if (state === "stopping") {
         noteLabel.stringValue = $("Stopping this build; completed packages are kept.");
     } else if (state === "retry_wait") {
         var remaining = Math.max(0, Number(readFile(job + "/next-retry").trim()) - Math.floor(Date.now() / 1000));
         noteLabel.stringValue = $(failed.length + " failed • retrying in " + Math.ceil(remaining / 60) + "m • see log for details");
     } else if (state === "paused") {
-        noteLabel.stringValue = $("Saved progress is retained. Choose Resume to continue.");
+        noteLabel.stringValue = $(sourceFallback ? "Resume permits compilation. Completed packages are retained." : "Saved progress is retained. Choose Resume to continue.");
     } else if (state === "needs_attention") {
         noteLabel.stringValue = $(failed.length + " failed package(s). Review the log, then retry.");
     } else if (state === "interrupted") {

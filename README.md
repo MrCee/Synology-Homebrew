@@ -1,5 +1,91 @@
 # Synology-Homebrew
 
+## Intel Mac binary-only setup
+
+To guard ordinary `brew install` calls made by other scripts on this Mac, run
+`python3 enable-binary-brew.py` once. This replaces `/usr/local/bin/brew` with a
+small entry wrapper and preserves the original symlink as
+`/usr/local/bin/brew.before-synobrew`.
+Keep this checkout at its current location while the wrapper is enabled.
+
+The wrapper routes formula installs through the binary-only installer, refuses
+source/HEAD and unsupported install options, and blocks unguarded upgrade,
+reinstall, bundle, postinstall and test commands. Read commands still use real
+Homebrew. Existing formula versions are reused; this is not an automatic updater.
+New tools without a compatible bottle fail rather than compile. Add a verified
+binary source to the manifest when needed. Cask installation is currently refused.
+
+The guarantee applies to these entry points. A script explicitly invoking
+`/usr/local/Homebrew/bin/brew`, another package manager or a compiler can bypass
+the wrapper. Legacy repo helpers also route brew calls through the guard; their
+Python installs are wheel-only and npm lifecycle scripts are disabled on Intel.
+The Intel Neovim helper now installs only its binary tools, leaving provider and
+configuration setup separate.
+
+To remove the machine entry guard, restore the preserved symlink with:
+`mv /usr/local/bin/brew.before-synobrew /usr/local/bin/brew`.
+
+On Intel macOS, `./install-synology-homebrew.sh` now installs the enabled tools
+from `config.yaml` through `install-macos-binaries.py`. It returns after package
+installation, without the legacy sudoers, shell configuration or prune flow.
+Python 3.12+ and an existing Homebrew installation in `/usr/local` are required.
+
+- Reuses installed Homebrew formulae, then uses pinned Intel binaries in
+  `upstream-binaries.json` where available.
+- For remaining Homebrew formulae, a process-local guard refuses source builds
+  for both requested formulae and dependencies. It supports Homebrew 7.0.x and
+  refuses other versions until reviewed. Homebrew's files are not patched.
+- Upstream binaries live in `~/.local/share/synology-homebrew/binaries` with
+  command symlinks in `/usr/local/bin`. Unrelated existing commands are preserved.
+- eza uses the self-contained conda-forge Intel binary, whose only declared
+  dependency is macOS >=11; it does not install a conda package manager.
+- Delta is pinned to 0.18.2 because the newer releases checked did not publish
+  an Intel Mac asset. Its SHA256 was recorded from the official HTTPS release;
+  other GitHub assets use release API digests and Node uses official SHASUMS256.
+- Perl reuses Apple's system Perl. The Fuck uses an isolated Apple CLT Python
+  3.9 environment with wheels only, because it imports `imp`, which newer Python
+  releases removed. No global Python packages are changed.
+- Intel background queues require explicit source-build approval saved in their
+  job snapshot. Old queues without approval cannot run or resume through the
+  updated controller. Stop any older running queue before using this path.
+
+Use `python3 install-macos-binaries.py <formula> ...` for a subset. Results are
+written after each package to `binary-install-results.json`; failures return a
+nonzero status. Plugins, dotfiles, shell aliases and Neovim configuration remain
+separate from this package installation step.
+
+### Last resort: compile only when binaries are unavailable
+
+Normal installation never enables compilation automatically. If a tool has no
+usable bottle after binary alternatives have been tried, explicitly request:
+
+```bash
+python3 compile-macos-packages.py --allow-source-builds <formula>
+```
+
+This retries the binary-only path first. Only failures explicitly reported by
+the build guard as a missing usable bottle are eligible for the source queue.
+Network errors, checksum mismatches and unrelated install failures do not trigger
+compilation. The command saves only those selected formulae, without adding the
+whole baseline, and opens the custom floating progress window **paused**.
+Choose **Resume** to start; **Stop queue** retains progress. Build parallelism
+defaults to two jobs (`SYNOBREW_BUILD_JOBS=1` reduces it further).
+
+```bash
+bash background-packages.sh status
+bash background-packages.sh window
+bash background-packages.sh resume
+bash background-packages.sh stop
+```
+
+Consent and the queue snapshot persist across logins. Running/interrupted work
+resumes at the next desktop login; deliberately paused/stopped work stays paused.
+Completed installed formulae and dependencies are reused. This is package-level
+resumption: an interrupted formula's compiler work may restart. The rest of the
+system remains binary-only; the source queue alone uses the preserved official
+Homebrew entry. Compiler/toolchain installation is never silently enabled by
+the binary-only installer.
+
 [![License](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/MrCee/Synology-Homebrew/pulls)
 [![Last Commit](https://img.shields.io/github/last-commit/MrCee/Synology-Homebrew)](https://github.com/MrCee/Synology-Homebrew/commits)
@@ -90,7 +176,7 @@ Intel Macs are detected automatically; use the same installer command as on othe
 
 ### Installation Order
 
-You do not need Homebrew or `yq` installed before running this script. Both Basic and Advanced mode follow this order:
+On Apple Silicon and Synology, you do not need Homebrew or `yq` installed before running this script. Their Basic and Advanced modes follow this order. Intel Macs instead use the binary-only prerequisites and entry point above:
 
 1. Reuse Homebrew at the platform prefix, or install it if absent.
 2. Initialise Homebrew's environment and set up `yq` first. On Intel macOS, reuse a working `yq` or download the verified official standalone binary directly, without attempting `brew install yq`.
@@ -102,13 +188,13 @@ Homebrew setup errors are displayed directly. The installer stops if Homebrew it
 
 The standalone download is official `yq` v4.44.3 for macOS or Linux on Intel/ARM64. Its pinned SHA-256 is checked before execution. It is stored at `~/.local/share/synology-homebrew/bin/yq`, separate from Homebrew-managed files, and activated for the installer and its child scripts. That activation does not add the fallback to future interactive shells automatically.
 
-On Intel macOS, the installer also skips the blanket `brew upgrade` step so it cannot pull an existing Homebrew `yq` or unrelated packages into source builds. Other requested packages are still attempted and may compile from source. Apple Silicon and Linux retain the existing Homebrew upgrade step. No previously installed compilers or dependencies are removed.
+On Intel macOS, the installer also skips the blanket `brew upgrade` step so it cannot pull an existing Homebrew `yq` or unrelated packages into source builds. Intel package installs now use the binary-only entry point above and refuse source fallback. Apple Silicon and Linux retain the existing Homebrew upgrade step. No previously installed compilers or dependencies are removed.
 
 ### Intel macOS, Including Tahoe
 
 Homebrew's current upstream installer rejects Intel Macs before installation. On Intel macOS, this script automatically selects official installer revision [`0f5b7666a65fc2d1a2615549f02771353c250f9a`](https://github.com/Homebrew/install/blob/0f5b7666a65fc2d1a2615549f02771353c250f9a/install.sh), which retains the `/usr/local` bootstrap and accepts Tahoe's version number. Apple Silicon and Linux use the current upstream installer.
 
-This pins only the bootstrap script, not Homebrew itself or package versions. An existing Homebrew executable at the platform prefix is reused even if it is absent from `PATH`. No Intel-specific flags or separate installation command are needed. Intel Tahoe package compatibility still depends on Homebrew and each package; this route is not a guarantee that the full installation has been tested on your Mac model.
+This pins only the bootstrap script, not Homebrew itself or package versions. An existing Homebrew executable at the platform prefix is reused even if it is absent from `PATH`. This bootstrap helper is retained for legacy use. The default Intel entry point requires an existing Homebrew and Python 3.12+ installation and performs binary-only package setup. It does not invoke the legacy bootstrap or shell menu.
 
 ### Update an Existing Checkout
 
@@ -186,7 +272,7 @@ Each package or plugin in `config.yaml` uses an action:
 
 ### macOS Background Builds and Intel/Tahoe Guidance
 
-On macOS, choose **3** to prepare Homebrew, Oh My Zsh, Powerlevel10k and the selected shell plugins first. Then choose **Start now** or **Compile later** for the package queue. After cleanup, an interactive installation opens the prepared zsh/Powerlevel10k shell in the same terminal. Both open the same floating progress window; Compile later stays paused until **Resume**. Package aliases and shell integrations check for their commands at each shell startup, so missing tools do not break the new shell and become available in new terminals after installation. Package-dependent setup, including Neovim providers, remains for **Finish setup…** after the queue completes. The queue reuses already installed formulas, including earlier foreground installs. Once started, unfinished work resumes at login after a restart; a deliberately paused or stopped queue stays paused. **Stop queue** stops the current build but retains progress for option **3** or **Resume**. The two Synology menu choices are unchanged.
+On Apple Silicon macOS, choose **3** to prepare Homebrew, Oh My Zsh, Powerlevel10k and the selected shell plugins first. Then choose **Start now** or **Compile later** for the package queue. After cleanup, an interactive installation opens the prepared zsh/Powerlevel10k shell in the same terminal. Both open the same floating progress window; Compile later stays paused until **Resume**. Package aliases and shell integrations check for their commands at each shell startup, so missing tools do not break the new shell and become available in new terminals after installation. Package-dependent setup, including Neovim providers, remains for **Finish setup…** after the queue completes. The queue reuses already installed formulas, including earlier foreground installs. Once started, unfinished work resumes at login after a restart; a deliberately paused or stopped queue stays paused. **Stop queue** stops the current build but retains progress for option **3** or **Resume**. The two Synology menu choices are unchanged.
 
 See the [Intel macOS and background-build guide](docs/intel-macos.md) for what changed upstream, setup on your MacBook, the separate queue command, progress/retry controls, and LaunchAgent lifecycle. This new workflow is macOS-only; the Synology install choices are unchanged.
 
@@ -431,7 +517,7 @@ Update the checkout and rerun the installer. If `yq` bootstrap fails, inspect th
 
 ### High CPU While Installing yq on Intel macOS
 
-Output such as `./make.bash`, `configure` or compiler commands means Homebrew is building from source. Building `yq` through Homebrew can pull in Go and Pandoc, with Pandoc adding Haskell build dependencies. The current Intel route avoids this `yq` build chain by using the verified standalone executable first. If an older installer is still building it, interrupt that run with Control+C, update this checkout, and rerun. Other requested packages may still need compilation; already installed dependencies are retained.
+Output such as `./make.bash`, `configure` or compiler commands means Homebrew is building from source. Building `yq` through Homebrew can pull in Go and Pandoc, with Pandoc adding Haskell build dependencies. The current Intel route avoids this `yq` build chain by using the verified standalone executable first. If an older installer is still building it, interrupt that run with Control+C, update this checkout, and rerun. The current Intel package entry point refuses source compilation for all requested formulae and dependencies. Use the explicit last-resort command above only if no usable binary is available; already installed dependencies are retained.
 
 ### `git clone` Is Not Available
 

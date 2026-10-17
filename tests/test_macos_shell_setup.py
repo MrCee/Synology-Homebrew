@@ -94,6 +94,13 @@ func_persist_macos_brew_env() { :; }
 if [[ "$1" == busy ]]; then exit "$TEST_BUSY_EXIT"; fi
 ''')
             env = dict(os.environ, TEST_EVENTS=str(root/'events'), TEST_BUSY_EXIT='0' if busy else '1', TERM='xterm')
+            # This fixture exercises the retained Apple Silicon menu. Intel
+            # dispatch is covered separately by the binary entry tests.
+            fake_bin = root / 'fake-bin'
+            fake_bin.mkdir()
+            (fake_bin / 'uname').write_text('#!/bin/bash\nif [[ "$1" == -m ]]; then echo arm64; else echo Darwin; fi\n')
+            (fake_bin / 'uname').chmod(0o755)
+            env['PATH'] = str(fake_bin) + os.pathsep + env['PATH']
             if interactive:
                 env['HOME'] = str(root)
                 (root/'.zshrc').write_text('print SHELL_HANDOFF_READY\nexit 0\n')

@@ -1,5 +1,11 @@
 #!/bin/bash
 
+# The legacy provider/config flow can invoke native builds. Intel package setup
+# uses the guarded binary installer; configuration remains a separate task.
+if [[ "$(uname -s)/$(uname -m)" == Darwin/x86_64 ]]; then
+    exec python3 "$(cd "$(dirname "$0")" && pwd)/install-macos-binaries.py" neovim node
+fi
+
 # Ensure DEBUG is set to 0 if unset or null
 : "${DEBUG:=0}"
 [[ $DEBUG == 1 ]] && echo "DEBUG mode on with strict -euo pipefail error handling" && set -euo pipefail
