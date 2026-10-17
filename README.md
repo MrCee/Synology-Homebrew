@@ -53,7 +53,7 @@ macOS support is included so the same `config.yaml` can be used for local develo
 
 The installer performs upfront CPU architecture checks. Homebrew does not support 32-bit platforms, so those systems are blocked early instead of failing halfway through the Homebrew installer.
 
-Homebrew's current upstream installer rejects Intel Macs. For Intel macOS, this project uses official installer revision `0f5b7666a65fc2d1a2615549f02771353c250f9a`, which recognises Tahoe and installs into `/usr/local`. Apple Silicon and Linux use the current upstream installer. An existing Homebrew executable at the platform prefix is reused even if it is absent from `PATH`. This pins the bootstrap script, not Homebrew itself or package versions; Intel macOS remains [upstream Tier 3](https://docs.brew.sh/Support-Tiers), so packages may require source builds or fail individually.
+Intel Macs are detected automatically; use the same installer command as on other platforms. The [Intel bootstrap route](#intel-macos-including-tahoe) avoids the Apple Silicon restriction in Homebrew's current installer. Intel macOS remains [upstream Tier 3](https://docs.brew.sh/Support-Tiers), so packages may require source builds or fail individually.
 
 ---
 
@@ -87,6 +87,39 @@ Homebrew's current upstream installer rejects Intel Macs. For Intel macOS, this 
 ---
 
 ## 🚀 Install
+
+### Installation Order
+
+You do not need Homebrew or `yq` installed before running this script. Both Basic and Advanced mode follow this order:
+
+1. Reuse Homebrew at the platform prefix, or install it if absent.
+2. Initialise Homebrew's environment and attempt to install `yq` first.
+3. If Homebrew cannot supply a working `yq`, automatically download and verify the official standalone fallback.
+4. Attempt every remaining baseline package, reporting errors without skipping later package attempts.
+5. In Advanced mode, validate `config.yaml` with the working `yq`, then process its packages, plugins and shell configuration. Basic mode ignores the YAML profile.
+
+Homebrew setup errors are displayed directly. The installer stops if Homebrew itself cannot be set up, or if Advanced mode still has no working `yq` after both installation routes fail. Other package failures are reported while the installer continues; reaching the end does not mean every package installed successfully.
+
+The standalone fallback is official `yq` v4.44.3 for macOS or Linux on Intel/ARM64. Its pinned SHA-256 is checked before execution. It is stored at `~/.local/share/synology-homebrew/bin/yq`, separate from Homebrew-managed files, and activated for the installer and its child scripts. That activation does not add the fallback to future interactive shells automatically.
+
+### Intel macOS, Including Tahoe
+
+Homebrew's current upstream installer rejects Intel Macs before installation. On Intel macOS, this script automatically selects official installer revision [`0f5b7666a65fc2d1a2615549f02771353c250f9a`](https://github.com/Homebrew/install/blob/0f5b7666a65fc2d1a2615549f02771353c250f9a/install.sh), which retains the `/usr/local` bootstrap and accepts Tahoe's version number. Apple Silicon and Linux use the current upstream installer.
+
+This pins only the bootstrap script, not Homebrew itself or package versions. An existing Homebrew executable at the platform prefix is reused even if it is absent from `PATH`. No Intel-specific flags or separate installation command are needed. Intel Tahoe package compatibility still depends on Homebrew and each package; this route is not a guarantee that the full installation has been tested on your Mac model.
+
+### Update an Existing Checkout
+
+To get the current integrated installer, run these commands inside your existing checkout:
+
+```zsh
+cd ~/Synology-Homebrew
+git switch main
+git pull --ff-only
+bash ./install-synology-homebrew.sh
+```
+
+If Git reports local changes or divergent history, keep those changes and resolve that message before retrying the update. Do not reset your checkout or replace a customised `config.yaml` just to update the installer.
 
 ### Fresh Synology NAS: install Git first
 
@@ -124,13 +157,11 @@ Baseline packages:
 | Synology/Linux | `yq binutils glibc gcc git ruby python3 zsh` |
 | macOS | `yq git ruby python3 coreutils findutils gnu-sed grep gawk` |
 
-The installer sets up Homebrew first, then attempts `yq` before the other packages. If Homebrew cannot provide a working `yq`, it automatically downloads the official v4.44.3 binary for macOS or Linux (Intel/ARM64), verifies its pinned SHA-256, and uses it from `~/.local/share/synology-homebrew/bin` for this installation and its child scripts. Other package failures are reported without skipping the remaining installation attempts. Advanced mode only stops for `yq` if both Homebrew and the standalone fallback fail.
-
 At the end of Basic mode, the installer can optionally prune extra explicitly installed leaf formulas back to the baseline. It does not remove dependencies that are still required by remaining formulas or Homebrew itself.
 
 ### Advanced
 
-Advanced mode installs the baseline first, then applies `config.yaml`.
+Advanced mode follows the installation order above, then validates and applies `config.yaml`. YAML validation runs after Homebrew and `yq` setup; it does not require a preinstalled `yq` or a separate Ruby/Psych validation step.
 
 Fresh Synology note: if `git clone` is not available, complete Stage 0 above first.
 
@@ -373,6 +404,22 @@ Expected prefix:
 ---
 
 ## 🩺 Troubleshooting
+
+### Homebrew Says Apple Silicon Only on an Intel Mac
+
+If you see `Homebrew on macOS is only supported on Apple Silicon processors!`, update this repository using the existing-checkout commands above and rerun the main script. The integrated Intel route should print:
+
+```text
+Intel Mac detected: using the pinned Intel-compatible Homebrew installer (/usr/local).
+```
+
+This message appears when bootstrapping Homebrew on an Intel Mac; an existing installation is reused instead. Changing YAML or reinstalling Tahoe does not address this upstream installer restriction.
+
+### Missing yq or a YAML Error
+
+Older script versions could label a missing or incompatible `yq` as invalid YAML because the parser error was hidden. The current installer sets up `yq` before validation and shows the actual parser errors. It automatically uses the standalone fallback if Homebrew cannot supply a working version.
+
+Update the checkout and rerun the installer. If both `yq` installation routes fail, inspect their displayed errors, including download, checksum or executable-compatibility failures. If `yq` is ready and reports a YAML syntax error, correct the indicated location in `config.yaml`; removing validation will not make malformed YAML usable by later package and plugin processing.
 
 ### `git clone` Is Not Available
 
