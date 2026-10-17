@@ -515,7 +515,7 @@ func_homebrew_installer_url() {
     fi
 }
 
-# Use a pinned official binary when Homebrew cannot supply a working yq.
+# Reuse a working yq, or obtain a pinned official binary without a source build.
 # Keep it separate from Homebrew-managed files and available to child scripts.
 func_bootstrap_yq() {
     local platform arch asset expected actual tmp_dir target_dir
@@ -539,7 +539,7 @@ func_bootstrap_yq() {
         hash -r
         return 0
     fi
-    echo "Homebrew yq is unavailable; downloading official yq v4.44.3 ($asset)..."
+    echo "Downloading official standalone yq v4.44.3 ($asset)..."
     tmp_dir=$(mktemp -d) || return 1
     if ! curl -fL --retry 2 -o "$tmp_dir/yq" "https://github.com/mikefarah/yq/releases/download/v4.44.3/$asset"; then
         rm -rf "$tmp_dir"
@@ -577,12 +577,17 @@ func_bootstrap_yq() {
 
 install_brew_and_packages() {
     local brew_installer brew_installer_url
+    local intel_macos=0
     local -a failed_packages=()
     echo "Initializing environment variables..."
     func_initialize_env_vars
     if [[ $? -ne 0 ]]; then
         echo "Failed to initialize environment variables."
         return 1
+    fi
+
+    if [[ "$DARWIN" == 1 && "$(uname -m)" == x86_64 ]]; then
+        intel_macos=1
     fi
 
     if [[ $DARWIN == 0 ]]; then 
@@ -660,7 +665,9 @@ install_brew_and_packages() {
     echo "Starting package installations..."
     for pkg in "${PACKAGES[@]}"; do
         if [[ "$pkg" == yq ]]; then
-            if ! brew install --quiet yq; then
+            if [[ "$intel_macos" == 1 ]]; then
+                echo "Intel macOS: reusing a working yq or downloading the official binary; skipping the Homebrew source build."
+            elif ! brew install --quiet yq; then
                 echo "Homebrew could not install yq; trying the standalone fallback." >&2
             fi
             if ! func_bootstrap_yq; then
@@ -676,13 +683,18 @@ install_brew_and_packages() {
         fi
     done
 
-    # Upgrade existing packages
-    echo "Upgrading Homebrew packages..."
-    if ! brew upgrade --quiet; then
-        echo "Failed to upgrade Homebrew packages." >&2
-        failed_packages+=("Homebrew upgrades")
+    # A blanket upgrade can rebuild yq and its compiler/documentation chain on
+    # Intel, even after we deliberately selected the standalone executable.
+    if [[ "$intel_macos" == 1 ]]; then
+        echo "Skipping blanket Homebrew upgrades on Intel macOS to avoid unrelated source builds."
     else
-        echo "Upgraded Homebrew packages."
+        echo "Upgrading Homebrew packages..."
+        if ! brew upgrade --quiet; then
+            echo "Failed to upgrade Homebrew packages." >&2
+            failed_packages+=("Homebrew upgrades")
+        else
+            echo "Upgraded Homebrew packages."
+        fi
     fi
 
     if (( ${#failed_packages[@]} > 0 )); then
@@ -693,7 +705,7 @@ install_brew_and_packages() {
     if [[ "${INSTALL_MODE:-}" == "advanced" ]]; then
         hash -r
         if ! func_bootstrap_yq; then
-            echo "Both Homebrew and the standalone yq bootstrap failed; see their errors above." >&2
+            echo "Could not obtain a working yq; see the bootstrap errors above." >&2
             return 1
         fi
     fi

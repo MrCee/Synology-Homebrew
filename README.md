@@ -93,14 +93,16 @@ Intel Macs are detected automatically; use the same installer command as on othe
 You do not need Homebrew or `yq` installed before running this script. Both Basic and Advanced mode follow this order:
 
 1. Reuse Homebrew at the platform prefix, or install it if absent.
-2. Initialise Homebrew's environment and attempt to install `yq` first.
-3. If Homebrew cannot supply a working `yq`, automatically download and verify the official standalone fallback.
+2. Initialise Homebrew's environment and set up `yq` first. On Intel macOS, reuse a working `yq` or download the verified official standalone binary directly, without attempting `brew install yq`.
+3. On Apple Silicon and Linux, attempt the Homebrew `yq` install, with the same standalone download as a fallback.
 4. Attempt every remaining baseline package, reporting errors without skipping later package attempts.
 5. In Advanced mode, validate `config.yaml` with the working `yq`, then process its packages, plugins and shell configuration. Basic mode ignores the YAML profile.
 
-Homebrew setup errors are displayed directly. The installer stops if Homebrew itself cannot be set up, or if Advanced mode still has no working `yq` after both installation routes fail. Other package failures are reported while the installer continues; reaching the end does not mean every package installed successfully.
+Homebrew setup errors are displayed directly. The installer stops if Homebrew itself cannot be set up, or if Advanced mode still has no working `yq` after bootstrap attempts fail. Other package failures are reported while the installer continues; reaching the end does not mean every package installed successfully.
 
-The standalone fallback is official `yq` v4.44.3 for macOS or Linux on Intel/ARM64. Its pinned SHA-256 is checked before execution. It is stored at `~/.local/share/synology-homebrew/bin/yq`, separate from Homebrew-managed files, and activated for the installer and its child scripts. That activation does not add the fallback to future interactive shells automatically.
+The standalone download is official `yq` v4.44.3 for macOS or Linux on Intel/ARM64. Its pinned SHA-256 is checked before execution. It is stored at `~/.local/share/synology-homebrew/bin/yq`, separate from Homebrew-managed files, and activated for the installer and its child scripts. That activation does not add the fallback to future interactive shells automatically.
+
+On Intel macOS, the installer also skips the blanket `brew upgrade` step so it cannot pull an existing Homebrew `yq` or unrelated packages into source builds. Other requested packages are still attempted and may compile from source. Apple Silicon and Linux retain the existing Homebrew upgrade step. No previously installed compilers or dependencies are removed.
 
 ### Intel macOS, Including Tahoe
 
@@ -417,9 +419,13 @@ This message appears when bootstrapping Homebrew on an Intel Mac; an existing in
 
 ### Missing yq or a YAML Error
 
-Older script versions could label a missing or incompatible `yq` as invalid YAML because the parser error was hidden. The current installer sets up `yq` before validation and shows the actual parser errors. It automatically uses the standalone fallback if Homebrew cannot supply a working version.
+Older script versions could label a missing or incompatible `yq` as invalid YAML because the parser error was hidden. The current installer sets up `yq` before validation and shows the actual parser errors. Intel macOS uses a working existing executable or the verified standalone download directly; Apple Silicon and Linux use that download if Homebrew cannot supply a working version.
 
-Update the checkout and rerun the installer. If both `yq` installation routes fail, inspect their displayed errors, including download, checksum or executable-compatibility failures. If `yq` is ready and reports a YAML syntax error, correct the indicated location in `config.yaml`; removing validation will not make malformed YAML usable by later package and plugin processing.
+Update the checkout and rerun the installer. If `yq` bootstrap fails, inspect the displayed errors, including download, checksum or executable-compatibility failures. If `yq` is ready and reports a YAML syntax error, correct the indicated location in `config.yaml`; removing validation will not make malformed YAML usable by later package and plugin processing.
+
+### High CPU While Installing yq on Intel macOS
+
+Output such as `./make.bash`, `configure` or compiler commands means Homebrew is building from source. Building `yq` through Homebrew can pull in Go and Pandoc, with Pandoc adding Haskell build dependencies. The current Intel route avoids this `yq` build chain by using the verified standalone executable first. If an older installer is still building it, interrupt that run with Control+C, update this checkout, and rerun. Other requested packages may still need compilation; already installed dependencies are retained.
 
 ### `git clone` Is Not Available
 
