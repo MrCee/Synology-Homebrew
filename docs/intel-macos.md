@@ -1,124 +1,166 @@
-# Intel macOS installation and background builds
+# macOS companion setup
 
-This guide covers Intel Macs, including a MacBookPro11,3 running Tahoe. The background queue and native status window are macOS-only additions. They do not add a Synology boot task or change the existing Synology install choices. Apple Silicon can optionally use the macOS background option, while its normal Homebrew bottle-based flow remains available.
+[Back to Synology-Homebrew](../README.md)
 
-## What changed for Intel Macs
+Synology DSM is the project's primary platform. This guide covers optional Mac
+support, particularly Intel Macs affected by Homebrew's reduced binary support.
+The Mac-specific package routes do not replace the Synology/Linuxbrew workflow.
 
-As of October 2026, Homebrew has stopped producing new Intel macOS bottles. Existing compatible bottles may still work, but current formulas increasingly build from source. The planned removal of Intel runtime support in or after September 2027 is a separate, later change; it does not mean Intel bottles remain available until then. See [Homebrew's support policy](https://docs.brew.sh/Support-Tiers#future-macos-support).
+## Running the installer on a Mac
 
-The upstream installer also [removed Intel macOS support in September 2026](https://github.com/Homebrew/install/pull/1140). This project now:
+Apple Silicon uses the existing Homebrew setup under `/opt/homebrew`. Intel uses
+`/usr/local`, reuses Apple's baseline tools, and routes package installs through
+verified binaries. Run the same interactive installer for its original Minimal,
+Advanced and Background options:
 
-- detects Intel macOS and selects official installer revision `0f5b7666a65fc2d1a2615549f02771353c250f9a`, retaining `/usr/local` bootstrap support
-- reuses a working `yq` or downloads its verified official standalone binary before validating YAML, avoiding the Go/Pandoc/Haskell build chain for the parser
-- skips blanket Homebrew upgrades on Intel macOS, while still attempting requested packages
-- offers a resumable background package queue and floating status window so long builds do not occupy the installation terminal
-
-The pinned revision applies only to the Homebrew bootstrap script. It does not freeze package versions, restore Intel bottles, or guarantee every current package will build. Git, Neovim and other Homebrew formulas can still need CMake and source compilation. A completed CMake installation is reused by later builds.
-
-## Start on the MacBook itself
-
-Update the checkout on the target Mac, then run the normal installer. Choose **3** to finish Homebrew and the shell first, then choose **Start now** or **Compile later** for package builds:
-
-```zsh
+```sh
 cd ~/Synology-Homebrew
-git switch main
 git pull --ff-only
 bash ./install-synology-homebrew.sh
 ```
 
-The LaunchAgents are created on that Mac, as its logged-in user. They are not installed remotely or on the computer used to maintain this repository. Do not run this as root.
+Keep local edits if Git refuses the pull; resolve them rather than discarding a
+customised configuration. Intel's binary backend requires an existing Homebrew
+installation and Python 3.12+ at `/usr/local/bin/python3`. The retained bootstrap
+helper uses a pinned official Homebrew installer for Intel when needed; it does
+not restore missing Intel bottles.
 
-If Homebrew is already installed, the queue can also be started separately from the repository:
+## Intel Mac binary-only setup
 
-```zsh
-bash ./background-packages.sh start ./config.yaml
-# Or save the queue without starting compilation:
-bash ./background-packages.sh start ./config.yaml --paused
+To guard ordinary `brew install` calls made by other scripts on this Mac, run
+`python3 enable-binary-brew.py` once. This replaces `/usr/local/bin/brew` with a
+small entry wrapper and preserves the original symlink as
+`/usr/local/bin/brew.before-synobrew`.
+Keep this checkout at its current location while the wrapper is enabled.
+
+The wrapper routes formula installs through the binary-only installer, refuses
+source/HEAD and unsupported install options, and blocks unguarded upgrade,
+reinstall, bundle, postinstall and test commands. Read commands still use real
+Homebrew. Existing formula versions are reused; this is not an automatic updater.
+New tools without a compatible bottle fail rather than compile. Add a verified
+binary source to the manifest when needed. Cask installation is currently refused.
+
+The guarantee applies to these entry points. A script explicitly invoking
+`/usr/local/Homebrew/bin/brew`, another package manager or a compiler can bypass
+the wrapper. Legacy repo helpers also route brew calls through the guard; their
+Python installs are wheel-only and npm lifecycle scripts are disabled on Intel.
+The Intel Neovim helper installs binary Neovim/Node, then applies the YAML-selected
+configuration and native plugins when explicitly enabled by Advanced setup.
+Configured Mason language servers and formatting/linting tools are installed as well.
+
+To remove the machine entry guard, restore the preserved symlink with:
+`mv /usr/local/bin/brew.before-synobrew /usr/local/bin/brew`.
+
+On Intel macOS, `./install-synology-homebrew.sh` retains the original interactive
+Minimal / Advanced / Background menu, YAML package and plugin selection, shell
+setup and final zsh handoff. Only package acquisition changes: Intel package
+installs use `install-macos-binaries.py`, with no implicit Homebrew source builds.
+Advanced setup enables native Neovim plugin builds, including Tree-sitter,
+LuaSnip and Telescope, and installs configured Mason tools. These plugin builds
+are separate from Homebrew formula builds. Intel setup does not create a
+passwordless sudoers fragment or replace the existing shell profile.
+Use `./install-synology-homebrew.sh --packages-only` for the package-only path.
+Python 3.12+ and an existing Homebrew installation in `/usr/local` are required.
+Intel entry points use `/usr/local/bin/python3` explicitly so older Python shims
+in the shell PATH cannot intercept installation (`SYNOBREW_PYTHON` can override it).
+Run `./install-synology-homebrew.sh --plan` to display the Intel download routes
+without installing, downloading or changing any packages. macOS Intel detection
+happens before the legacy installer; Apple Silicon and Synology retain their
+existing workflows. These Intel binaries must not be used on Linux.
+
+- Reuses installed Homebrew formulae, then uses pinned Intel binaries in
+  `upstream-binaries.json` where available.
+- For remaining Homebrew formulae, a process-local guard refuses source builds
+  for both requested formulae and dependencies. It supports Homebrew 7.0.x and
+  refuses other versions until reviewed. Homebrew's files are not patched.
+- Upstream binaries live in `~/.local/share/synology-homebrew/binaries` with
+  command symlinks in `/usr/local/bin`. Unrelated existing commands are preserved.
+- eza uses the self-contained conda-forge Intel binary, whose only declared
+  dependency is macOS >=11; it does not install a conda package manager.
+- Delta is pinned to 0.18.2 because the newer releases checked did not publish
+  an Intel Mac asset. Its SHA256 was recorded from the official HTTPS release;
+  other GitHub assets use release API digests and Node uses official SHASUMS256.
+- Perl reuses Apple's system Perl. The Fuck uses an isolated Apple CLT Python
+  3.9 environment with wheels only, because it imports `imp`, which newer Python
+  releases removed. No global Python packages are changed.
+- Normal Intel background queues are marked binary-only and use the same guarded
+  package backend. Source queues require separate explicit approval; old queues
+  without either policy cannot run or resume on Intel.
+
+Use `python3 install-macos-binaries.py <formula> ...` for a subset. Results are
+written after each package to `binary-install-results.json`; failures return a
+nonzero status. The package-only command does not apply plugins or shell configuration; the
+interactive Advanced installer does.
+
+### Last resort: compile only when binaries are unavailable
+
+Normal installation never enables compilation automatically. If a tool has no
+usable bottle after binary alternatives have been tried, explicitly request:
+
+```bash
+python3 compile-macos-packages.py --allow-source-builds <formula>
 ```
 
-On a fresh Mac, use main installer option 3 first; the separate command expects the Homebrew executable to exist. The main installer bootstraps Homebrew before calling that command.
+This retries the binary-only path first. Only failures explicitly reported by
+the build guard as a missing usable bottle are eligible for the source queue.
+Network errors, checksum mismatches and unrelated install failures do not trigger
+compilation. The command saves only those selected formulae, without adding the
+whole baseline, and opens the custom floating progress window **paused**.
+Choose **Resume** to start; **Stop queue** retains progress. Build parallelism
+defaults to two jobs (`SYNOBREW_BUILD_JOBS=1` reduces it further).
 
-## Background package setup
-
-On Intel or Apple Silicon macOS, option **3** provides one background package workflow. It prepares the shell, then asks **Start now** or **Compile later**. This option is macOS-only; the Synology flow is unchanged. Compile later saves the queue paused and opens a **Resume** button: no queued formulas compile until you choose to start them. An already running formula finishes before an existing queue pauses.
-
-The foreground stage installs/verifies Homebrew, prepares the standalone YAML parser and adds Homebrew's shell environment to `~/.zprofile` without replacing existing content. Using the available macOS Git and zsh, it installs Oh My Zsh, the selected shell plugins and Powerlevel10k before queuing formulas. It preserves existing shell content, saves a backup before the first shell edit and retains an existing `~/.p10k.zsh`. Package aliases and eval integrations are guarded by command availability at shell startup; Perl local::lib initialization also checks the provider exists. When run in a terminal, the installer cleans up temporary sudo access and hands that terminal to interactive login zsh, loading Oh My Zsh and the selected theme immediately. A non-interactive run prints instructions to open a new terminal. New terminals pick up those integrations as their commands become available.
-
-The queue contains the baseline formulas plus the `install` formulas from `config.yaml`. After saving or resuming it, the installer releases temporary sudo access and returns your terminal. A user LaunchAgent installs one queued formula at a time with lower process priority and two build jobs by default. It does not run a blanket upgrade, uninstall packages, or retain sudo access.
-
-A small native window stays above normal windows and shows:
-
-- the current formula and recent dependency/build output
-- elapsed time for the current formula and an animated activity indicator
-- an overall progress bar based on completed formulas, not an estimated compile percentage
-- retry timing and failures, with **Show log**, **Pause queue**, **Stop queue**, **Resume** and **Retry now** controls as appropriate
-
-The native yellow minimise button puts the floating window out of the way without stopping the worker. Closing the window also hides it without stopping the worker; `bash ./background-packages.sh window` reopens it. **Pause queue** lets the current formula finish before pausing. **Stop queue** terminates the queue worker and its current build, retaining the queue, config, completed packages and logs. It stays stopped across login until **Resume** or main installer option **3** with **Start now**. The interrupted formula may have to rebuild; completed formulas are checked and skipped. Formula failures do not skip later entries: the worker attempts the rest, then retries unfinished entries after delays from 5 up to 30 minutes. Build tools may still use substantial CPU, and not every build system honours the requested job count. For a different limit, launch the installer with, for example:
-
-```zsh
-SYNOBREW_BUILD_JOBS=1 bash ./install-synology-homebrew.sh
+```bash
+bash background-packages.sh status
+bash background-packages.sh window
+bash background-packages.sh resume
+bash background-packages.sh stop
 ```
 
-Progress, the config snapshot and a copy of the runner/window are saved under `~/.local/share/synology-homebrew/background`. A restart or logout interrupts the current build; at the next login, the worker and window reopen and resume unfinished work. Every queued formula is checked against Homebrew, including packages installed by an earlier foreground run. Already installed versions are reused without requesting an upgrade, and the worker sets `HOMEBREW_NO_INSTALL_UPGRADE=1` as an extra guard. CMake is not explicitly queued by the baseline; when another formula needs it, Homebrew checks its dependency requirements. An installed CMake that satisfies those requirements is reusable, but a newer required version or changed build requirements can still cause Homebrew to build a dependency. Initial progress includes those formulas, and each formula is checked again before installation. Homebrew does not guarantee resuming inside a partially compiled formula, so that formula may rebuild. The Mac must be awake and the user logged in to make progress.
+Consent and the queue snapshot persist across logins. Running/interrupted work
+resumes at the next desktop login; deliberately paused/stopped work stays paused.
+Completed installed formulae and dependencies are reused. This is package-level
+resumption: an interrupted formula's compiler work may restart. The rest of the
+system remains binary-only; the source queue alone uses the preserved official
+Homebrew entry. Compiler/toolchain installation is never silently enabled by
+the binary-only installer.
 
-A queue deliberately paused with **Compile later** or **Pause queue** stays paused across logins until you choose **Resume**.
+## Background packages and status window
 
-When the queue reports **Packages are ready**, choose **Finish setup…** in the window, or rerun the main installer and choose **2**, to finish package-dependent configuration, package themes, uninstall requests and Neovim providers. Those provider/setup tasks can still take time; they are not run during shell preparation. When the saved config matches and all queued formulas are still installed, the installer reuses them and skips foreground baseline installs/upgrades. It also suppresses automatic package upgrades during this final configuration step. Package completion alone is not completion of the full environment. The shell-only stage does not remove plugins or run package installers, CPAN, pip, npm or Neovim bootstrap. Keep `config.yaml` unchanged until that final step; changing it can request additional foreground installs instead of reusing the completed queue.
+Menu option **3** prepares Oh My Zsh, Powerlevel10k and selected shell plugins,
+then offers **Start now** or **Install later**. Install later saves a paused
+queue. A terminal run hands off to zsh after cleanup. Once packages are ready,
+choose **Finish setup** in the window or run Advanced mode to complete Neovim
+and package integrations.
 
-Useful commands, run from the repository:
+For an existing Homebrew installation, a binary-only Intel queue can also be
+created directly:
 
-```zsh
-bash ./background-packages.sh status
-bash ./background-packages.sh window  # reopen the floating window
-bash ./background-packages.sh log     # follow output; Control+C only stops viewing
-bash ./background-packages.sh pause   # pause after the current formula
-bash ./background-packages.sh stop    # stop current build; retain resumable progress
-bash ./background-packages.sh resume  # resume, or retry immediately during a wait
+```sh
+bash ./background-packages.sh start ./config.yaml --binary-only
+# Or save it paused:
+bash ./background-packages.sh start ./config.yaml --binary-only --paused
 ```
 
-The LaunchAgents remain registered for future queues. Their workers exit when there is nothing to do; they do not poll or compile while idle. An existing completed queue is retained as history when option 3 creates a new one. To discard an unfinished queue without deleting installed packages, pause it, wait until paused, then run `bash ./background-packages.sh abandon` before creating a replacement.
+The floating window provides progress, logs, pause, stop, resume and retry
+controls. Closing or minimising the window does not stop the worker. Reopen it
+with `bash ./background-packages.sh window`. The queue snapshots its YAML and
+runs as the logged-in Mac user. Running or interrupted jobs resume at the next
+desktop login; deliberately paused or stopped jobs stay paused. Completed
+packages are reused. LaunchAgents and the native window are macOS-only and do
+not add a Synology startup task.
 
-If switching from an older foreground installation, stop that run with Control+C before starting option 3. Already installed Homebrew formulas are retained and reused; the formula interrupted during its build may need to restart. Do not run another Homebrew installation alongside an active queue.
+## Troubleshooting
 
+- **Homebrew says Apple Silicon only:** update this checkout and use its retained
+  Intel bootstrap helper if Homebrew is missing. Reinstalling macOS does not
+  restore upstream Intel support.
+- **Unexpected compilation:** normal Intel package installs refuse source builds.
+  Advanced Neovim setup allows its native plugin builds. Formula source builds
+  require the explicit last-resort command above.
+- **Wrong menu or missing zsh handoff:** check which checkout you ran. A second,
+  older checkout may still contain an earlier Intel entry point.
+- **Shell features missing after setup:** start a fresh interactive login shell
+  with `exec /bin/zsh -il`. Minimal mode does not install the Advanced shell profile.
 
-## Already used the former option 4?
-
-Your saved queue remains valid. Pull the update and prepare the shell directly without replacing the queue or restarting its current build:
-
-```zsh
-git pull --ff-only
-bash ./macos-shell-setup.sh ./config.yaml
-bash ./background-packages.sh window
-```
-
-Open a new terminal to use Oh My Zsh and the shell plugins. Resume the queue whenever ready. If the older worker is already running, use the refreshed window’s **Stop queue**, then **Resume** to load the installed-package reuse checks; this retains completed checkpoints but can restart the interrupted formula. Alternatively, run main installer option **3**: it prepares the shell and offers Start now/Compile later for the existing queue, retaining its checkpoints.
-
-You can also install ordinary Mac apps while formulas are pending. For example, [iTerm2's official download](https://iterm2.com/downloads.html) installs independently of Homebrew. The YAML queue is for formulas; a separate `brew install` command is not automatically added to it, and can trigger another foreground build. Avoid starting another formula installation alongside the queue. Already installed commands remain usable while the worker runs.
-
-## Status window
-
-<img src="images/macos-package-status.png" width="470" alt="Floating macOS package status window showing completed packages, current build, live output and controls">
-
-<img src="images/macos-package-status-dark.png" width="470" alt="The macOS package status window in dark mode">
-
-Illustrative window with sample package counts. The activity indicator animates during work; an individual compiler percentage is only available if the build itself reports one in its output. The window uses built-in macOS AppKit through JavaScript for Automation, so no GUI compiler, Python environment or browser server is required. Selecting text or scrolling back in the output pauses output following until you return to the bottom and clear the selection.
-
-The panel and log follow the system appearance, including changes while the window is open. To update the appearance of an existing job after pulling a window fix, run `bash ./background-packages.sh window` from the updated repository. It refreshes only the saved window script and reopens the display; it does not replace the worker, reset package progress or interrupt compilation.
-
-## LaunchAgent lifecycle and uninstall
-
-The user agents are `com.mrcee.synology-homebrew.packages` and `com.mrcee.synology-homebrew.packages.status`, saved in `~/Library/LaunchAgents`. They run at login. There is no periodic idle timer or permanent compilation process after a queue finishes. The completed window can remain open for the final setup action, but its polling timer stops when the queue completes.
-
-Leave the agents installed for future queues. To remove them manually, first pause the queue and wait until it reports paused, then run:
-
-```zsh
-bash ./background-packages.sh disable
-```
-
-This retains packages, checkpoints and logs; `resume` can register the agents again. The main uninstaller refuses to run while an unfinished queue exists. After that queue is abandoned, or when it is already complete, the uninstaller removes both agents before removing Homebrew.
-
-## What restart recovery means
-
-The queue saves a copy of `config.yaml`, its package list, completed-formula checkpoints and its runner/window scripts. At login it checks saved completions against installed formulas and retries unfinished work. It does not rely on the original terminal or on temporary sudo credentials. Pulling repository changes does not modify an actively running worker. Reopening the window refreshes its presentation and command controller without interrupting the worker. Resuming an idle queue refreshes its worker code and checks installed formulas while retaining the saved config and queue. To change that config, stop or pause the queue, abandon it and create a replacement. Already installed formulas are retained.
-
-A whole-Mac reboot has not been exercised by the automated tests: recovery is tested with a saved running state, a stale worker lock and verified completed packages. Worker termination uses the queue LaunchAgent process group; tests simulate this with an isolated process group and verify that the active build stops while completed checkpoints survive. Real launchd termination still needs target-Mac verification. Package installs and GUI callbacks are tested separately without installing real formulas or registering real LaunchAgents on the development machine. A full run on the target Mac is still needed to verify its particular packages and permissions.
+For shared YAML, shell completion and Neovim troubleshooting, return to the
+[main README](../README.md#-troubleshooting).
