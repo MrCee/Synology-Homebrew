@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# The legacy provider/config flow can invoke native builds. Intel package setup
-# uses the guarded binary installer; configuration remains a separate task.
+# Intel uses binary Neovim/Node plus the YAML-selected configuration and plugins.
+# Native plugin builds are explicitly enabled by the Advanced installer.
 if [[ "$(uname -s)/$(uname -m)" == Darwin/x86_64 ]]; then
-    exec python3 "$(cd "$(dirname "$0")" && pwd)/install-macos-binaries.py" neovim node
+    exec "${SYNOBREW_PYTHON:-/usr/local/bin/python3}" "$(cd "$(dirname "$0")" && pwd)/setup-neovim-intel.py" "$@"
 fi
 
 # Ensure DEBUG is set to 0 if unset or null

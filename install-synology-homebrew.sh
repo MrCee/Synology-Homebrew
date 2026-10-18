@@ -1,9 +1,16 @@
 #!/bin/bash
 
-# Intel macOS uses binaries only, before logging, sudoers or shell mutations.
+# Preserve the handcrafted interactive installer. Package-only/plan runs are explicit.
+SYNOBREW_INTEL=0
 if [[ "$(uname -s)/$(uname -m)" == Darwin/x86_64 ]]; then
-  exec python3 "$(cd "$(dirname "$0")" && pwd)/install-macos-binaries.py" "$@"
+  SYNOBREW_INTEL=1
+  export SYNOBREW_PYTHON="${SYNOBREW_PYTHON:-/usr/local/bin/python3}"
+  case "${1:-}" in
+    --plan) exec "$SYNOBREW_PYTHON" "$(cd "$(dirname "$0")" && pwd)/install-macos-binaries.py" "$@" ;;
+    --packages-only) shift; exec "$SYNOBREW_PYTHON" "$(cd "$(dirname "$0")" && pwd)/install-macos-binaries.py" "$@" ;;
+  esac
 fi
+export SYNOBREW_INTEL
 
 # -----------------------------------------------------------------------------
 # Synology-Homebrew Installer (DROP-IN, FIXED ENDING + OMZ/P10K GUARANTEE)
@@ -89,7 +96,12 @@ trap 'code=$?; cleanup_once "$code"' EXIT
 trap 'cleanup_once 130' INT TERM HUP QUIT ABRT ALRM PIPE
 
 # Setup sudoers file
-func_sudoers
+if [[ "$SYNOBREW_INTEL" == 1 ]]; then
+  # No passwordless sudoers fragment is needed for Intel binary installs.
+  SUDOERS_SETUP_DONE=1
+else
+  func_sudoers
+fi
 
 # Check if sudoers setup was successful before proceeding
 if [[ "${SUDOERS_SETUP_DONE:-0}" -ne 1 ]]; then
@@ -177,8 +189,8 @@ EOF
   if [[ "$DARWIN" == 1 ]]; then
     echo ""
     echo "3) Install Homebrew and shell; packages in a background progress window."
-    echo "   ** Recommended for long Intel Mac builds; opens a floating progress window."
-    echo "   ** Choose Start now or Compile later after the shell is ready."
+    echo "   ** Opens a floating progress window; Intel packages use binaries only."
+    echo "   ** Choose Start now or Install later after the shell is ready."
   fi
   echo ""
   echo "Enter selection:"
@@ -187,7 +199,7 @@ EOF
 [[ $DEBUG == 0 ]] && clear
 while true; do
   display_menu
-  read -r selection
+  read -r selection || exit 1
 
   case "$selection" in
     1|2) break ;;
@@ -288,7 +300,7 @@ EOF
   fi
 fi # end DARWIN=0
 
-[[ $DARWIN == 1 ]] && func_git_commit_check
+[[ $DARWIN != 1 || "$SYNOBREW_INTEL" == 1 ]] || func_git_commit_check
 
 # Synology-only: keep bottle extraction off md0 for this run (no persistent env)
 if [[ $DARWIN == 0 ]]; then
@@ -309,11 +321,13 @@ if [[ "$selection" == 3 ]]; then
   echo ""
   echo "Homebrew and the shell are ready. When should the package queue run?"
   echo "1) Start now in the background"
-  echo "2) Compile later (save paused; choose Resume in the window)"
+  echo "2) Install later (save paused; choose Resume in the window)"
   while true; do
     read -r -p "Choose [1/2]: " package_timing || exit 1
     case "$package_timing" in 1|2) break ;; *) echo "Enter 1 or 2." ;; esac
   done
+  queue_policy=()
+  [[ "$SYNOBREW_INTEL" != 1 ]] || queue_policy=(--binary-only)
   # The worker only installs formulas, so it does not need the sudoers fragment.
   if /bin/bash "$SCRIPT_DIR/background-packages.sh" busy; then
     if [[ "$package_timing" == 2 ]]; then
@@ -325,9 +339,9 @@ if [[ "$selection" == 3 ]]; then
     fi
   else
     if [[ "$package_timing" == 2 ]]; then
-      /bin/bash "$SCRIPT_DIR/background-packages.sh" start "$CONFIG_YAML_PATH" --paused || exit 1
+      /bin/bash "$SCRIPT_DIR/background-packages.sh" start "$CONFIG_YAML_PATH" --paused "${queue_policy[@]}" || exit 1
     else
-      /bin/bash "$SCRIPT_DIR/background-packages.sh" start "$CONFIG_YAML_PATH" || exit 1
+      /bin/bash "$SCRIPT_DIR/background-packages.sh" start "$CONFIG_YAML_PATH" "${queue_policy[@]}" || exit 1
     fi
   fi
   cleanup_once 0
@@ -414,9 +428,9 @@ fi
 if [[ "$INSTALL_MODE" == "advanced" ]]; then
   # Clean/escape edge cases in YAML (your two func_sed lines)
   printf "🧩 YAML escape pass 1: fixing unescaped backslashes → "
-  func_sed 's/([^\\])\\([^\\"])/\1\\\\\2/g' "$CONFIG_YAML_PATH"
+  [[ "$SYNOBREW_INTEL" == 1 ]] || func_sed 's/([^\\])\\([^\\"])/\1\\\\\2/g' "$CONFIG_YAML_PATH"
   printf "🧩 YAML escape pass 2: fixing embedded quotes → "
-  func_sed 's/(^.*:[[:space:]]"[^\"]*)("[^"]*)(".*"$)/\1\\\2\\\3/g' "$CONFIG_YAML_PATH"
+  [[ "$SYNOBREW_INTEL" == 1 ]] || func_sed 's/(^.*:[[:space:]]"[^\"]*)("[^"]*)(".*"$)/\1\\\2\\\3/g' "$CONFIG_YAML_PATH"
 
   # Homebrew setup above has already installed and activated a working yq.
   if ! yq eval '.' "$CONFIG_YAML_PATH" > /dev/null; then
@@ -470,6 +484,14 @@ process_package() {
   local base_package
   base_package=$(get_base_package "$package")
 
+  if [[ "$SYNOBREW_INTEL" == 1 && "$action" == install ]]; then
+    if "$SYNOBREW_PYTHON" "$SCRIPT_DIR/install-macos-binaries.py" "$package"; then
+      installed_packages+=("$package")
+    else
+      failed_packages+=("$package (binary unavailable or install failed)")
+    fi
+    return
+  fi
   if brew list --formula -1 | grep -Fxq "$base_package"; then
     case "$action" in
       uninstall)
@@ -584,14 +606,16 @@ if [[ "$INSTALL_MODE" == "advanced" && "$YAML_READY" -eq 1 ]]; then
   main
 fi
 
-# Create the symlinks
+# Create the legacy provider symlinks only outside the Intel binary route.
+if [[ "$SYNOBREW_INTEL" != 1 ]]; then
 sudo ln -sf "$HOMEBREW_PATH/bin/python3" "$HOMEBREW_PATH/bin/python"
 sudo ln -sf "$HOMEBREW_PATH/bin/pip3" "$HOMEBREW_PATH/bin/pip"
 [[ $DARWIN == 0 ]] && sudo ln -sf "$HOMEBREW_PATH/bin/gcc" "$HOMEBREW_PATH/bin/cc"
 [[ $DARWIN == 0 ]] && sudo ln -sf "$HOMEBREW_PATH/bin/zsh" /bin/zsh
 printf "\nFinished creating symlinks\n"
+fi
 
-if [[ "$INSTALL_MODE" == "advanced" && "$YAML_READY" -eq 1 ]]; then
+if [[ "$SYNOBREW_INTEL" != 1 && "$INSTALL_MODE" == "advanced" && "$YAML_READY" -eq 1 ]]; then
   if [[ $(yq eval -r '.packages.perl.action' <<< "$CONFIG_YAML") == "install" ]]; then
     if [[ $DARWIN == 0 ]]; then
       printf "\nFixing perl symlink..."
@@ -618,7 +642,11 @@ if [[ "$INSTALL_MODE" == "advanced" && "$YAML_READY" -eq 1 ]]; then
     echo "Calling ./install-neovim.sh for additional setup packages"
     temp_file=$(mktemp)
     printf '%s\n' "$CONFIG_YAML" > "$temp_file"
-    ./install-neovim.sh "$temp_file"
+    if [[ "$SYNOBREW_INTEL" == 1 ]]; then
+      SYNOBREW_ALLOW_NVIM_BUILDS=1 ./install-neovim.sh "$temp_file" || exit 1
+    else
+      ./install-neovim.sh "$temp_file"
+    fi
     CONFIG_YAML=$(<"$temp_file")
     rm "$temp_file"
   else
@@ -649,6 +677,7 @@ if [[ "$INSTALL_MODE" == "advanced" && "$YAML_READY" -eq 1 ]]; then
       done
 fi
 
+if [[ "$SYNOBREW_INTEL" != 1 ]]; then
 # -----------------------------------------------------------------------------
 # Advanced: GUARANTEE Oh My Zsh is installed (NO prompts, NO auto-run)
 # We use git clone (idempotent) to avoid OMZ installer prompting/updating.
@@ -777,6 +806,12 @@ if [[ "$INSTALL_MODE" == "advanced" && "$YAML_READY" -eq 1 ]]; then
   fi
 fi
 
+else
+  if [[ "$INSTALL_MODE" == advanced ]]; then
+    /bin/bash "$SCRIPT_DIR/macos-shell-setup.sh" "$CONFIG_YAML_PATH" || exit 1
+  fi
+fi
+
 # Harden Oh My Zsh and Homebrew zsh completion directories before compinit runs
 # during the final interactive zsh handoff.
 if [[ "$INSTALL_MODE" == "advanced" && "$YAML_READY" -eq 1 ]]; then
@@ -794,6 +829,12 @@ cleanup_once 0
 trap - EXIT
 trap - INT TERM HUP QUIT ABRT ALRM PIPE
 
+# A noninteractive runner cannot hand the user an interactive shell.
+if [[ "$SYNOBREW_INTEL" == 1 && ( ! -t 0 || ! -t 1 ) ]]; then
+  echo "Setup complete. Open a terminal or run exec zsh -il to use the configured shell."
+  exit 0
+fi
+
 # 3) Final installer message (last thing installer prints)
 echo ""
 echo "✨====================================================================✨"
@@ -806,4 +847,8 @@ FINAL_ZSH="/bin/zsh"
 if [[ -x "$HOMEBREW_PATH/bin/zsh" ]]; then
   FINAL_ZSH="$HOMEBREW_PATH/bin/zsh"
 fi
-exec "$FINAL_ZSH" -il </dev/tty >/dev/tty 2>&1
+if [[ "$SYNOBREW_INTEL" == 1 ]]; then
+  exec "$FINAL_ZSH" -il
+else
+  exec "$FINAL_ZSH" -il </dev/tty >/dev/tty 2>&1
+fi

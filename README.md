@@ -19,16 +19,29 @@ The guarantee applies to these entry points. A script explicitly invoking
 `/usr/local/Homebrew/bin/brew`, another package manager or a compiler can bypass
 the wrapper. Legacy repo helpers also route brew calls through the guard; their
 Python installs are wheel-only and npm lifecycle scripts are disabled on Intel.
-The Intel Neovim helper now installs only its binary tools, leaving provider and
-configuration setup separate.
+The Intel Neovim helper installs binary Neovim/Node, then applies the YAML-selected
+configuration and native plugins when explicitly enabled by Advanced setup.
+Configured Mason language servers and formatting/linting tools are installed as well.
 
 To remove the machine entry guard, restore the preserved symlink with:
 `mv /usr/local/bin/brew.before-synobrew /usr/local/bin/brew`.
 
-On Intel macOS, `./install-synology-homebrew.sh` now installs the enabled tools
-from `config.yaml` through `install-macos-binaries.py`. It returns after package
-installation, without the legacy sudoers, shell configuration or prune flow.
+On Intel macOS, `./install-synology-homebrew.sh` retains the original interactive
+Minimal / Advanced / Background menu, YAML package and plugin selection, shell
+setup and final zsh handoff. Only package acquisition changes: Intel package
+installs use `install-macos-binaries.py`, with no implicit Homebrew source builds.
+Advanced setup enables native Neovim plugin builds, including Tree-sitter,
+LuaSnip and Telescope, and installs configured Mason tools. These plugin builds
+are separate from Homebrew formula builds. Intel setup does not create a
+passwordless sudoers fragment or replace the existing shell profile.
+Use `./install-synology-homebrew.sh --packages-only` for the package-only path.
 Python 3.12+ and an existing Homebrew installation in `/usr/local` are required.
+Intel entry points use `/usr/local/bin/python3` explicitly so older Python shims
+in the shell PATH cannot intercept installation (`SYNOBREW_PYTHON` can override it).
+Run `./install-synology-homebrew.sh --plan` to display the Intel download routes
+without installing, downloading or changing any packages. macOS Intel detection
+happens before the legacy installer; Apple Silicon and Synology retain their
+existing workflows. These Intel binaries must not be used on Linux.
 
 - Reuses installed Homebrew formulae, then uses pinned Intel binaries in
   `upstream-binaries.json` where available.
@@ -51,8 +64,8 @@ Python 3.12+ and an existing Homebrew installation in `/usr/local` are required.
 
 Use `python3 install-macos-binaries.py <formula> ...` for a subset. Results are
 written after each package to `binary-install-results.json`; failures return a
-nonzero status. Plugins, dotfiles, shell aliases and Neovim configuration remain
-separate from this package installation step.
+nonzero status. The package-only command does not apply plugins or shell configuration; the
+interactive Advanced installer does.
 
 ### Last resort: compile only when binaries are unavailable
 

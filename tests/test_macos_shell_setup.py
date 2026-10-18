@@ -75,7 +75,7 @@ esac
 
 
 class MacInstallerMenuTests(unittest.TestCase):
-    def run_menu(self, timing, busy=False, interactive=False):
+    def run_menu(self, timing, busy=False, interactive=False, arch="arm64"):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             shutil.copy(REPO/'install-synology-homebrew.sh', root)
@@ -98,7 +98,7 @@ if [[ "$1" == busy ]]; then exit "$TEST_BUSY_EXIT"; fi
             # dispatch is covered separately by the binary entry tests.
             fake_bin = root / 'fake-bin'
             fake_bin.mkdir()
-            (fake_bin / 'uname').write_text('#!/bin/bash\nif [[ "$1" == -m ]]; then echo arm64; else echo Darwin; fi\n')
+            (fake_bin / 'uname').write_text('#!/bin/bash\nif [[ "$1" == -m ]]; then echo '+arch+'; else echo Darwin; fi\n')
             (fake_bin / 'uname').chmod(0o755)
             env['PATH'] = str(fake_bin) + os.pathsep + env['PATH']
             if interactive:
@@ -141,6 +141,10 @@ if [[ "$1" == busy ]]; then exit "$TEST_BUSY_EXIT"; fi
     def test_terminal_run_hands_off_to_login_zsh_after_cleanup(self):
         events = self.run_menu('2', interactive=True)
         self.assertEqual(events[-1], 'cleanup')
+
+    def test_intel_keeps_menu_and_uses_binary_background_queue(self):
+        events = self.run_menu('1', arch='x86_64')
+        self.assertTrue(any('--binary-only' in event for event in events), events)
 
     def test_start_now_prepares_shell_before_starting_queue(self):
         events = self.run_menu('1')

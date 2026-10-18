@@ -19,6 +19,9 @@ def dispatch(arguments):
                 continue
             if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_@./+-]*", argument):
                 raise ValueError("Binary-only brew refuses this install option: " + argument)
+            token = argument.rsplit("/", 1)[-1].lower()
+            if token.startswith(("avast", "xournal")):
+                raise ValueError("Installation permanently blocked by your policy: " + argument)
             packages.append(argument)
         if not packages:
             raise ValueError("Usage: brew install <formula> ...")

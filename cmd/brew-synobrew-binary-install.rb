@@ -6,6 +6,10 @@
 require "formula_installer"
 require "cmd/install"
 
+if ARGV.any? { |arg| arg.split("/").last.to_s.match?(/\A(?:avast|xournal)/i) }
+  abort "Installation permanently blocked by user policy: Avast and Xournal++."
+end
+
 unless HOMEBREW_VERSION.start_with?("7.0.") &&
        FormulaInstaller.instance_method(:build).arity.zero? &&
        FormulaInstaller.instance_methods.include?(:prelude_fetch)

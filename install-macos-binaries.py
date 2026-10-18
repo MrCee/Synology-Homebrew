@@ -61,7 +61,26 @@ def main():
     spec = importlib.util.spec_from_file_location("audit", root / "audit-macos-bottles.py")
     audit = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(audit)
-    packages = sys.argv[1:] or audit.configured_packages(root / "config.yaml")
+    arguments = sys.argv[1:]
+    plan = "--plan" in arguments
+    arguments = [argument for argument in arguments if argument != "--plan"]
+    if any(argument.startswith("-") for argument in arguments):
+        sys.exit("Usage: install-macos-binaries.py [--plan] [formula ...]")
+    packages = arguments or audit.configured_packages(root / "config.yaml")
+    print("Detected macOS Intel: binary-only installation; source builds are blocked.", flush=True)
+    if plan:
+        print("Plan only: existing installs are reused first; routes below apply to missing packages.")
+        for package in dict.fromkeys(packages):
+            if package in upstream_binaries.MANIFEST:
+                item = upstream_binaries.MANIFEST[package]
+                print(package + ": SHA-256-verified binary — " + item["url"])
+            elif package == "perl":
+                print("perl: Apple system Perl; no Homebrew replacement")
+            elif package == "thefuck":
+                print("thefuck: isolated Python wheels only; no source distributions")
+            else:
+                print(package + ": guarded Homebrew bottle, including dependencies; fail if unavailable")
+        return 0
     # Bypass the machine entry wrapper; this process invokes only the guarded
     # Ruby command for installation, never Homebrew's unguarded install command.
     brew = "/usr/local/bin/brew.before-synobrew"
@@ -90,6 +109,7 @@ def main():
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) == 0:
                 status = "already installed (Homebrew)"
             elif package in upstream_binaries.MANIFEST:
+                print("Route: verified direct Intel binary (no Homebrew dependency build)", flush=True)
                 status = upstream_binaries.install(package)
             elif package == "perl":
                 subprocess.run(["/usr/bin/perl", "-e", "print qq(Perl $^V\\n)"], check=True)

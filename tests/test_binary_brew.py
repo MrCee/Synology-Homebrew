@@ -23,6 +23,11 @@ class BrewEntryTest(unittest.TestCase):
             with self.subTest(command=command), self.assertRaises(ValueError):
                 guard.dispatch([command])
 
+    def test_unwanted_apps_are_always_refused(self):
+        for name in ["avast-security", "avast-one", "xournal++", "xournalpp"]:
+            with self.subTest(name=name), self.assertRaisesRegex(ValueError, "permanently blocked"):
+                guard.dispatch(["install", name])
+
     def test_read_commands_use_real_homebrew(self):
         self.assertEqual(guard.dispatch(["list", "--versions"]), [guard.REAL_BREW, "list", "--versions"])
 
