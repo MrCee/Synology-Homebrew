@@ -2,3 +2,4 @@
 test.sh
 *.log
 __pycache__/
+binary-install-results.json

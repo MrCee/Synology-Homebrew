@@ -130,6 +130,38 @@ esac
             self.assertTrue(any(str(self.job) in item for item in plist["ProgramArguments"]))
         self.command("start", self.config, expect=1)
 
+    def test_intel_explicit_fallback_is_selected_paused_and_resumable(self):
+        self.executable("uname", 'if [[ "$1" == -m ]]; then echo x86_64; else echo Darwin; fi\n')
+        self.command("start", self.config, expect=1)
+        self.command("start", self.config, "--paused", "--allow-source-builds")
+        state = self.home / ".local/share/synology-homebrew/background"
+        self.job = Path((state / "latest").read_text().strip())
+        self.assertEqual((self.job / "allow-source-builds").read_text().strip(), "yes")
+        self.assertEqual((self.job / "queue").read_text().splitlines(), ["alpha", "beta"])
+        self.assertEqual(self.worker().wait(timeout=3), 0)
+        self.assertFalse((self.root / "install-calls").exists())
+        (self.installed / "alpha").touch()
+        self.command("resume")
+        process = self.worker()
+        self.wait_state("packages_ready")
+        self.assertEqual(process.wait(timeout=3), 0)
+        self.assertEqual((self.root / "install-calls").read_text().splitlines(), ["beta"])
+
+    def test_intel_binary_queue_uses_direct_installer_without_source_permission(self):
+        self.executable("uname", 'if [[ "$1" == -m ]]; then echo x86_64; else echo Darwin; fi\n')
+        (self.repo/'install-macos-binaries.py').write_text('import os,sys\nfrom pathlib import Path\nroot=Path(os.environ["TEST_ROOT"])\n(root/"installed"/sys.argv[1]).touch()\nwith (root/"binary-calls").open("a") as f: f.write(sys.argv[1]+"\\n")\n')
+        self.command('start', self.config, '--binary-only')
+        state = self.home / '.local/share/synology-homebrew/background'
+        self.job = Path((state/'latest').read_text().strip())
+        self.assertTrue((self.job/'binary-only').exists())
+        self.assertFalse((self.job/'allow-source-builds').exists())
+        self.assertEqual((self.job/'queue').read_text().splitlines(), ['alpha','beta'])
+        process = self.worker()
+        self.wait_state('packages_ready')
+        self.assertEqual(process.wait(timeout=3), 0)
+        self.assertFalse((self.root/'install-calls').exists())
+        self.assertEqual((self.root/'binary-calls').read_text().splitlines(), ['alpha','beta'])
+
     def test_stale_lock_after_restart_skips_verified_completed_packages(self):
         self.prepare()
         (self.job / "status").write_text("running\n")

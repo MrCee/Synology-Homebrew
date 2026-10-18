@@ -1,5 +1,11 @@
 #!/bin/bash
 
+# Intel uses binary Neovim/Node plus the YAML-selected configuration and plugins.
+# Native plugin builds are explicitly enabled by the Advanced installer.
+if [[ "$(uname -s)/$(uname -m)" == Darwin/x86_64 ]]; then
+    exec "${SYNOBREW_PYTHON:-/usr/local/bin/python3}" "$(cd "$(dirname "$0")" && pwd)/setup-neovim-intel.py" "$@"
+fi
+
 # Ensure DEBUG is set to 0 if unset or null
 : "${DEBUG:=0}"
 [[ $DEBUG == 1 ]] && echo "DEBUG mode on with strict -euo pipefail error handling" && set -euo pipefail

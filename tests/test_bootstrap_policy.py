@@ -44,10 +44,13 @@ exit 0
                 SYNOBREW_PACKAGES_READY="1" if packages_ready else "0",
                 HOMEBREW_TEMP=str(root / "tmp"),
             )
-            script = '''source "$1/functions.sh"
-uname() {
+            script = '''uname() {
     if [[ "$1" == -s ]]; then echo "$TEST_PLATFORM"; else echo "$TEST_ARCH"; fi
 }
+source "$1/functions.sh"
+# These tests exercise the legacy baseline loop using only a fake brew.
+# Machine entry routing and build refusal have separate regression tests.
+brew() { command brew "$@"; }
 func_initialize_env_vars() {
     DARWIN=0
     [[ "$TEST_PLATFORM" == Darwin ]] && DARWIN=1
@@ -71,13 +74,13 @@ if install_brew_and_packages; then exit 0; else exit 1; fi
         calls, _ = self.run_bootstrap("Darwin", "x86_64")
         self.assertNotIn("install --quiet yq", calls)
         self.assertFalse(any(call.startswith("upgrade") for call in calls))
-        self.assertLess(calls.index("standalone-yq-ready"), calls.index("install --quiet git"))
-        self.assertEqual(sum(call.startswith("install ") for call in calls), 8)
+        self.assertIn("standalone-yq-ready", calls)
+        self.assertFalse(any(call.startswith("install ") for call in calls))
 
-    def test_intel_macos_continues_after_another_package_fails(self):
+    def test_intel_macos_uses_system_baseline_instead_of_building_replacements(self):
         calls, result = self.run_bootstrap("Darwin", "x86_64", "git")
-        self.assertIn("install --quiet gawk", calls)
-        self.assertIn("Simulated package failure: git", result.stderr)
+        self.assertFalse(any(call.startswith("install ") for call in calls))
+        self.assertIn("Intel baseline ready", result.stdout)
         self.assertNotIn("install --quiet yq", calls)
 
     def test_other_platforms_retain_homebrew_yq_and_upgrade(self):

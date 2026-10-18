@@ -13,6 +13,18 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     exit 1
 fi
 
+# Legacy functions share the same install policy on Intel macOS, including when
+# sourced by another script. Resolve this file rather than the caller's cwd.
+if [[ "$(uname -s)/$(uname -m)" == Darwin/x86_64 ]]; then
+    SYNOBREW_BINARY_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+    export SYNOBREW_BINARY_ROOT
+    export SYNOBREW_PYTHON="${SYNOBREW_PYTHON:-/usr/local/bin/python3}"
+    export PIP_ONLY_BINARY=:all: npm_config_ignore_scripts=true
+    brew() {
+        "$SYNOBREW_PYTHON" "$SYNOBREW_BINARY_ROOT/binary-brew.py" "$@"
+    }
+fi
+
 # -----------------------------------------------
 # Function: func_sed
 # Description: Performs a sed operation in a portable way.
@@ -655,6 +667,16 @@ install_brew_and_packages() {
     func_ensure_homebrew || return 1
     if [[ "$DARWIN" == 1 && "$(uname -m)" == x86_64 ]]; then
         intel_macos=1
+    fi
+
+    if [[ "$intel_macos" == 1 ]]; then
+        # Apple's baseline tools and the existing Python already work. Avoid
+        # replacing the user's profile or building Ruby/coreutils just to set up a shell.
+        func_bootstrap_yq || return 1
+        func_persist_macos_brew_env || return 1
+        command -v git >/dev/null && command -v python3 >/dev/null && command -v zsh >/dev/null || return 1
+        echo "Intel baseline ready: existing system tools and verified binary package routes."
+        return 0
     fi
 
     # Increase the maximum number of open file descriptors

@@ -11,6 +11,21 @@ WINDOW_LABEL="$LABEL.status"
 WINDOW_PLIST="$HOME/Library/LaunchAgents/$WINDOW_LABEL.plist"
 SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
 
+ALLOW_SOURCE_BUILDS=0
+BINARY_ONLY=0
+queue_arguments=()
+for queue_argument in "$@"; do
+    if [[ "$queue_argument" == --allow-source-builds ]]; then
+        ALLOW_SOURCE_BUILDS=1
+    elif [[ "$queue_argument" == --binary-only ]]; then
+        BINARY_ONLY=1
+    else
+        queue_arguments+=("$queue_argument")
+    fi
+done
+set -- "${queue_arguments[@]}"
+[[ "$BINARY_ONLY/$ALLOW_SOURCE_BUILDS" != 1/1 ]] || { echo "Choose binary-only or explicit source builds, not both." >&2; exit 1; }
+
 set_status() {
     printf '%s\n' "$1" > "$JOB/status.tmp"
     mv "$JOB/status.tmp" "$JOB/status"
@@ -46,6 +61,7 @@ verify_queue() {
     load_job >/dev/null || return 1
     [[ "$(cat "$JOB/status")" == packages_ready ]] || return 1
     cmp -s "$1" "$JOB/config.yaml" || return 1
+    [[ ! -f "$JOB/binary-only" ]] || return 1
     local brew package
     brew=$(cat "$JOB/brew")
     [[ -x "$brew" ]] || return 1
@@ -134,7 +150,11 @@ show_status() {
     echo "Automatic resume: at this Mac user's next login (not before login)."
     [[ ! -f "$JOB/next-retry" ]] || echo "Next retry (Unix time): $(cat "$JOB/next-retry")"
     if [[ "$state" == packages_ready ]]; then
-        echo "Packages are installed. Full setup is pending: run the main installer and choose option 2."
+        if [[ -f "$JOB/allow-source-builds" ]]; then
+            echo "Selected fallback packages are installed. No further package setup is required."
+        else
+            echo "Packages are installed. Full setup is pending: run the main installer and choose option 2."
+        fi
     fi
 }
 
@@ -172,11 +192,25 @@ prepare_queue() {
     cp "$SCRIPT_DIR/background-packages.sh" "$JOB/runner.sh" || return 1
     cp "$SCRIPT_DIR/background-packages.sh" "$JOB/controller.sh" || return 1
     cp "$SCRIPT_DIR/macos-package-status.js" "$JOB/status-window.js" || return 1
-    printf '%s\n' "$HOMEBREW_PATH/bin/brew" > "$JOB/brew"
+    if [[ "$BINARY_ONLY" == 1 ]]; then
+        printf 'yes\n' > "$JOB/binary-only"
+        printf '%s\n' "${SYNOBREW_PYTHON:-$(command -v python3)}" > "$JOB/python"
+    fi
+    local queue_brew="$HOMEBREW_PATH/bin/brew"
+    if [[ "$ALLOW_SOURCE_BUILDS" == 1 ]]; then
+        printf 'yes\n' > "$JOB/allow-source-builds"
+        # Use the preserved official symlink so the prefix remains /usr/local.
+        [[ ! -x "$HOMEBREW_PATH/bin/brew.before-synobrew" ]] || queue_brew="$HOMEBREW_PATH/bin/brew.before-synobrew"
+    fi
+    printf '%s\n' "$queue_brew" > "$JOB/brew"
     printf '%s\n' "$jobs" > "$JOB/build-jobs"
     date +%s > "$JOB/started-at"
     printf '%s\n' "$SCRIPT_DIR" > "$JOB/repository"
-    get_minimal_baseline | tr ' ' '\n' > "$JOB/candidates"
+    if [[ "$ALLOW_SOURCE_BUILDS" == 1 || "$BINARY_ONLY" == 1 ]]; then
+        : > "$JOB/candidates" # Last resort: only the specifically selected failures.
+    else
+        get_minimal_baseline | tr ' ' '\n' > "$JOB/candidates"
+    fi
     candidates=$(yq eval -r '.packages | to_entries | .[] | select(.value.action == "install") | .key' "$JOB/config.yaml") || return 1
     printf '%s\n' "$candidates" >> "$JOB/candidates"
     : > "$JOB/queue"
@@ -210,7 +244,11 @@ prepare_queue() {
         echo "Package queue saved and registered to run now and resume at login."
     fi
     echo "One package at a time; build parallelism: $jobs."
-    echo "Package integrations, removals and Neovim providers finish later with option 2."
+    if [[ "$ALLOW_SOURCE_BUILDS" == 1 ]]; then
+        echo "Explicit source-build fallback. Finished packages are retained; interrupted builds may restart the current formula."
+    else
+        echo "Package integrations, removals and Neovim providers finish later with option 2."
+    fi
     show_status
 }
 
@@ -308,9 +346,13 @@ run_queue() {
         printf '%s\n' "$package" > "$JOB/current"
         date +%s > "$JOB/current-started-at"
         echo "$(date): Installing $package (build jobs: $HOMEBREW_MAKE_JOBS)"
-        nice -n 10 "$brew" install "$package" </dev/null &
+        if [[ -f "$JOB/binary-only" ]]; then
+            nice -n 10 "$(cat "$JOB/python")" "$(cat "$JOB/repository")/install-macos-binaries.py" "$package" </dev/null &
+        else
+            nice -n 10 "$brew" install "$package" </dev/null &
+        fi
         child_pid=$!
-        if wait "$child_pid" && "$brew" list --versions "$package" >/dev/null 2>&1; then
+        if wait "$child_pid" && { [[ -f "$JOB/binary-only" ]] || "$brew" list --versions "$package" >/dev/null 2>&1; }; then
             grep -Fxq "$package" "$JOB/completed" || printf '%s\n' "$package" >> "$JOB/completed"
             echo "Completed: $package"
         else
@@ -377,6 +419,16 @@ case "${1:-status}" in
     start|resume|run|pause|stop|abandon|disable)
         [[ "$(uname -s)" == Darwin ]] || { echo "Background package setup is macOS only." >&2; exit 1; }
         [[ "$EUID" != 0 ]] || { echo "Run as the Mac login user, not root." >&2; exit 1; }
+        if [[ "$(uname -m)" == x86_64 ]]; then
+            case "$1" in
+                start)
+                    [[ "$ALLOW_SOURCE_BUILDS" == 1 || "$BINARY_ONLY" == 1 ]] || { echo "Intel installs are binary-only. Use compile-macos-packages.py --allow-source-builds <formula> for last-resort compilation." >&2; exit 1; }
+                    ;;
+                resume|run)
+                    load_job && [[ ( -f "$JOB/allow-source-builds" && "$(cat "$JOB/allow-source-builds")" == yes ) || ( -f "$JOB/binary-only" && "$(cat "$JOB/binary-only")" == yes ) ]] || { echo "This queue has no explicit source-build approval. It will not run on Intel." >&2; exit 1; }
+                    ;;
+            esac
+        fi
         case "$1" in
             start) shift; start_queue "$@" ;;
             run) worker_loop ;;
