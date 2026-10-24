@@ -20,10 +20,10 @@ bash ./install-synology-homebrew.sh
 ```
 
 Keep local edits if Git refuses the pull; resolve them rather than discarding a
-customised configuration. Intel's binary backend requires an existing Homebrew
-installation and Python 3.12+ at `/usr/local/bin/python3`. The retained bootstrap
-helper uses a pinned official Homebrew installer for Intel when needed; it does
-not restore missing Intel bottles.
+customised configuration. The interactive installer authenticates sudo before
+installing missing Homebrew. It reuses Python 3.12+ when available, or installs
+the SHA-256-verified official Python 3.13.17 macOS package and sets up its HTTPS
+certificates before processing packages. This does not restore missing Intel bottles.
 
 ## Intel Mac binary-only setup
 
@@ -61,8 +61,9 @@ are separate from Homebrew formula builds. Intel setup does not create a
 passwordless sudoers fragment or replace the existing shell profile.
 Use `./install-synology-homebrew.sh --packages-only` for the package-only path.
 Python 3.12+ and an existing Homebrew installation in `/usr/local` are required.
-Intel entry points use `/usr/local/bin/python3` explicitly so older Python shims
-in the shell PATH cannot intercept installation (`SYNOBREW_PYTHON` can override it).
+The interactive bootstrap exports the validated runtime as `SYNOBREW_PYTHON`
+for package helpers and background workers. Explicit package-only and plan runs
+require a prepared Python runtime (`SYNOBREW_PYTHON` can select it).
 Run `./install-synology-homebrew.sh --plan` to display the Intel download routes
 without installing, downloading or changing any packages. macOS Intel detection
 happens before the legacy installer; Apple Silicon and Synology retain their

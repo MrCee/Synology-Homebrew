@@ -57,6 +57,7 @@ func_initialize_env_vars() {
     HOMEBREW_PATH="$TEST_ROOT"
     return 0
 }
+func_bootstrap_intel_python() { return 0; }
 func_bootstrap_yq() {
     echo standalone-yq-ready >> "$TEST_LOG"
     return 0
@@ -91,6 +92,8 @@ curl() {
     echo installer-downloaded >&2
     printf '%s\n' '#!/bin/bash' 'printf "#!/bin/bash\\nexit 0\\n" > "$TEST_ROOT/bin/brew"' 'chmod +x "$TEST_ROOT/bin/brew"'
 }
+sudo() { echo "sudo $*" >&2; return "${TEST_SUDO_RESULT:-0}"; }
+func_bootstrap_intel_python() { echo python-ready >&2; }
 func_ensure_homebrew
 '''
                 result = subprocess.run(
@@ -99,6 +102,8 @@ func_ensure_homebrew
                 )
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                 self.assertEqual("installer-downloaded" in result.stderr, not installed)
+                if not installed:
+                    self.assertLess(result.stderr.index("sudo -v"), result.stderr.index("installer-downloaded"))
                 self.assertNotIn("wrapper-must-not-run", result.stderr)
                 self.assertIn("Homebrew environment initialized.", result.stdout)
 
