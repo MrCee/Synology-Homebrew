@@ -16,11 +16,31 @@ command -v git >/dev/null
 export RUNZSH=no CHSH=no ZSH_DISABLE_AUTO_UPDATE=true DISABLE_UPDATE_PROMPT=true
 OMZ_DIR="$HOME/.oh-my-zsh"
 if [[ ! -f "$OMZ_DIR/oh-my-zsh.sh" ]]; then
-    if [[ -e "$OMZ_DIR" ]]; then
-        echo "Incomplete Oh My Zsh directory: $OMZ_DIR. Preserving it; repair or move it before retrying." >&2
-        exit 1
-    fi
-    git clone --depth=1 -- https://github.com/ohmyzsh/ohmyzsh.git "$OMZ_DIR"
+    # The foreground YAML stage may already have created custom/plugins and
+    # custom/themes. Prepare the framework separately and retain those files.
+    prepare_omz() (
+        local staging backup
+        [[ ! -L "$OMZ_DIR" ]] || { echo "❌ Incomplete Oh My Zsh symlink: $OMZ_DIR. Preserving it." >&2; exit 1; }
+        staging=$(mktemp -d "$HOME/.synobrew-omz.XXXXXX")
+        trap 'rm -rf "$staging"' EXIT
+        echo "🛠️ Installing Oh My Zsh..."
+        git clone --depth=1 -- https://github.com/ohmyzsh/ohmyzsh.git "$staging/.oh-my-zsh"
+        [[ -f "$staging/.oh-my-zsh/oh-my-zsh.sh" ]] || exit 1
+        if [[ -d "$OMZ_DIR/custom" ]]; then
+            cp -R "$OMZ_DIR/custom/." "$staging/.oh-my-zsh/custom/"
+        fi
+        if [[ -e "$OMZ_DIR" ]]; then
+            backup=$(mktemp -d "$HOME/.oh-my-zsh-backup.XXXXXX")
+            mv "$OMZ_DIR" "$backup/.oh-my-zsh"
+            echo "ℹ️ Previous Oh My Zsh directory preserved at $backup/.oh-my-zsh"
+        fi
+        if ! mv "$staging/.oh-my-zsh" "$OMZ_DIR"; then
+            [[ -z "$backup" ]] || mv "$backup/.oh-my-zsh" "$OMZ_DIR"
+            exit 1
+        fi
+        echo "✅ Oh My Zsh installed; existing custom plugins and themes retained."
+    )
+    prepare_omz
 fi
 
 plugins="git web-search"

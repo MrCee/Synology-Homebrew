@@ -17,6 +17,12 @@ YQ = shutil.which('yq')
 @unittest.skipUnless(sys.platform == 'darwin' and YQ, 'Requires macOS zsh and yq')
 class MacShellSetupTests(unittest.TestCase):
     def test_shell_ready_before_any_formulas_and_integrations_activate_later(self):
+        self.check_shell_setup(False)
+
+    def test_partial_omz_preserves_custom_files_and_original_directory(self):
+        self.check_shell_setup(True)
+
+    def check_shell_setup(self, partial):
         with tempfile.TemporaryDirectory(prefix='shell first ') as temporary:
             root = Path(temporary)
             repo, home, binaries = root/'repo', root/'home', root/'bin'
@@ -44,6 +50,11 @@ esac
             config = repo/'config.yaml'
             # Use the real profile to cover aliases, Perl and shell plugins.
             config.write_bytes((REPO/'config.yaml').read_bytes())
+            if partial:
+                custom = home/'.oh-my-zsh/custom/plugins/personal'
+                custom.mkdir(parents=True)
+                (custom/'personal.plugin.zsh').write_text('# personal plugin\n')
+                (home/'.oh-my-zsh/personal-note').write_text('keep me\n')
             zshrc = home/'.zshrc'
             original = '# keep user settings\nexport MY_SETTING=kept\n'
             zshrc.write_text(original)
@@ -52,6 +63,11 @@ esac
             for _ in range(2):
                 result = subprocess.run(['/bin/bash', str(repo/'macos-shell-setup.sh'), str(config)], env=env, capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stdout+result.stderr)
+            if partial:
+                self.assertEqual((home/'.oh-my-zsh/custom/plugins/personal/personal.plugin.zsh').read_text(), '# personal plugin\n')
+                backups = list(home.glob('.oh-my-zsh-backup.*/.oh-my-zsh'))
+                self.assertEqual(len(backups), 1)
+                self.assertEqual((backups[0]/'personal-note').read_text(), 'keep me\n')
             self.assertFalse((home/'brew-calls').exists())
             self.assertEqual(len((home/'git-calls').read_text().splitlines()), 4)
             self.assertFalse((home/'.config/nvim').exists())
