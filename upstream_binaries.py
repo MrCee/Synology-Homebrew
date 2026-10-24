@@ -29,7 +29,7 @@ def install(package):
         with tempfile.TemporaryDirectory(dir=STORE) as temporary:
             temporary = Path(temporary)
             archive = temporary / "download"
-            print("Downloading pinned Intel binary: " + package, flush=True)
+            print("📦 Downloading pinned Intel binary: " + package, flush=True)
             with urllib.request.urlopen(item["url"], timeout=120) as response, archive.open("wb") as output:
                 shutil.copyfileobj(response, output)
             if hashlib.sha256(archive.read_bytes()).hexdigest() != item["sha256"]:

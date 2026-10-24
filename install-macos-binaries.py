@@ -67,7 +67,7 @@ def main():
     if any(argument.startswith("-") for argument in arguments):
         sys.exit("Usage: install-macos-binaries.py [--plan] [formula ...]")
     packages = arguments or audit.configured_packages(root / "config.yaml")
-    print("Detected macOS Intel: binary-only installation; source builds are blocked.", flush=True)
+    print("ℹ️ Detected macOS Intel: binary-only installation; source builds are blocked.", flush=True)
     if plan:
         print("Plan only: existing installs are reused first; routes below apply to missing packages.")
         for package in dict.fromkeys(packages):
@@ -103,13 +103,16 @@ def main():
     results = []
     for package in dict.fromkeys(packages):
         source_required = False
-        print("\n=== " + package + " ===", flush=True)
+        base_package = package.rsplit("/", 1)[-1]
+        green = "\033[0;32m" if sys.stdout.isatty() else ""
+        normal = "\033[0m" if sys.stdout.isatty() else ""
+        print("\n🛠️ " + green + base_package + normal + ": Installing...", flush=True)
         try:
             if run([brew, "list", "--versions", package], env=env,
                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) == 0:
                 status = "already installed (Homebrew)"
             elif package in upstream_binaries.MANIFEST:
-                print("Route: verified direct Intel binary (no Homebrew dependency build)", flush=True)
+                print("ℹ️ Using a verified Intel binary.", flush=True)
                 status = upstream_binaries.install(package)
             elif package == "perl":
                 subprocess.run(["/usr/bin/perl", "-e", "print qq(Perl $^V\\n)"], check=True)
@@ -125,15 +128,16 @@ def main():
                 if code:
                     raise RuntimeError("No usable bottle or installation failed; compilation blocked")
                 status = "installed (Homebrew bottle)"
+            label = "Already installed" if status.startswith("already installed") else "Installed"
+            print(green + "✅ " + base_package + normal + ": " + label + " (" + status + ")", flush=True)
             results.append({"package": package, "status": status})
         except (OSError, RuntimeError, subprocess.SubprocessError) as error:
-            print("FAILED: " + str(error), flush=True)
+            print("❌ Error installing " + base_package + ": " + str(error), flush=True)
             results.append({"package": package, "status": "failed", "error": str(error),
                             "source_required": source_required})
         (root / "binary-install-results.json").write_text(json.dumps(results, indent=2) + "\n")
     report = root / "binary-install-results.json"
     report.write_text(json.dumps(results, indent=2) + "\n")
-    print("\n" + json.dumps(results, indent=2))
     return 1 if any(row["status"] == "failed" for row in results) else 0
 
 

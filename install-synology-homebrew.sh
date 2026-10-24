@@ -486,9 +486,10 @@ process_package() {
 
   if [[ "$SYNOBREW_INTEL" == 1 && "$action" == install ]]; then
     if "$SYNOBREW_PYTHON" "$SCRIPT_DIR/install-macos-binaries.py" "$package"; then
-      installed_packages+=("$package")
+      installed_packages+=("$base_package")
     else
-      failed_packages+=("$package (binary unavailable or install failed)")
+      echo -e "${RED}❌ Error installing ${base_package}.${NC}"
+      failed_packages+=("$base_package (binary unavailable or install failed)")
     fi
     return
   fi
