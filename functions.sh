@@ -621,8 +621,9 @@ func_ensure_homebrew() {
         echo "Unset HOMEBREW_GIT_PATH because git is not executable in HOMEBREW_PATH."
     fi
 
-    # Install Homebrew if it's not already installed
-    if [[ ! -x "$HOMEBREW_PATH/bin/brew" ]] && ! command -v brew >/dev/null 2>&1; then
+    # Check the executable we actually use below. On Intel macOS, brew is
+    # already a shell function even before Homebrew has been installed.
+    if [[ ! -x "$HOMEBREW_PATH/bin/brew" ]]; then
         echo "Homebrew not found. Installing Homebrew..."
         brew_installer_url=$(func_homebrew_installer_url)
         if [[ "$brew_installer_url" != */HEAD/install.sh ]]; then
