@@ -587,6 +587,44 @@ func_bootstrap_yq() {
     echo "Standalone yq is ready; continuing the installation."
 }
 
+func_bootstrap_intel_python() {
+    local candidate
+    # Honour an explicit selection and reuse suitable installed runtimes.
+    for candidate in "${SYNOBREW_PYTHON:-}" /usr/local/bin/python3 "$(command -v python3 2>/dev/null)"; do
+        if [[ -n "$candidate" && -x "$candidate" ]] &&
+            "$candidate" -c 'import sys; sys.exit(sys.version_info < (3, 12))' >/dev/null 2>&1; then
+            export SYNOBREW_PYTHON="$candidate"
+            return 0
+        fi
+    done
+
+    echo "Preparing Python 3.13.17 for Intel binary package installation..."
+    func_install_intel_python_pkg || return 1
+    candidate=/Library/Frameworks/Python.framework/Versions/3.13/bin/python3.13
+    if ! "$candidate" -c 'import sys; sys.exit(sys.version_info < (3, 12))'; then
+        echo "❌ Python bootstrap failed; stopping before package installation." >&2
+        return 1
+    fi
+    export SYNOBREW_PYTHON="$candidate"
+}
+
+func_install_intel_python_pkg() (
+    # Bootstrap without Python or Homebrew formula builds. Verify the official
+    # universal2 package before allowing macOS Installer to execute it.
+    local temporary
+    temporary=$(mktemp -d) || return 1
+    trap 'rm -rf "$temporary"' EXIT
+    curl -fL --retry 2 -o "$temporary/python.pkg" \
+        https://www.python.org/ftp/python/3.13.17/python-3.13.17-macos11.pkg || return 1
+    printf '%s  %s\n' \
+        3053592af66128269efab37fe7851a4894920b27c442aeec99ce4d34d17c07e3 \
+        "$temporary/python.pkg" | shasum -a 256 -c - || return 1
+    sudo -v || return 1
+    sudo /usr/sbin/installer -pkg "$temporary/python.pkg" -target / || return 1
+    # python.org's runtime needs its certificate setup for HTTPS downloads.
+    /bin/bash '/Applications/Python 3.13/Install Certificates.command' || return 1
+)
+
 func_ensure_homebrew() {
     local brew_installer brew_installer_url
     echo "Initializing environment variables..."
@@ -625,6 +663,10 @@ func_ensure_homebrew() {
     # already a shell function even before Homebrew has been installed.
     if [[ ! -x "$HOMEBREW_PATH/bin/brew" ]]; then
         echo "Homebrew not found. Installing Homebrew..."
+        if [[ "$DARWIN" == 1 ]] && ! sudo -v; then
+            echo "❌ Unable to authenticate sudo for Homebrew installation. Run as a Mac administrator." >&2
+            return 1
+        fi
         brew_installer_url=$(func_homebrew_installer_url)
         if [[ "$brew_installer_url" != */HEAD/install.sh ]]; then
             echo "Intel Mac detected: using the pinned Intel-compatible Homebrew installer (/usr/local)."
@@ -650,7 +692,10 @@ func_ensure_homebrew() {
         return 1
     fi
 
-    "$HOMEBREW_PATH/bin/brew" --version >/dev/null
+    "$HOMEBREW_PATH/bin/brew" --version >/dev/null || return 1
+    if [[ "$DARWIN" == 1 && "$(uname -m)" == x86_64 ]]; then
+        func_bootstrap_intel_python || return 1
+    fi
 }
 
 func_persist_macos_brew_env() {
