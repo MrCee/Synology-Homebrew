@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tarfile
 import tempfile
 import urllib.request
@@ -14,6 +15,38 @@ ROOT = Path(__file__).resolve().parent
 MANIFEST = json.loads((ROOT / "upstream-binaries.json").read_text())
 STORE = Path.home() / ".local/share/synology-homebrew/binaries"
 BIN = Path("/usr/local/bin")
+
+
+def decompress_zstd(source, destination):
+    try:
+        from compression import zstd
+    except ImportError:
+        pass
+    else:
+        with zstd.open(source, "rb") as archive, destination.open("wb") as output:
+            shutil.copyfileobj(archive, output)
+        return
+    command = shutil.which("zstd")
+    if command:
+        with destination.open("wb") as output:
+            subprocess.run([command, "-dc", str(source)], stdout=output, check=True)
+        return
+    # Bootstrap the decoder independently of Homebrew. Wheels only: never
+    # compile zstd just to unpack an otherwise self-contained release.
+    tools = STORE.parent / "archive-tools" / ("python-" + sys.implementation.cache_tag)
+    python = tools / "bin/python"
+    if not python.is_file():
+        subprocess.run([sys.executable, "-m", "venv", str(tools)], check=True)
+    probe = subprocess.run([str(python), "-c", "import zstandard"],
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    if probe.returncode:
+        print("📦 Preparing binary-only Zstandard archive support...", flush=True)
+        subprocess.run([str(python), "-m", "pip", "install", "--only-binary=:all:",
+                        "--no-deps", "zstandard==0.25.0"], check=True, timeout=180)
+    subprocess.run([str(python), "-c",
+                    "import sys,zstandard; "
+                    "zstandard.ZstdDecompressor().copy_stream(open(sys.argv[1],'rb'),open(sys.argv[2],'wb'))",
+                    str(source), str(destination)], check=True, timeout=120)
 
 
 def install(package):
@@ -46,8 +79,7 @@ def install(package):
                     compressed = temporary / "payload.tar.zst"
                     compressed.write_bytes(container.read(payload))
                 uncompressed = temporary / "payload.tar"
-                with uncompressed.open("wb") as output:
-                    subprocess.run(["/usr/local/bin/zstd", "-dc", str(compressed)], stdout=output, check=True)
+                decompress_zstd(compressed, uncompressed)
                 with tarfile.open(uncompressed) as tar:
                     tar.extractall(stage, filter="data")
             else:

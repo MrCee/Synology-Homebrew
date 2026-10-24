@@ -28,6 +28,20 @@ class BinaryInstallTest(unittest.TestCase):
         self.patch.start()
         self.addCleanup(self.patch.stop)
 
+    def test_missing_zstd_bootstraps_only_a_prebuilt_decoder(self):
+        with patch.dict('sys.modules', {'compression': None}), \
+             patch.object(upstream.shutil, 'which', return_value=None), \
+             patch.object(upstream.subprocess, 'run') as run:
+            run.return_value.returncode = 1
+            upstream.decompress_zstd(self.root/'payload.zst', self.root/'payload.tar')
+        commands = [call.args[0] for call in run.call_args_list]
+        installs = [command for command in commands if 'pip' in command]
+        self.assertEqual(len(installs), 1)
+        self.assertIn('--only-binary=:all:', installs[0])
+        self.assertIn('--no-deps', installs[0])
+        self.assertIn('zstandard==0.25.0', installs[0])
+        self.assertFalse(any(command[0] == '/usr/local/bin/zstd' for command in commands))
+
     def test_bad_checksum_never_installs_or_links(self):
         self.item["sha256"] = "0" * 64
         with self.assertRaisesRegex(RuntimeError, "SHA256 mismatch"):
