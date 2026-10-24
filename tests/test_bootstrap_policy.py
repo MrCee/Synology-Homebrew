@@ -70,6 +70,38 @@ if install_brew_and_packages; then exit 0; else exit 1; fi
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             return (root / "calls").read_text().splitlines(), result
 
+    def test_brew_wrapper_does_not_hide_missing_homebrew(self):
+        for installed in (False, True):
+            with self.subTest(installed=installed), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                (root / "bin").mkdir()
+                brew = root / "bin" / "brew"
+                if installed:
+                    brew.write_text("#!/bin/bash\nexit 0\n")
+                    brew.chmod(0o755)
+                script = r'''source "$1/functions.sh"
+func_initialize_env_vars() {
+    DARWIN=1
+    HOMEBREW_PATH="$TEST_ROOT"
+}
+# Match the Intel wrapper: command -v succeeds without an installed brew.
+brew() { echo wrapper-must-not-run >&2; return 1; }
+func_homebrew_installer_url() { echo https://example.invalid/HEAD/install.sh; }
+curl() {
+    echo installer-downloaded >&2
+    printf '%s\n' '#!/bin/bash' 'printf "#!/bin/bash\\nexit 0\\n" > "$TEST_ROOT/bin/brew"' 'chmod +x "$TEST_ROOT/bin/brew"'
+}
+func_ensure_homebrew
+'''
+                result = subprocess.run(
+                    ["/bin/bash", "-c", script, "test", str(REPO)],
+                    env=dict(os.environ, TEST_ROOT=temporary), capture_output=True, text=True,
+                )
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertEqual("installer-downloaded" in result.stderr, not installed)
+                self.assertNotIn("wrapper-must-not-run", result.stderr)
+                self.assertIn("Homebrew environment initialized.", result.stdout)
+
     def test_intel_macos_never_installs_or_upgrades_homebrew_yq(self):
         calls, _ = self.run_bootstrap("Darwin", "x86_64")
         self.assertNotIn("install --quiet yq", calls)
