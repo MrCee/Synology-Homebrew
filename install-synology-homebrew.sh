@@ -807,6 +807,10 @@ if [[ "$INSTALL_MODE" == "advanced" && "$YAML_READY" -eq 1 ]]; then
   fi
 fi
 
+if [[ "$INSTALL_MODE" == advanced ]]; then
+  python3 "$SCRIPT_DIR/fix-shell-navigation.py" --write "$HOME/.zshrc" || exit 1
+fi
+
 else
   if [[ "$INSTALL_MODE" == advanced ]]; then
     /bin/bash "$SCRIPT_DIR/macos-shell-setup.sh" "$CONFIG_YAML_PATH" || exit 1

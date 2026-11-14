@@ -271,6 +271,18 @@ The default Advanced profile currently includes useful shell and editor tools su
 | `node`, `python3`, `ruby`, `perl` | Runtime/provider support |
 | `zsh-autosuggestions`, `zsh-syntax-highlighting` | zsh usability |
 
+Directory navigation keeps the standard `cd` command. Use `z folder` for zoxide
+directory jumps. The Synology installer loads Homebrew before shell integrations
+and repairs its former `cd=z` alias while preserving your other shell settings.
+Root-only directories retain their normal permission checks.
+
+To repair an existing Synology shell from the updated checkout:
+
+```bash
+python3 fix-shell-navigation.py --write ~/.zshrc
+exec zsh
+```
+
 The authoritative package and plugin list is [`config.yaml`](./config.yaml).
 
 ### 📝 Neovim Using nvim-mrcee

@@ -71,8 +71,7 @@ packages:
       - "thefuck --alias"
   zoxide:
     action: install
-    aliases:
-      cd: "z"
+    aliases: []
     eval:
       - "zoxide init zsh"
   jesseduffield/lazygit/lazygit:
